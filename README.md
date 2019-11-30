@@ -188,7 +188,7 @@ The **flatChange** formant will look like this:
 
 ```javascript
 
-  var changesets = require('diff-json');
+  var changesets = require('diff-json-ts');
 
   var newObj = {
     name: 'smith',

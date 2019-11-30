@@ -339,8 +339,8 @@ export const flattenChangeset = (obj: Changeset | IChange, path = '$', embeddedK
         ? embeddedKey === '$index'
           ? `${path}[${obj.key}]`
           : obj.type === Operation.ADD
-          ? path
-          : `${path}[?(@.${embeddedKey}='${obj.key}')]`
+            ? path
+            : `${path}[?(@.${embeddedKey}='${obj.key}')]`
         : (path = `${path}.${obj.key}`);
       return flattenChangeset(obj.changes || obj, path, obj.embeddedKey);
     } else {
@@ -374,82 +374,93 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     // childern[@.name='chris']
     // age
 
-    for (let i = 1; i < segments.length; i++) {
-      const segment = segments[i];
-      // check for array
-      const result = /^(.+)\[\?\(@\.(.+)='(.+)'\)]$|^(.+)\[(\d+)\]/.exec(segment);
-      // array
-      if (result) {
-        let key: string;
-        let embeddedKey: string;
-        let arrKey: string;
-        if (result[1]) {
-          key = result[1];
-          embeddedKey = result[2];
-          arrKey = result[3];
-        } else {
-          key = result[4];
-          embeddedKey = '$index';
-          arrKey = result[5];
-        }
-        // leaf
-        if (i === segments.length - 1) {
-          ptr.key = key!;
-          ptr.embeddedKey = embeddedKey!;
-          ptr.type = Operation.UPDATE;
-          ptr.changes = [
-            {
-              type: change.type,
-              key: arrKey!,
-              value: change.value,
-              oldValue: change.oldValue
-            } as IChange
-          ];
-        } else {
-          // object
-          ptr.key = result[1];
-          ptr.embeddedKey = result[2];
-          ptr.type = Operation.UPDATE;
-          const newPtr = {} as IChange;
-          ptr.changes = [
-            {
-              type: Operation.UPDATE,
-              key: result[3],
-              changes: [newPtr]
-            } as IChange
-          ];
-          ptr = newPtr;
-        }
-      } else {
-        // leaf
-        if (i === segments.length - 1) {
-          // check if value is a primitive or object
-          if (change.value !== null && change.valueType === 'Object') {
-            ptr.key = segment;
+    if (segments.length === 1) {
+      ptr.key = change.key
+      ptr.type = change.type
+      ptr.value = change.value
+      ptr.oldValue = change.oldValue
+      changesArr.push(ptr)
+    }
+    else {
+      for (let i = 1; i < segments.length; i++) {
+        const segment = segments[i];
+        // check for array
+        const result = /^(.+)\[\?\(@\.(.+)='(.+)'\)]$|^(.+)\[(\d+)\]/.exec(segment);
+        // array
+        if (result) {
+          let key: string;
+          let embeddedKey: string;
+          let arrKey: string;
+          if (result[1]) {
+            key = result[1];
+            embeddedKey = result[2];
+            arrKey = result[3];
+          } else {
+            key = result[4];
+            embeddedKey = '$index';
+            arrKey = result[5];
+          }
+          // leaf
+          if (i === segments.length - 1) {
+            ptr.key = key!;
+            ptr.embeddedKey = embeddedKey!;
             ptr.type = Operation.UPDATE;
             ptr.changes = [
               {
                 type: change.type,
-                value: change.value
+                key: arrKey!,
+                value: change.value,
+                oldValue: change.oldValue
               } as IChange
             ];
           } else {
-            ptr.key = change.key;
-            ptr.type = change.type;
-            ptr.value = change.value;
-            ptr.oldValue = change.oldValue;
+            // object
+            ptr.key = result[1];
+            ptr.embeddedKey = result[2];
+            ptr.type = Operation.UPDATE;
+            const newPtr = {} as IChange;
+            ptr.changes = [
+              {
+                type: Operation.UPDATE,
+                key: result[3],
+                changes: [newPtr]
+              } as IChange
+            ];
+            ptr = newPtr;
           }
         } else {
-          // branch
-          ptr.key = segment;
-          ptr.type = Operation.UPDATE;
-          const newPtr = {} as IChange;
-          ptr.changes = [newPtr];
-          ptr = newPtr;
+          // leaf
+          if (i === segments.length - 1) {
+            // check if value is a primitive or object
+            if (change.value !== null && change.valueType === 'Object') {
+              ptr.key = segment
+              ptr.type = Operation.UPDATE
+              ptr.changes = [
+                {
+                  type: change.type,
+                  value: change.value
+                } as IChange
+              ];
+            } else {
+              ptr.key = change.key;
+              ptr.type = change.type;
+              ptr.value = change.value;
+              ptr.oldValue = change.oldValue;
+            }
+          } else {
+            // branch
+            ptr.key = segment;
+            ptr.type = Operation.UPDATE;
+            const newPtr = {} as IChange;
+            ptr.changes = [newPtr];
+            ptr = newPtr;
+          }
         }
       }
+      changesArr.push(obj);
     }
-    changesArr.push(obj);
+
+
   });
   return changesArr;
 };

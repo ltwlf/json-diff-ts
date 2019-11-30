@@ -273,7 +273,7 @@ import {
   })
   
   describe('jsonDiff#flatten', () => {
-    test('flatten changes in a single 1 dim changes array, unflatten, apply check for right result', done => {
+    test('flatten changes, unflatten and apply', done => {
       const diffs = diff(oldObj, newObj, {
         children: 'name',
         'children.subset': 'id',
@@ -291,14 +291,24 @@ import {
   
       done()
     })
+
+    test('Start with blank object, flatten changes, unflatten and apply', done => {
   
-    test('', done => {
-      const diffs = diff(oldObj, newObj, {
-        children: 'name',
-        'children.subset': 'id',
-      })
-      expect(diffs).toMatchObject(changeset)
+      const beforeObj = {}
+      const afterObj = newObj
+  
+      const diffs = diff(beforeObj, afterObj, {})
+  
+      const flat = flattenChangeset(diffs)
+      const unflat = unflattenChanges(flat)
+  
+      applyChangeset(beforeObj, unflat)
+
+      expect(beforeObj).toMatchObject(afterObj)
+  
       done()
     })
+  
+    
   })
   

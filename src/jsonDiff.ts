@@ -1,6 +1,6 @@
 import { Dictionary, difference, find, intersection, keyBy } from 'lodash'
 
-const getTypeOfObj = (obj: any) => {
+export const getTypeOfObj = (obj: any) => {
     if (typeof obj === 'undefined') {
         return 'undefined'
     }

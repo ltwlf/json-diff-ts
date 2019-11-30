@@ -339,8 +339,8 @@ export const flattenChangeset = (obj: Changeset | IChange, path = '$', embeddedK
         ? embeddedKey === '$index'
           ? `${path}[${obj.key}]`
           : obj.type === Operation.ADD
-            ? path
-            : `${path}[?(@.${embeddedKey}='${obj.key}')]`
+          ? path
+          : `${path}[?(@.${embeddedKey}='${obj.key}')]`
         : (path = `${path}.${obj.key}`);
       return flattenChangeset(obj.changes || obj, path, obj.embeddedKey);
     } else {
@@ -375,13 +375,12 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     // age
 
     if (segments.length === 1) {
-      ptr.key = change.key
-      ptr.type = change.type
-      ptr.value = change.value
-      ptr.oldValue = change.oldValue
-      changesArr.push(ptr)
-    }
-    else {
+      ptr.key = change.key;
+      ptr.type = change.type;
+      ptr.value = change.value;
+      ptr.oldValue = change.oldValue;
+      changesArr.push(ptr);
+    } else {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
         // check for array
@@ -433,8 +432,8 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
           if (i === segments.length - 1) {
             // check if value is a primitive or object
             if (change.value !== null && change.valueType === 'Object') {
-              ptr.key = segment
-              ptr.type = Operation.UPDATE
+              ptr.key = segment;
+              ptr.type = Operation.UPDATE;
               ptr.changes = [
                 {
                   type: change.type,
@@ -459,8 +458,6 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
       }
       changesArr.push(obj);
     }
-
-
   });
   return changesArr;
 };

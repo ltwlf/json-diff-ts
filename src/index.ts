@@ -1,1 +1,1 @@
-export * from './jsonDiff'
+export * from './jsonDiff';

@@ -1,0 +1,52 @@
+{
+  "name": "json-diff-ts",
+  "version": "1.0.0",
+  "description": "A diff tool for JavaScript based on https://www.npmjs.com/package/diff-json written in TypeScript.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
+    "lint": "tslint -p tsconfig.json",
+    "test": "jest --config jest.config.json",
+    "test:watch": "jest --watch --config jest.config.json",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test && npm run lint",
+    "preversion": "npm run lint",
+    "version": "npm run format && git add -A src",
+    "postversion": "git push && git push --tags"
+  },
+  "files": [
+    "lib/**/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ltwlf/json-diff-ts.git"
+  },
+  "keywords": [
+    "JavaScript",
+    "Diff",
+    "JSON",
+    "TypeScript",
+    "Difference"
+  ],
+  "author": "Christian Glessner",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ltwlf/json-diff-ts/issues"
+  },
+  "homepage": "https://github.com/ltwlf/json-diff-ts#readme",
+  "devDependencies": {
+    "@types/jest": "^24.0.23",
+    "@types/lodash": "^4.14.149",
+    "jest": "^24.9.0",
+    "prettier": "^1.19.1",
+    "ts-jest": "^24.2.0",
+    "tslint": "^5.20.1",
+    "tslint-config-prettier": "^1.18.0",
+    "typescript": "^3.7.2"
+  },
+  "dependencies": {
+    "lodash": "^4.17.15"
+  }
+}

@@ -436,6 +436,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
               ptr.type = Operation.UPDATE;
               ptr.changes = [
                 {
+                  key: change.key,
                   type: change.type,
                   value: change.value
                 } as IChange

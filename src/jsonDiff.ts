@@ -1,33 +1,33 @@
-import { Dictionary, difference, find, intersection, keyBy } from 'lodash';
+import { Dictionary, difference, find, intersection, keyBy } from 'lodash'
 
 export const getTypeOfObj = (obj: any) => {
   if (typeof obj === 'undefined') {
-    return 'undefined';
+    return 'undefined'
   }
 
   if (obj === null) {
-    return null;
+    return null
   }
 
-  return Object.prototype.toString.call(obj).match(/^\[object\s(.*)\]$/)[1];
-};
+  return Object.prototype.toString.call(obj).match(/^\[object\s(.*)\]$/)[1]
+}
 
 const getKey = (path: string) => {
-  const left = path[path.length - 1];
-  return left != null ? left : '$root';
-};
+  const left = path[path.length - 1]
+  return left != null ? left : '$root'
+}
 
 const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any) => {
-  let changes: any[] = [];
+  let changes: any[] = []
 
-  const typeOfOldObj = getTypeOfObj(oldObj);
-  const typeOfNewObj = getTypeOfObj(newObj);
+  const typeOfOldObj = getTypeOfObj(oldObj)
+  const typeOfNewObj = getTypeOfObj(newObj)
 
   // if type of object changes, consider it as old obj has been deleted and a new object has been added
   if (typeOfOldObj !== typeOfNewObj) {
-    changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
-    changes.push({ type: Operation.ADD, key: getKey(path), value: newObj });
-    return changes;
+    changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj })
+    changes.push({ type: Operation.ADD, key: getKey(path), value: newObj })
+    return changes
   }
 
   switch (typeOfOldObj) {
@@ -38,88 +38,88 @@ const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyP
           value: new Date(x.value),
           oldValue: new Date(x.oldValue)
         }))
-      );
-      break;
+      )
+      break
     case 'Object':
-      const diffs = compareObject(oldObj, newObj, path, embeddedObjKeys, keyPath);
+      const diffs = compareObject(oldObj, newObj, path, embeddedObjKeys, keyPath)
       if (diffs.length) {
         if (path.length) {
           changes.push({
             type: Operation.UPDATE,
             key: getKey(path),
             changes: diffs
-          });
+          })
         } else {
-          changes = changes.concat(diffs);
+          changes = changes.concat(diffs)
         }
       }
-      break;
+      break
     case 'Array':
-      changes = changes.concat(compareArray(oldObj, newObj, path, embeddedObjKeys, keyPath));
-      break;
+      changes = changes.concat(compareArray(oldObj, newObj, path, embeddedObjKeys, keyPath))
+      break
     case 'Function':
-      break;
+      break
     // do nothing
     default:
-      changes = changes.concat(comparePrimitives(oldObj, newObj, path));
+      changes = changes.concat(comparePrimitives(oldObj, newObj, path))
   }
 
-  return changes;
-};
+  return changes
+}
 
 const compareObject = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any, skipPath = false) => {
-  let k;
-  let newKeyPath;
-  let newPath;
+  let k
+  let newKeyPath
+  let newPath
 
   if (skipPath == null) {
-    skipPath = false;
+    skipPath = false
   }
-  let changes: any[] = [];
+  let changes: any[] = []
 
-  const oldObjKeys = Object.keys(oldObj);
-  const newObjKeys = Object.keys(newObj);
+  const oldObjKeys = Object.keys(oldObj)
+  const newObjKeys = Object.keys(newObj)
 
-  const intersectionKeys = intersection(oldObjKeys, newObjKeys);
+  const intersectionKeys = intersection(oldObjKeys, newObjKeys)
   for (k of intersectionKeys) {
-    newPath = path.concat([k]);
-    newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
-    const diffs = compare(oldObj[k], newObj[k], newPath, embeddedObjKeys, newKeyPath);
+    newPath = path.concat([k])
+    newKeyPath = skipPath ? keyPath : keyPath.concat([k])
+    const diffs = compare(oldObj[k], newObj[k], newPath, embeddedObjKeys, newKeyPath)
     if (diffs.length) {
-      changes = changes.concat(diffs);
+      changes = changes.concat(diffs)
     }
   }
 
-  const addedKeys = difference(newObjKeys, oldObjKeys);
+  const addedKeys = difference(newObjKeys, oldObjKeys)
   for (k of addedKeys) {
-    newPath = path.concat([k]);
-    newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
+    newPath = path.concat([k])
+    newKeyPath = skipPath ? keyPath : keyPath.concat([k])
     changes.push({
       type: Operation.ADD,
       key: getKey(newPath),
       value: newObj[k]
-    });
+    })
   }
 
-  const deletedKeys = difference(oldObjKeys, newObjKeys);
+  const deletedKeys = difference(oldObjKeys, newObjKeys)
   for (k of deletedKeys) {
-    newPath = path.concat([k]);
-    newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
+    newPath = path.concat([k])
+    newKeyPath = skipPath ? keyPath : keyPath.concat([k])
     changes.push({
       type: Operation.REMOVE,
       key: getKey(newPath),
       value: oldObj[k]
-    });
+    })
   }
-  return changes;
-};
+  return changes
+}
 
 const compareArray = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any) => {
-  const left = embeddedObjKeys != null ? embeddedObjKeys[keyPath.join('.')] : undefined;
-  const uniqKey = left != null ? left : '$index';
-  const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
-  const indexedNewObj = convertArrayToObj(newObj, uniqKey);
-  const diffs = compareObject(indexedOldObj, indexedNewObj, path, embeddedObjKeys, keyPath, true);
+  const left = embeddedObjKeys != null ? embeddedObjKeys[keyPath.join('.')] : undefined
+  const uniqKey = left != null ? left : '$index'
+  const indexedOldObj = convertArrayToObj(oldObj, uniqKey)
+  const indexedNewObj = convertArrayToObj(newObj, uniqKey)
+  const diffs = compareObject(indexedOldObj, indexedNewObj, path, embeddedObjKeys, keyPath, true)
   if (diffs.length) {
     return [
       {
@@ -128,159 +128,159 @@ const compareArray = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any,
         embeddedKey: uniqKey,
         changes: diffs
       }
-    ];
+    ]
   } else {
-    return [];
+    return []
   }
-};
+}
 
 const convertArrayToObj = (arr: any[], uniqKey: any) => {
-  let obj: any = {};
+  let obj: any = {}
   if (uniqKey !== '$index') {
-    obj = keyBy(arr, uniqKey);
+    obj = keyBy(arr, uniqKey)
   } else {
     for (let i = 0; i < arr.length; i++) {
-      const value = arr[i];
-      obj[i] = value;
+      const value = arr[i]
+      obj[i] = value
     }
   }
-  return obj;
-};
+  return obj
+}
 
 const comparePrimitives = (oldObj: any, newObj: any, path: any) => {
-  const changes = [];
+  const changes = []
   if (oldObj !== newObj) {
     changes.push({
       type: Operation.UPDATE,
       key: getKey(path),
       value: newObj,
       oldValue: oldObj
-    });
+    })
   }
-  return changes;
-};
+  return changes
+}
 
-// const isEmbeddedKey = key => /\$.*=/gi.test(key);
+// const isEmbeddedKey = key => /\$.*=/gi.test(key)
 
 const removeKey = (obj: any, key: any, embeddedKey: any) => {
   if (Array.isArray(obj)) {
-    let index;
+    let index
     if (embeddedKey !== '$index' || !obj[key]) {
-      index = indexOfItemInArray(obj, embeddedKey, key);
+      index = indexOfItemInArray(obj, embeddedKey, key)
     }
-    return obj.splice(index != null ? index : key, 1);
+    return obj.splice(index != null ? index : key, 1)
   } else {
-    obj[key] = undefined;
+    obj[key] = undefined
 
-    return delete obj[key];
+    return delete obj[key]
   }
-};
+}
 
 const indexOfItemInArray = (arr: any[], key: any, value: any) => {
   for (let i = 0; i < arr.length; i++) {
-    const item = arr[i];
+    const item = arr[i]
     if (key === '$index') {
       if (item === value) {
-        return i;
+        return i
       }
     } else if (item ? item[key] === value : undefined) {
-      return i;
+      return i
     }
   }
 
-  return -1;
-};
+  return -1
+}
 
-const modifyKeyValue = (obj: any, key: any, value: any) => (obj[key] = value);
+const modifyKeyValue = (obj: any, key: any, value: any) => (obj[key] = value)
 
 const addKeyValue = (obj: any, key: any, value: any) => {
   if (Array.isArray(obj)) {
-    return obj.push(value);
+    return obj.push(value)
   } else {
-    return obj ? (obj[key] = value) : null;
+    return obj ? (obj[key] = value) : null
   }
-};
+}
 
 const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
-  const { type, key, value } = change;
+  const { type, key, value } = change
   switch (type) {
     case Operation.ADD:
-      return addKeyValue(obj, key, value);
+      return addKeyValue(obj, key, value)
     case Operation.UPDATE:
-      return modifyKeyValue(obj, key, value);
+      return modifyKeyValue(obj, key, value)
     case Operation.REMOVE:
-      return removeKey(obj, key, embeddedKey);
+      return removeKey(obj, key, embeddedKey)
   }
-};
+}
 
 const applyArrayChange = (arr: any, change: any) =>
   (() => {
-    const result = [];
+    const result = []
     for (const subchange of change.changes) {
       if (subchange.value != null || subchange.type === Operation.REMOVE) {
-        result.push(applyLeafChange(arr, subchange, change.embeddedKey));
+        result.push(applyLeafChange(arr, subchange, change.embeddedKey))
       } else {
-        let element;
+        let element
         if (change.embeddedKey === '$index') {
-          element = arr[subchange.key];
+          element = arr[subchange.key]
         } else {
-          element = find(arr, el => el[change.embeddedKey].toString() === subchange.key.toString());
+          element = find(arr, el => el[change.embeddedKey].toString() === subchange.key.toString())
         }
-        result.push(applyChangeset(element, subchange.changes));
+        result.push(applyChangeset(element, subchange.changes))
       }
     }
-    return result;
-  })();
+    return result
+  })()
 
 const applyBranchChange = (obj: any, change: any) => {
   if (Array.isArray(obj)) {
-    return applyArrayChange(obj, change);
+    return applyArrayChange(obj, change)
   } else {
-    return applyChangeset(obj, change.changes);
+    return applyChangeset(obj, change.changes)
   }
-};
+}
 
 const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
-  const { type, key, value, oldValue } = change;
+  const { type, key, value, oldValue } = change
   switch (type) {
     case Operation.ADD:
-      return removeKey(obj, key, embeddedKey);
+      return removeKey(obj, key, embeddedKey)
     case Operation.UPDATE:
-      return modifyKeyValue(obj, key, oldValue);
+      return modifyKeyValue(obj, key, oldValue)
     case Operation.REMOVE:
-      return addKeyValue(obj, key, value);
+      return addKeyValue(obj, key, value)
   }
-};
+}
 
 const revertArrayChange = (arr: any, change: any) =>
   (() => {
-    const result = [];
+    const result = []
     for (const subchange of change.changes) {
       if (subchange.value != null || subchange.type === Operation.REMOVE) {
-        result.push(revertLeafChange(arr, subchange, change.embeddedKey));
+        result.push(revertLeafChange(arr, subchange, change.embeddedKey))
       } else {
-        let element;
+        let element
         if (change.embeddedKey === '$index') {
-          element = arr[+subchange.key];
+          element = arr[+subchange.key]
         } else {
-          element = find(arr, el => el[change.embeddedKey].toString() === subchange.key);
+          element = find(arr, el => el[change.embeddedKey].toString() === subchange.key)
         }
-        result.push(revertChangeset(element, subchange.changes));
+        result.push(revertChangeset(element, subchange.changes))
       }
     }
-    return result;
-  })();
+    return result
+  })()
 
 const revertBranchChange = (obj: any, change: any) => {
   if (Array.isArray(obj)) {
-    return revertArrayChange(obj, change);
+    return revertArrayChange(obj, change)
   } else {
-    return revertChangeset(obj, change.changes);
+    return revertChangeset(obj, change.changes)
   }
-};
+}
 
 export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Dictionary<string>): IChange[] =>
-  compare(oldObj, newObj, [], embeddedObjKeys, []);
+  compare(oldObj, newObj, [], embeddedObjKeys, [])
 
 export const applyChangeset = (obj: any, changeset: Changeset) => {
   if (changeset) {
@@ -288,11 +288,11 @@ export const applyChangeset = (obj: any, changeset: Changeset) => {
       (change.value !== null && change.value !== undefined) || change.type === Operation.REMOVE
         ? applyLeafChange(obj, change, change.embeddedKey)
         : applyBranchChange(obj[change.key], change)
-    );
+    )
   }
 
-  return obj;
-};
+  return obj
+}
 
 export const revertChangeset = (obj: any, changeset: Changeset) => {
   if (changeset) {
@@ -300,10 +300,10 @@ export const revertChangeset = (obj: any, changeset: Changeset) => {
       .reverse()
       .forEach((change: IChange): any =>
         !change.changes ? revertLeafChange(obj, change) : revertBranchChange(obj[change.key], change)
-      );
+      )
   }
-  return obj;
-};
+  return obj
+}
 
 export enum Operation {
   REMOVE = 'REMOVE',
@@ -312,27 +312,27 @@ export enum Operation {
 }
 
 export interface IChange {
-  type: Operation;
-  key: string;
-  embeddedKey?: string;
-  value?: any | any[];
-  oldValue?: any;
-  changes?: IChange[];
+  type: Operation
+  key: string
+  embeddedKey?: string
+  value?: any | any[]
+  oldValue?: any
+  changes?: IChange[]
 }
-export type Changeset = IChange[];
+export type Changeset = IChange[]
 
 export interface IFlatChange {
-  type: Operation;
-  key: string;
-  path: string;
-  valueType: string | null;
-  value?: any;
-  oldValue?: any;
+  type: Operation
+  key: string
+  path: string
+  valueType: string | null
+  value?: any
+  oldValue?: any
 }
 
 export const flattenChangeset = (obj: Changeset | IChange, path = '$', embeddedKey?: string): IFlatChange[] => {
   if (Array.isArray(obj)) {
-    return obj.reduce((memo, change) => [...memo, ...flattenChangeset(change, path, embeddedKey)], [] as IFlatChange[]);
+    return obj.reduce((memo, change) => [...memo, ...flattenChangeset(change, path, embeddedKey)], [] as IFlatChange[])
   } else {
     if (obj.changes || embeddedKey) {
       path = embeddedKey
@@ -341,33 +341,33 @@ export const flattenChangeset = (obj: Changeset | IChange, path = '$', embeddedK
           : obj.type === Operation.ADD
           ? path
           : `${path}[?(@.${embeddedKey}='${obj.key}')]`
-        : (path = `${path}.${obj.key}`);
-      return flattenChangeset(obj.changes || obj, path, obj.embeddedKey);
+        : (path = `${path}.${obj.key}`)
+      return flattenChangeset(obj.changes || obj, path, obj.embeddedKey)
     } else {
-      const valueType = getTypeOfObj(obj.value);
+      const valueType = getTypeOfObj(obj.value)
       return [
         {
           ...obj,
           path: valueType === 'Object' || path.endsWith(`[${obj.key}]`) ? path : `${path}.${obj.key}`,
           valueType
         }
-      ];
+      ]
     }
   }
-};
+}
 
 export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
   if (!Array.isArray(changes)) {
-    changes = [changes];
+    changes = [changes]
   }
 
-  const changesArr: IChange[] = [];
+  const changesArr: IChange[] = []
 
   changes.forEach(change => {
-    const obj = {} as IChange;
-    let ptr = obj;
+    const obj = {} as IChange
+    let ptr = obj
 
-    const segments = change.path.split(/((?<!@)\.)/).filter(x => x !== '.');
+    const segments = change.path.split(/((?<!@)\.)/).filter(x => x !== '.')
     // $.childern[@.name='chris'].age
     // =>
     // $
@@ -375,35 +375,35 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     // age
 
     if (segments.length === 1) {
-      ptr.key = change.key;
-      ptr.type = change.type;
-      ptr.value = change.value;
-      ptr.oldValue = change.oldValue;
-      changesArr.push(ptr);
+      ptr.key = change.key
+      ptr.type = change.type
+      ptr.value = change.value
+      ptr.oldValue = change.oldValue
+      changesArr.push(ptr)
     } else {
-      for (let i = 1; i < segments.length; i++) {
-        const segment = segments[i];
+      for (let i = 1;i < segments.length; i++) {
+        const segment = segments[i]
         // check for array
-        const result = /^(.+)\[\?\(@\.(.+)='(.+)'\)]$|^(.+)\[(\d+)\]/.exec(segment);
+        const result = /^(.+)\[\?\(@\.(.+)='(.+)'\)]$|^(.+)\[(\d+)\]/.exec(segment)
         // array
         if (result) {
-          let key: string;
-          let embeddedKey: string;
-          let arrKey: string | number;
+          let key: string
+          let embeddedKey: string
+          let arrKey: string | number
           if (result[1]) {
-            key = result[1];
-            embeddedKey = result[2];
-            arrKey = result[3];
+            key = result[1]
+            embeddedKey = result[2]
+            arrKey = result[3]
           } else {
-            key = result[4];
-            embeddedKey = '$index';
-            arrKey = Number(result[5]);
+            key = result[4]
+            embeddedKey = '$index'
+            arrKey = Number(result[5])
           }
           // leaf
           if (i === segments.length - 1) {
-            ptr.key = key!;
-            ptr.embeddedKey = embeddedKey!;
-            ptr.type = Operation.UPDATE;
+            ptr.key = key!
+            ptr.embeddedKey = embeddedKey!
+            ptr.type = Operation.UPDATE
             ptr.changes = [
               {
                 type: change.type,
@@ -411,54 +411,54 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
                 value: change.value,
                 oldValue: change.oldValue
               } as IChange
-            ];
+            ]
           } else {
             // object
-            ptr.key = key;
-            ptr.embeddedKey = embeddedKey;
-            ptr.type = Operation.UPDATE;
-            const newPtr = {} as IChange;
+            ptr.key = key
+            ptr.embeddedKey = embeddedKey
+            ptr.type = Operation.UPDATE
+            const newPtr = {} as IChange
             ptr.changes = [
               {
                 type: Operation.UPDATE,
                 key: arrKey,
                 changes: [newPtr]
               } as IChange
-            ];
-            ptr = newPtr;
+            ]
+            ptr = newPtr
           }
         } else {
           // leaf
           if (i === segments.length - 1) {
             // check if value is a primitive or object
             if (change.value !== null && change.valueType === 'Object') {
-              ptr.key = segment;
-              ptr.type = Operation.UPDATE;
+              ptr.key = segment
+              ptr.type = Operation.UPDATE
               ptr.changes = [
                 {
                   key: change.key,
                   type: change.type,
                   value: change.value
                 } as IChange
-              ];
+              ]
             } else {
-              ptr.key = change.key;
-              ptr.type = change.type;
-              ptr.value = change.value;
-              ptr.oldValue = change.oldValue;
+              ptr.key = change.key
+              ptr.type = change.type
+              ptr.value = change.value
+              ptr.oldValue = change.oldValue
             }
           } else {
             // branch
-            ptr.key = segment;
-            ptr.type = Operation.UPDATE;
-            const newPtr = {} as IChange;
-            ptr.changes = [newPtr];
-            ptr = newPtr;
+            ptr.key = segment
+            ptr.type = Operation.UPDATE
+            const newPtr = {} as IChange
+            ptr.changes = [newPtr]
+            ptr = newPtr
           }
         }
       }
-      changesArr.push(obj);
+      changesArr.push(obj)
     }
-  });
-  return changesArr;
-};
+  })
+  return changesArr
+}

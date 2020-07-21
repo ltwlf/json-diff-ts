@@ -242,7 +242,7 @@ import {
   describe('jsonDiff#applyChangeset', () => {
     test('should transfer oldObj to newObj with changeset', done => {
       applyChangeset(oldObj, changeset)
-      newObj.children.sort((a: any, b: any) => a.name > b.name)
+      newObj.children.sort((a: any, b: any) => a.name > b.name ? 1 : -1)
       expect(oldObj).toMatchObject(newObj)
       done()
     })
@@ -284,10 +284,10 @@ import {
   
       applyChangeset(oldObj, unflat)
   
-      newObj.children = newObj.children.sort((a: any, b: any) => a.name > b.name)
-      oldObj.children = oldObj.children.sort((a: any, b: any) => a.name > b.name)
+      newObj.children = newObj.children.sort((a: any, b: any) => a.name > b.name ? 1 : -1)
+      oldObj.children = oldObj.children.sort((a: any, b: any) => a.name > b.name ? 1 : -1)
   
-      expect(oldObj).toMatchObject(newObj)
+      expect(oldObj).toStrictEqual(newObj)
   
       done()
     })

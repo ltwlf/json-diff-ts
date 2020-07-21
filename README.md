@@ -4,7 +4,8 @@ A diff tool for JavaScript based on https://www.npmjs.com/package/diff-json (vir
 
 The most compelling feature of this diff library is the support for array keys instead of just indexes and is compatible with JSONPath.
 
-![Master CI/Publish](https://github.com/ltwlf/json-diff-ts/workflows/Master%20CI/Publish/badge.svg)
+![Master CI/Publish](https://github.com/ltwlf/json-diff-ts/workflows/Master%20CI/Publish/badge.svg) 
+[![Known Vulnerabilities](https://snyk.io/test/github/ltwlf/json-diff-ts/badge.svg?targetFile=package.json)](https://snyk.io/test/github/ltwlf/json-diff-ts?targetFile=package.json)
 
 ## Features
 

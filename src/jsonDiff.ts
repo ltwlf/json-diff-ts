@@ -164,30 +164,30 @@ const comparePrimitives = (oldObj: any, newObj: any, path: any) => {
 
 const removeKey = (obj: any, key: any, embeddedKey: any) => {
   if (Array.isArray(obj)) {
-    let index;
-    if (embeddedKey !== '$index' || !obj[key]) {
-      index = indexOfItemInArray(obj, embeddedKey, key);
+    if(embeddedKey === '$index'){
+      obj.splice(key);
+      return
+    }
+    const index = indexOfItemInArray(obj, embeddedKey, key);
+    if(index === -1){
+      console.warn(`Element with the key '${embeddedKey}' and value '${key}' could not be found in the array'`)
+      return
     }
     return obj.splice(index != null ? index : key, 1);
   } else {
     obj[key] = undefined;
-
-    return delete obj[key];
+    delete obj[key];
+    return;
   }
 };
 
 const indexOfItemInArray = (arr: any[], key: any, value: any) => {
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
-    if (key === '$index') {
-      if (item === value) {
+    if (item && item[key] ? item[key].toString() === value.toString() : undefined) {
         return i;
-      }
-    } else if (item ? item[key] === value : undefined) {
-      return i;
     }
   }
-
   return -1;
 };
 

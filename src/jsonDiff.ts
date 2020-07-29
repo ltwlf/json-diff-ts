@@ -170,6 +170,7 @@ const removeKey = (obj: any, key: any, embeddedKey: any) => {
     }
     const index = indexOfItemInArray(obj, embeddedKey, key);
     if(index === -1){
+      // tslint:disable-next-line:no-console
       console.warn(`Element with the key '${embeddedKey}' and value '${key}' could not be found in the array'`)
       return
     }

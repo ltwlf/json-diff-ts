@@ -2,7 +2,6 @@
 
 ![Master CI/Publish](https://github.com/ltwlf/json-diff-ts/workflows/Master%20CI/Publish/badge.svg) 
 [![Known Vulnerabilities](https://snyk.io/test/github/ltwlf/json-diff-ts/badge.svg?targetFile=package.json)](https://snyk.io/test/github/ltwlf/json-diff-ts?targetFile=package.json)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ltwlf_json-diff-ts&metric=coverage)](https://sonarcloud.io/dashboard?id=ltwlf_json-diff-ts)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ltwlf_json-diff-ts&metric=alert_status)](https://sonarcloud.io/dashboard?id=ltwlf_json-diff-ts)
 
 A diff tool for JavaScript based on https://www.npmjs.com/package/diff-json (viruschidai@gmail.com) rewritten in TypeScript.

@@ -2,13 +2,13 @@ import { keys } from 'lodash'
 import {
   compare,
   CompareOperation,
-  ComparisonEnrichedNode,
+  IComparisonEnrichedNode,
   enrich
 } from '../src/jsonCompare'
 import { Operation } from '../src/jsonDiff'
 
 let testedObject: any
-let enrichedObject: ComparisonEnrichedNode
+let enrichedObject: IComparisonEnrichedNode
 
 beforeEach(done => {
   const prepareTestCase = (): any => ({
@@ -30,7 +30,7 @@ beforeEach(done => {
     }, {} as { [key: string]: any }))
   }
 
-  const prepareEnrichedObject = (): { [key: string]: ComparisonEnrichedNode } => ({
+  const prepareEnrichedObject = (): { [key: string]: IComparisonEnrichedNode } => ({
     undefined: {
       type: CompareOperation.UNCHANGED,
       value: undefined

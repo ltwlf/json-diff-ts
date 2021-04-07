@@ -40,7 +40,7 @@ If a key is specified for an embedded array, the diff will be generated based on
     ]};
 
 
-  # Assume children is an array of child object and the child object has 'name' as its primary key
+  // Assume children is an array of child object and the child object has 'name' as its primary key
   diffs = changesets.diff(oldObj, newObj, {children: 'name'}); // keys can also be hierarchical e.g. {children: 'name', 'children.grandChildren', 'age'}
 
   expect(diffs).to.eql([
@@ -87,7 +87,7 @@ const changeset = unflattenChanges(flatChanges.slice(1, 5));
 // ...
 ```
 
-The **flatChange** formant will look like this:
+The **flatChange** format will look like this:
 
 ```javascript
 [
@@ -144,7 +144,7 @@ The **flatChange** formant will look like this:
     ]};
 
 
-  # Assume children is an array of child object and the child object has 'name' as its primary key
+  // Assume children is an array of child object and the child object has 'name' as its primary key
   diffs = [
     {
       type: 'update', key: 'name', value: 'smith', oldValue: 'joe'
@@ -203,7 +203,7 @@ The **flatChange** formant will look like this:
       {name: 'kid2', age: 2}
    ]};
 
-  # Assume children is an array of child object and the child object has 'name' as its primary key
+  // Assume children is an array of child object and the child object has 'name' as its primary key
   diffs =  [
     {
       type: 'update', key: 'name', value: 'smith', oldValue: 'joe'

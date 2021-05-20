@@ -115,7 +115,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any
 };
 
 const compareArray = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any) => {
-  const left = embeddedObjKeys != null ? embeddedObjKeys[keyPath.join('.')] : undefined;
+  const left = getObjectKey(embeddedObjKeys, keyPath);
   const uniqKey = left != null ? left : '$index';
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
   const indexedNewObj = convertArrayToObj(newObj, uniqKey);
@@ -132,6 +132,22 @@ const compareArray = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any,
   } else {
     return [];
   }
+};
+
+const getObjectKey = (embeddedObjKeys: any, keyPath: any) => {
+  if (embeddedObjKeys != null) {
+    const path = keyPath.join('.');
+    const key = embeddedObjKeys[path];
+    if (key != null) {
+      return key;
+    }
+    for (const regex in embeddedObjKeys) {
+      if (path.match(new RegExp(regex))) {
+        return embeddedObjKeys[regex];
+      }
+    }
+  }
+  return undefined;
 };
 
 const convertArrayToObj = (arr: any[], uniqKey: any) => {

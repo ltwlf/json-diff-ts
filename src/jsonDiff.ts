@@ -368,12 +368,12 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     const obj = {} as IChange;
     let ptr = obj;
 
-    const REPLACE_01 = '____r1____';
-    const escapeRegExp = (input: string) => input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Safari doesn't support lookbehind.
+    const REPLACE_01 = '____jsondiff_r1____';
     const segments = change.path
       .replace(/@\./g, REPLACE_01)
       .split(/\./)
-      .map(x => x.replace(new RegExp(escapeRegExp(REPLACE_01), 'g'), '@.'))
+      .map(x => x.replace(new RegExp(REPLACE_01, 'g'), '@.'))
       .filter(x => x !== '.');
     // $.children[@.name='chris'].age
     // =>

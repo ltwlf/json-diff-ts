@@ -368,11 +368,17 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     const obj = {} as IChange;
     let ptr = obj;
 
-    const segments = change.path.split(/((?<!@)\.)/).filter(x => x !== '.');
-    // $.childern[@.name='chris'].age
+    const REPLACE_01 = '____r1____';
+    const escapeRegExp = (input: string) => input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const segments = change.path
+      .replace(/@\./g, REPLACE_01)
+      .split(/\./)
+      .map(x => x.replace(new RegExp(escapeRegExp(REPLACE_01), 'g'), '@.'))
+      .filter(x => x !== '.');
+    // $.children[@.name='chris'].age
     // =>
     // $
-    // childern[@.name='chris']
+    // children[@.name='chris']
     // age
 
     if (segments.length === 1) {

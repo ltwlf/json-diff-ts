@@ -368,7 +368,11 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     const obj = {} as IChange;
     let ptr = obj;
 
-    const segments = change.path.split(/((?<!@)\.)/).filter(x => x !== '.');
+    const segments = change.path.split(/([^@])\./).reduce((acc, curr, i) => {
+      const x = Math.floor(i/2); if (!acc[x]) {acc[x] = ""}
+      acc[x]+=curr;
+      return acc
+    }, []);
     // $.childern[@.name='chris'].age
     // =>
     // $

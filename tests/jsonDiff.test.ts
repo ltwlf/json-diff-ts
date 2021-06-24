@@ -324,6 +324,15 @@ import {
       expect(diffs).toMatchObject(changeset)
       done()
     })
+
+    test('should return correct diff for object with embedded array object that does have regex key', done => {
+      const diffs = diff(oldObj, newObj, {
+        '^children$': 'name',
+        '^[\\w+\.]+subset$': 'id',
+      })
+      expect(diffs).toMatchObject(changeset)
+      done()
+    })
   })
   
   describe('jsonDiff#applyChangeset', () => {

@@ -1,5 +1,5 @@
 {
-  "name": "json-diff-ts-w",
+  "name": "json-diff-ts",
   "version": "1.2.0",
   "description": "A diff tool for JavaScript based on https://www.npmjs.com/package/diff-json written in TypeScript.",
   "main": "lib/index.js",
@@ -21,7 +21,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Merynek/json-diff-ts.git"
+    "url": "git+https://github.com/ltwlf/json-diff-ts.git"
   },
   "keywords": [
     "JavaScript",
@@ -33,9 +33,9 @@
   "author": "Christian Glessner",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Merynek/json-diff-ts/issues"
+    "url": "https://github.com/ltwlf/json-diff-ts/issues"
   },
-  "homepage": "https://github.com/Merynek/json-diff-ts#readme",
+  "homepage": "https://github.com/ltwlf/json-diff-ts#readme",
   "devDependencies": {
     "@types/jest": "^24.0.23",
     "@types/lodash": "^4.14.149",

@@ -18,7 +18,7 @@ If a key is specified for an embedded array, the diff will be generated based on
 
 ```javascript
 
-  var changesets = require('diff-json-ts');
+  var changesets = require('json-diff-ts');
   var newObj, oldObj;
 
   oldObj = {
@@ -133,7 +133,7 @@ The **flatChange** format will look like this:
 
 ```javascript
 
-  var changesets = require('diff-json-ts');
+  var changesets = require('json-diff-ts');
   var oldObj = {
     name: 'joe',
     age: 55,
@@ -192,7 +192,7 @@ The **flatChange** format will look like this:
 
 ```javascript
 
-  var changesets = require('diff-json-ts');
+  var changesets = require('json-diff-ts');
 
   var newObj = {
     name: 'smith',

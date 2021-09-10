@@ -165,6 +165,9 @@ const convertArrayToObj = (arr: any[], uniqKey: any) => {
 
 const comparePrimitives = (oldObj: any, newObj: any, path: any) => {
   const changes = [];
+  if (isNaN(oldObj) && isNaN(newObj)) {
+    return changes;
+  }
   if (oldObj !== newObj) {
     changes.push({
       type: Operation.UPDATE,

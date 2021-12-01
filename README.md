@@ -41,7 +41,9 @@ If a key is specified for an embedded array, the diff will be generated based on
 
 
   // Assume children is an array of child object and the child object has 'name' as its primary key
-  diffs = changesets.diff(oldObj, newObj, {children: 'name'}); // keys can also be hierarchical e.g. {children: 'name', 'children.grandChildren', 'age'}
+  // keys can also be hierarchical e.g. {children: 'name', 'children.grandChildren', 'age'}
+  // or use functions that return the key of an object e.g. {children: function(obj) { return obj.name; }}
+  diffs = changesets.diff(oldObj, newObj, {children: 'name'});
 
   expect(diffs).to.eql([
     {

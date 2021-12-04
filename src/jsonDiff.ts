@@ -1,5 +1,7 @@
 import { Dictionary, difference, find, intersection, keyBy } from 'lodash';
 
+type FunctionKey = (obj: any) => any;
+
 export const getTypeOfObj = (obj: any) => {
   if (typeof obj === 'undefined') {
     return 'undefined';
@@ -180,15 +182,15 @@ const comparePrimitives = (oldObj: any, newObj: any, path: any) => {
 
 const removeKey = (obj: any, key: any, embeddedKey: any) => {
   if (Array.isArray(obj)) {
-    if(embeddedKey === '$index'){
+    if (embeddedKey === '$index') {
       obj.splice(key);
-      return
+      return;
     }
     const index = indexOfItemInArray(obj, embeddedKey, key);
-    if(index === -1){
+    if (index === -1) {
       // tslint:disable-next-line:no-console
-      console.warn(`Element with the key '${embeddedKey}' and value '${key}' could not be found in the array'`)
-      return
+      console.warn(`Element with the key '${embeddedKey}' and value '${key}' could not be found in the array'`);
+      return;
     }
     return obj.splice(index != null ? index : key, 1);
   } else {
@@ -202,7 +204,7 @@ const indexOfItemInArray = (arr: any[], key: any, value: any) => {
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
     if (item && item[key] ? item[key].toString() === value.toString() : undefined) {
-        return i;
+      return i;
     }
   }
   return -1;
@@ -296,7 +298,7 @@ const revertBranchChange = (obj: any, change: any) => {
   }
 };
 
-export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Dictionary<string | Function>): IChange[] =>
+export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Dictionary<string | FunctionKey>): IChange[] =>
   compare(oldObj, newObj, [], embeddedObjKeys, []);
 
 export const applyChangeset = (obj: any, changeset: Changeset) => {
@@ -331,7 +333,7 @@ export enum Operation {
 export interface IChange {
   type: Operation;
   key: string;
-  embeddedKey?: string | Function;
+  embeddedKey?: string | FunctionKey;
   value?: any | any[];
   oldValue?: any;
   changes?: IChange[];
@@ -347,7 +349,11 @@ export interface IFlatChange {
   oldValue?: any;
 }
 
-export const flattenChangeset = (obj: Changeset | IChange, path = '$', embeddedKey?: string | Function): IFlatChange[] => {
+export const flattenChangeset = (
+  obj: Changeset | IChange,
+  path = '$',
+  embeddedKey?: string | FunctionKey
+): IFlatChange[] => {
   if (Array.isArray(obj)) {
     return obj.reduce((memo, change) => [...memo, ...flattenChangeset(change, path, embeddedKey)], [] as IFlatChange[]);
   } else {
@@ -385,9 +391,12 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     let ptr = obj;
 
     const segments = change.path.split(/([^@])\./).reduce((acc, curr, i) => {
-      const x = Math.floor(i/2); if (!acc[x]) {acc[x] = ""}
-      acc[x]+=curr;
-      return acc
+      const x = Math.floor(i / 2);
+      if (!acc[x]) {
+        acc[x] = '';
+      }
+      acc[x] += curr;
+      return acc;
     }, []);
     // $.childern[@.name='chris'].age
     // =>

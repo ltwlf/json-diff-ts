@@ -1,12 +1,10 @@
 # json-diff-ts
 
-![Master CI/Publish](https://github.com/ltwlf/json-diff-ts/workflows/Master%20CI/Publish/badge.svg) 
+![Master CI/Publish](https://github.com/ltwlf/json-diff-ts/workflows/Master%20CI/Publish/badge.svg)
 [![Known Vulnerabilities](https://snyk.io/test/github/ltwlf/json-diff-ts/badge.svg?targetFile=package.json)](https://snyk.io/test/github/ltwlf/json-diff-ts?targetFile=package.json)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ltwlf_json-diff-ts&metric=alert_status)](https://sonarcloud.io/dashboard?id=ltwlf_json-diff-ts)
 
-A diff tool for JavaScript based on https://www.npmjs.com/package/diff-json (viruschidai@gmail.com) rewritten in TypeScript.
-
-The most compelling feature of this diff library is the support for array keys instead of just indexes and is compatible with JSONPath.
+TypeScript diff tool with support for array keys instead of just indexes and compatible with JSONPath.
 
 ## Features
 
@@ -17,62 +15,70 @@ If a key is specified for an embedded array, the diff will be generated based on
 #### Examples:
 
 ```javascript
+var changesets = require('json-diff-ts');
+var newObj, oldObj;
 
-  var changesets = require('json-diff-ts');
-  var newObj, oldObj;
+oldObj = {
+  name: 'joe',
+  age: 55,
+  coins: [2, 5],
+  children: [
+    { name: 'kid1', age: 1 },
+    { name: 'kid2', age: 2 }
+  ]
+};
 
-  oldObj = {
-    name: 'joe',
-    age: 55,
-    coins: [2, 5],
-    children: [
-      {name: 'kid1', age: 1},
-      {name: 'kid2', age: 2}
-    ]};
+newObj = {
+  name: 'smith',
+  coins: [2, 5, 1],
+  children: [
+    { name: 'kid3', age: 3 },
+    { name: 'kid1', age: 0 },
+    { name: 'kid2', age: 2 }
+  ]
+};
 
-  newObj = {
-    name: 'smith',
-    coins: [2, 5, 1],
-    children: [
-      {name: 'kid3', age: 3},
-      {name: 'kid1', age: 0},
-      {name: 'kid2', age: 2}
-    ]};
+// Assume children is an array of child object and the child object has 'name' as its primary key
+// keys can also be hierarchical e.g. {children: 'name', 'children.grandChildren', 'age'}
+// or use functions that return the key of an object e.g. {children: function(obj) { return obj.key; }}
+diffs = changesets.diff(oldObj, newObj, { children: 'name' });
 
-
-  // Assume children is an array of child object and the child object has 'name' as its primary key
-  // keys can also be hierarchical e.g. {children: 'name', 'children.grandChildren', 'age'}
-  // or use functions that return the key of an object e.g. {children: function(obj) { return obj.name; }}
-  diffs = changesets.diff(oldObj, newObj, {children: 'name'});
-
-  expect(diffs).to.eql([
-    {
-      type: 'update', key: 'name', value: 'smith', oldValue: 'joe'
-    },
-    {
-      type: 'update', key: 'coins', embededKey: '$index', changes: [
-          {type: 'add', key: '2', value: 1 }
-        ]
-    },
-    {
-      type: 'update',
-      key: 'children',
-      embededKey: 'name',
-      changes: [
-        {
-          type: 'update', key: 'kid1', changes: [
-            {type: 'update', key: 'age', value: 0, oldValue: 1 }
-          ]
-        },
-        {
-          type: 'add', key: 'kid3', value: {name: 'kid3', age: 3 }
-        }
-      ]
-    },
-    {
-      type: 'remove', key: 'age', value: 55
-    }
-  ]);
+expect(diffs).to.eql([
+  {
+    type: 'update',
+    key: 'name',
+    value: 'smith',
+    oldValue: 'joe'
+  },
+  {
+    type: 'update',
+    key: 'coins',
+    embededKey: '$index',
+    changes: [{ type: 'add', key: '2', value: 1 }]
+  },
+  {
+    type: 'update',
+    key: 'children',
+    embededKey: 'name',
+    changes: [
+      {
+        type: 'update',
+        key: 'kid1',
+        changes: [{ type: 'update', key: 'age', value: 0, oldValue: 1 }]
+      },
+      {
+        type: 'add',
+        key: 'kid3',
+        value: { name: 'kid3', age: 3 }
+      }
+    ]
+  },
+  {
+    type: 'remove',
+    key: 'age',
+    value: 55
+  }
+]);
 ```
 
 ### flattenChangeset
@@ -134,58 +140,65 @@ The **flatChange** format will look like this:
 #### Examples:
 
 ```javascript
-
-  var changesets = require('json-diff-ts');
-  var oldObj = {
-    name: 'joe',
-    age: 55,
-    coins: [2, 5],
-    children: [
-      {name: 'kid1', age: 1},
-      {name: 'kid2', age: 2}
-    ]};
-
-
-  // Assume children is an array of child object and the child object has 'name' as its primary key
-  diffs = [
-    {
-      type: 'update', key: 'name', value: 'smith', oldValue: 'joe'
-    },
-    {
-      type: 'update', key: 'coins', embededKey: '$index', changes: [
-          {type: 'add', key: '2', value: 1 }
-        ]
-    },
-    {
-      type: 'update',
-      key: 'children',
-      embededKey: 'name', // The key property name of the elements in an array
-      changes: [
-        {
-          type: 'update', key: 'kid1', changes: [
-            {type: 'update', key: 'age', value: 0, oldValue: 1 }
-          ]
-        },
-        {
-          type: 'add', key: 'kid3', value: {name: 'kid3', age: 3 }
-        }
-      ]
-    },
-    {
-      type: 'remove', key: 'age', value: 55
-    }
+var changesets = require('json-diff-ts');
+var oldObj = {
+  name: 'joe',
+  age: 55,
+  coins: [2, 5],
+  children: [
+    { name: 'kid1', age: 1 },
+    { name: 'kid2', age: 2 }
   ]
+};
 
-  changesets.applyChanges(oldObj, diffs)
-  expect(oldObj).to.eql({
-    name: 'smith',
-    coins: [2, 5, 1],
-    children: [
-      {name: 'kid3', age: 3},
-      {name: 'kid1', age: 0},
-      {name: 'kid2', age: 2}
-    ]});
+// Assume children is an array of child object and the child object has 'name' as its primary key
+diffs = [
+  {
+    type: 'update',
+    key: 'name',
+    value: 'smith',
+    oldValue: 'joe'
+  },
+  {
+    type: 'update',
+    key: 'coins',
+    embededKey: '$index',
+    changes: [{ type: 'add', key: '2', value: 1 }]
+  },
+  {
+    type: 'update',
+    key: 'children',
+    embededKey: 'name', // The key property name of the elements in an array
+    changes: [
+      {
+        type: 'update',
+        key: 'kid1',
+        changes: [{ type: 'update', key: 'age', value: 0, oldValue: 1 }]
+      },
+      {
+        type: 'add',
+        key: 'kid3',
+        value: { name: 'kid3', age: 3 }
+      }
+    ]
+  },
+  {
+    type: 'remove',
+    key: 'age',
+    value: 55
+  }
+];
 
+changesets.applyChanges(oldObj, diffs);
+expect(oldObj).to.eql({
+  name: 'smith',
+  coins: [2, 5, 1],
+  children: [
+    { name: 'kid3', age: 3 },
+    { name: 'kid1', age: 0 },
+    { name: 'kid2', age: 2 }
+  ]
+});
 ```
 
 ### revertChange
@@ -260,10 +273,18 @@ npm run test
 ```
 
 ## Contact
+
 Blog: https://blog.leitwolf.io
 
 Twitter: [@cglessner](https://twitter.com/cglessner)
 
+## Changelog
+
+- v1.2.2 Add support for functions to resove object keys (PR by [Abraxxa](https://github.com/abraxxa))
+
+## Credits
+
+This project was based on https://www.npmjs.com/package/diff-json (viruschidai@gmail.com)
 
 ## Licence
 
@@ -277,7 +298,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-The project is based on diff-json (https://www.npmjs.com/package/diff-json). Copyright 2013 viruschidai@gmail.com. for additional details. 
+The project is based on diff-json (https://www.npmjs.com/package/diff-json). Copyright 2013 viruschidai@gmail.com. for additional details.
 
 **Original License**
 

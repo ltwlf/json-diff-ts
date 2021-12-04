@@ -296,7 +296,7 @@ const revertBranchChange = (obj: any, change: any) => {
   }
 };
 
-export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Dictionary<string>): IChange[] =>
+export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Dictionary<string | Function>): IChange[] =>
   compare(oldObj, newObj, [], embeddedObjKeys, []);
 
 export const applyChangeset = (obj: any, changeset: Changeset) => {
@@ -331,7 +331,7 @@ export enum Operation {
 export interface IChange {
   type: Operation;
   key: string;
-  embeddedKey?: string;
+  embeddedKey?: string | Function;
   value?: any | any[];
   oldValue?: any;
   changes?: IChange[];
@@ -347,7 +347,7 @@ export interface IFlatChange {
   oldValue?: any;
 }
 
-export const flattenChangeset = (obj: Changeset | IChange, path = '$', embeddedKey?: string): IFlatChange[] => {
+export const flattenChangeset = (obj: Changeset | IChange, path = '$', embeddedKey?: string | Function): IFlatChange[] => {
   if (Array.isArray(obj)) {
     return obj.reduce((memo, change) => [...memo, ...flattenChangeset(change, path, embeddedKey)], [] as IFlatChange[]);
   } else {

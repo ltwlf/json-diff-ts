@@ -40,7 +40,7 @@ newObj = {
 
 // Assume children is an array of child object and the child object has 'name' as its primary key
 // keys can also be hierarchical e.g. {children: 'name', 'children.grandChildren', 'age'}
-// or use functions that return the key of an object e.g. {children: function(obj) { return obj.name; }}
+// or use functions that return the key of an object e.g. {children: function(obj) { return obj.key; }}
 diffs = changesets.diff(oldObj, newObj, { children: 'name' });
 
 expect(diffs).to.eql([
@@ -277,6 +277,10 @@ npm run test
 Blog: https://blog.leitwolf.io
 
 Twitter: [@cglessner](https://twitter.com/cglessner)
+
+## Changelog
+
+- v1.2.2 Add support for functions to resove object keys (PR by [Abraxxa](https://github.com/abraxxa))
 
 ## Credits
 

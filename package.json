@@ -37,7 +37,7 @@
   },
   "homepage": "https://github.com/ltwlf/json-diff-ts#readme",
   "devDependencies": {
-    "@types/jest": "^24.0.23",
+    "@types/jest": "^27.0.3",
     "@types/lodash": "^4.14.149",
     "jest": "^24.9.0",
     "prettier": "^2.5.1",

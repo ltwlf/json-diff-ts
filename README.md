@@ -263,7 +263,7 @@ expect(oldObj).to.eql({
 ## Get started
 
 ```
-npm install diff-json-ts
+npm install json-diff-ts
 ```
 
 ## Run the test

@@ -280,6 +280,7 @@ Twitter: [@cglessner](https://twitter.com/cglessner)
 
 ## Changelog
 
+- v1.2.4 Fix readme (npm install); update TypeScript and Lodash
 - v1.2.3 Update outdated dependencies; update TypeScript version to 4.5.2
 - v1.2.2 Add support for functions to resove object keys (PR by [Abraxxa](https://github.com/abraxxa))
 

@@ -19,7 +19,7 @@ const getKey = (path: string) => {
   return left != null ? left : '$root';
 };
 
-const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any) => {
+const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any, keysToSkip: string[]) => {
   let changes: any[] = [];
 
   const typeOfOldObj = getTypeOfObj(oldObj);
@@ -43,7 +43,7 @@ const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyP
       );
       break;
     case 'Object':
-      const diffs = compareObject(oldObj, newObj, path, embeddedObjKeys, keyPath);
+      const diffs = compareObject(oldObj, newObj, path, embeddedObjKeys, keyPath, false, keysToSkip);
       if (diffs.length) {
         if (path.length) {
           changes.push({
@@ -57,7 +57,7 @@ const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyP
       }
       break;
     case 'Array':
-      changes = changes.concat(compareArray(oldObj, newObj, path, embeddedObjKeys, keyPath));
+      changes = changes.concat(compareArray(oldObj, newObj, path, embeddedObjKeys, keyPath, keysToSkip));
       break;
     case 'Function':
       break;
@@ -69,7 +69,7 @@ const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyP
   return changes;
 };
 
-const compareObject = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any, skipPath = false) => {
+const compareObject = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any, skipPath = false, keysToSkip: string[] = []) => {
   let k;
   let newKeyPath;
   let newPath;
@@ -79,14 +79,14 @@ const compareObject = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any
   }
   let changes: any[] = [];
 
-  const oldObjKeys = Object.keys(oldObj);
-  const newObjKeys = Object.keys(newObj);
+  const oldObjKeys = Object.keys(oldObj).filter((key) => keysToSkip.indexOf(key) === -1);
+  const newObjKeys = Object.keys(newObj).filter((key) => keysToSkip.indexOf(key) === -1);
 
   const intersectionKeys = intersection(oldObjKeys, newObjKeys);
   for (k of intersectionKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
-    const diffs = compare(oldObj[k], newObj[k], newPath, embeddedObjKeys, newKeyPath);
+    const diffs = compare(oldObj[k], newObj[k], newPath, embeddedObjKeys, newKeyPath, keysToSkip);
     if (diffs.length) {
       changes = changes.concat(diffs);
     }
@@ -116,12 +116,12 @@ const compareObject = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any
   return changes;
 };
 
-const compareArray = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any) => {
+const compareArray = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any, keysToSkip: string[]) => {
   const left = getObjectKey(embeddedObjKeys, keyPath);
   const uniqKey = left != null ? left : '$index';
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
   const indexedNewObj = convertArrayToObj(newObj, uniqKey);
-  const diffs = compareObject(indexedOldObj, indexedNewObj, path, embeddedObjKeys, keyPath, true);
+  const diffs = compareObject(indexedOldObj, indexedNewObj, path, embeddedObjKeys, keyPath, true, keysToSkip);
   if (diffs.length) {
     return [
       {
@@ -298,8 +298,8 @@ const revertBranchChange = (obj: any, change: any) => {
   }
 };
 
-export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Dictionary<string | FunctionKey>): IChange[] =>
-  compare(oldObj, newObj, [], embeddedObjKeys, []);
+export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Dictionary<string | FunctionKey>, keysToSkip?: string[]): IChange[] =>
+  compare(oldObj, newObj, [], embeddedObjKeys, [], keysToSkip);
 
 export const applyChangeset = (obj: any, changeset: Changeset) => {
   if (changeset) {
@@ -362,8 +362,8 @@ export const flattenChangeset = (
         ? embeddedKey === '$index'
           ? `${path}[${obj.key}]`
           : obj.type === Operation.ADD
-          ? path
-          : `${path}[?(@.${embeddedKey}='${obj.key}')]`
+            ? path
+            : `${path}[?(@.${embeddedKey}='${obj.key}')]`
         : (path = `${path}.${obj.key}`);
       return flattenChangeset(obj.changes || obj, path, obj.embeddedKey);
     } else {

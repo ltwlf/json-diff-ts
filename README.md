@@ -10,7 +10,7 @@ TypeScript diff tool with support for array keys instead of just indexes and com
 
 ### diff
 
-If a key is specified for an embedded array, the diff will be generated based on the objects have same keys.
+If a embedded key is specified for an array, the diff will be generated based on the objects with the same keys.
 
 #### Examples:
 
@@ -41,6 +41,8 @@ newObj = {
 // Assume children is an array of child object and the child object has 'name' as its primary key
 // keys can also be hierarchical e.g. {children: 'name', 'children.grandChildren', 'age'}
 // or use functions that return the key of an object e.g. {children: function(obj) { return obj.key; }}
+// when you use a function flatten can not generate the correct path.
+// to fix this, you can add an additional parameter e.g. (obj, getKeyNameFlag) => {...}. getKeyNameFlag will be true when the diff library try to resolve the key name instead of the key value. You can return a static string or use obj to check which key name you should return. obj will be the first object of the array!
 diffs = changesets.diff(oldObj, newObj, { children: 'name' });
 
 expect(diffs).to.eql([
@@ -280,6 +282,7 @@ Twitter: [@cglessner](https://twitter.com/cglessner)
 
 ## Changelog
 
+- v1.2.5 Patch all dependencies; add support for resolving a key name if a function is used to get the key value
 - v1.2.4 Fix readme (npm install); update TypeScript and Lodash
 - v1.2.3 Update outdated dependencies; update TypeScript version to 4.5.2
 - v1.2.2 Add support for functions to resove object keys (PR by [Abraxxa](https://github.com/abraxxa))

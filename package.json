@@ -1,6 +1,6 @@
 {
   "name": "json-diff-ts",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "A diff tool for JavaScript based on https://www.npmjs.com/package/diff-json written in TypeScript.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -37,7 +37,7 @@
   },
   "homepage": "https://github.com/ltwlf/json-diff-ts#readme",
   "devDependencies": {
-    "@types/jest": "^27.0.3",
+    "@types/jest": "^29.1.1",
     "@types/lodash": "^4.14.149",
     "jest": "^24.9.0",
     "prettier": "^2.5.1",

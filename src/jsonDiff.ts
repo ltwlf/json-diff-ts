@@ -1,6 +1,6 @@
 import { Dictionary, difference, find, intersection, keyBy } from 'lodash';
 
-type FunctionKey = (obj: any) => any;
+type FunctionKey = (obj: any, getKeyName?: boolean) => any;
 
 export const getTypeOfObj = (obj: any) => {
   if (typeof obj === 'undefined') {
@@ -35,7 +35,7 @@ const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyP
   switch (typeOfOldObj) {
     case 'Date':
       changes = changes.concat(
-        comparePrimitives(oldObj.getTime(), newObj.getTime(), path).map(x => ({
+        comparePrimitives(oldObj.getTime(), newObj.getTime(), path).map((x) => ({
           ...x,
           value: new Date(x.value),
           oldValue: new Date(x.oldValue)
@@ -127,7 +127,7 @@ const compareArray = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any,
       {
         type: Operation.UPDATE,
         key: getKey(path),
-        embeddedKey: uniqKey,
+        embeddedKey: typeof uniqKey === 'function' && uniqKey.length === 2 ? uniqKey(newObj[0], true) : uniqKey,
         changes: diffs
       }
     ];
@@ -243,7 +243,7 @@ const applyArrayChange = (arr: any, change: any) =>
         if (change.embeddedKey === '$index') {
           element = arr[subchange.key];
         } else {
-          element = find(arr, el => el[change.embeddedKey].toString() === subchange.key.toString());
+          element = find(arr, (el) => el[change.embeddedKey].toString() === subchange.key.toString());
         }
         result.push(applyChangeset(element, subchange.changes));
       }
@@ -282,7 +282,7 @@ const revertArrayChange = (arr: any, change: any) =>
         if (change.embeddedKey === '$index') {
           element = arr[+subchange.key];
         } else {
-          element = find(arr, el => el[change.embeddedKey].toString() === subchange.key);
+          element = find(arr, (el) => el[change.embeddedKey].toString() === subchange.key);
         }
         result.push(revertChangeset(element, subchange.changes));
       }
@@ -303,7 +303,7 @@ export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Dictionary<stri
 
 export const applyChangeset = (obj: any, changeset: Changeset) => {
   if (changeset) {
-    changeset.forEach(change =>
+    changeset.forEach((change) =>
       (change.value !== null && change.value !== undefined) || change.type === Operation.REMOVE
         ? applyLeafChange(obj, change, change.embeddedKey)
         : applyBranchChange(obj[change.key], change)
@@ -386,7 +386,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
 
   const changesArr: IChange[] = [];
 
-  changes.forEach(change => {
+  changes.forEach((change) => {
     const obj = {} as IChange;
     let ptr = obj;
 

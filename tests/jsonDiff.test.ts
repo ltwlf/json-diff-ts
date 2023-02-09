@@ -60,8 +60,7 @@ beforeEach((done) => {
 
   changeset = [
     { type: Operation.UPDATE, key: 'name', value: 'smith', oldValue: 'joe' },
-    { type: Operation.REMOVE, key: 'mixed', value: 10 },
-    { type: Operation.ADD, key: 'mixed', value: '10' },
+    { type: Operation.UPDATE, key: 'mixed', oldValue: 10, value: '10' },
     {
       type: Operation.UPDATE,
       key: 'nested',
@@ -144,8 +143,7 @@ beforeEach((done) => {
 
   changesetWithDoubleRemove = [
     { type: Operation.UPDATE, key: 'name', value: 'smith', oldValue: 'joe' },
-    { type: Operation.REMOVE, key: 'mixed', value: 10 },
-    { type: Operation.ADD, key: 'mixed', value: '10' },
+    { type: Operation.UPDATE, key: 'mixed', oldValue: 10, value: '10' },
     {
       type: Operation.UPDATE,
       key: 'nested',
@@ -233,8 +231,7 @@ beforeEach((done) => {
 
   changesetWithoutEmbeddedKey = [
     { type: Operation.UPDATE, key: 'name', value: 'smith', oldValue: 'joe' },
-    { type: Operation.REMOVE, key: 'mixed', value: 10 },
-    { type: Operation.ADD, key: 'mixed', value: '10' },
+    { type: Operation.UPDATE, key: 'mixed', oldValue: 10, value: '10' },
     {
       type: Operation.UPDATE,
       key: 'nested',
@@ -325,8 +322,7 @@ beforeEach((done) => {
 
   changesetWithFunctionKey = [
     { type: Operation.UPDATE, key: 'name', value: 'smith', oldValue: 'joe' },
-    { type: Operation.REMOVE, key: 'mixed', value: 10 },
-    { type: Operation.ADD, key: 'mixed', value: '10' },
+    { type: Operation.UPDATE, key: 'mixed', oldValue: 10, value: '10' },
     {
       type: Operation.UPDATE,
       key: 'nested',

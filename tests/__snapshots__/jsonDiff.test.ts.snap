@@ -1,21 +1,21 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`jsonDiff#flatten Get key name for flattening when using a key function 1`] = `
-Array [
-  Object {
+[
+  {
     "key": "2",
     "path": "$.items",
     "type": "ADD",
-    "value": Object {
+    "value": {
       "_id": "2",
     },
     "valueType": "Object",
   },
-  Object {
+  {
     "key": "1",
     "path": "$.items[?(@._id='1')]",
     "type": "REMOVE",
-    "value": Object {
+    "value": {
       "_id": "1",
     },
     "valueType": "Object",

@@ -1,4 +1,8 @@
-import { Dictionary, difference, find, intersection, keyBy } from 'lodash';
+import { difference, find, intersection, keyBy } from 'lodash-es';
+
+interface Dictionary<T> {
+  [index: string]: T;
+}
 
 type FunctionKey = (obj: any, getKeyName?: boolean) => any;
 

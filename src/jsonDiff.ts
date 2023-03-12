@@ -1,4 +1,4 @@
-import { Dictionary, difference, find, intersection, keyBy } from 'lodash';
+import { difference, find, intersection, keyBy } from 'lodash-es';
 
 type FunctionKey = (obj: any, getKeyName?: boolean) => any;
 
@@ -298,7 +298,7 @@ const revertBranchChange = (obj: any, change: any) => {
   }
 };
 
-export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Dictionary<string | FunctionKey>): IChange[] =>
+export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Record<string, string | FunctionKey>): IChange[] =>
   compare(oldObj, newObj, [], embeddedObjKeys, []);
 
 export const applyChangeset = (obj: any, changeset: Changeset) => {

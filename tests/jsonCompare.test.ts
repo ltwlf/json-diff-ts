@@ -1,4 +1,4 @@
-import { keys } from 'lodash'
+import { keys } from 'lodash-es'
 import {
   compare,
   CompareOperation,

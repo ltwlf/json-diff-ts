@@ -7,10 +7,10 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
+    "format": "prettier --write \"src/**/*.ts\"",
     "lint": "tslint -p tsconfig.json",
-    "test": "jest --config jest.config.json",
-    "test:watch": "jest --watch --config jest.config.json",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.json",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch --config jest.config.json",
     "prepare": "npm run build",
     "prepublishOnly": "npm test && npm run lint",
     "preversion": "npm run lint",

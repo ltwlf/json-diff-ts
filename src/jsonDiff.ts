@@ -363,15 +363,17 @@ export const flattenChangeset = (
           ? `${path}[${obj.key}]`
           : obj.type === Operation.ADD
           ? path
-          : `${path}[?(@.${embeddedKey}='${obj.key}')]`
-        : (path = `${path}.${obj.key}`);
+          : filterExpression(path, embeddedKey, obj.key)
+        : (path = append(path, obj.key));
       return flattenChangeset(obj.changes || obj, path, obj.embeddedKey);
     } else {
       const valueType = getTypeOfObj(obj.value);
       return [
         {
           ...obj,
-          path: valueType === 'Object' || path.endsWith(`[${obj.key}]`) ? path : `${path}.${obj.key}`,
+          path: valueType === 'Object' || path.endsWith(`[${obj.key}]`)
+            ? path
+            : append(path, obj.key),
           valueType
         }
       ];
@@ -492,3 +494,17 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
   });
   return changesArr;
 };
+
+/** combine a base JSON Path with a subsequent segment */
+function append(basePath: string, nextSegment: string): string {
+  return nextSegment.includes('.')
+    ? `${basePath}[${nextSegment}]`
+    : `${basePath}.${nextSegment}`;
+}
+
+/** returns a JSON Path filter expression; e.g., `$.pet[(?name='spot')]` */
+function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string) {
+  return typeof filterKey === 'string' && filterKey.includes('.')
+    ? `${basePath}[?(@[${filterKey}]='${filterValue}')]`
+    : `${basePath}[?(@.${filterKey}='${filterValue}')]`
+}

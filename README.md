@@ -281,7 +281,7 @@ Blog: https://blog.leitwolf.io
 Twitter: [@cglessner](https://twitter.com/cglessner)
 
 ## Changelog
-
+- v1.2.6 Improve handling of JSON Path segments that include periods (PR by [EdVinyard](https://github.com/EdVinyard))
 - v1.2.5 Patch all dependencies; add support for resolving a key name if a function is used to get the key value
 - v1.2.4 Fix readme (npm install); update TypeScript and Lodash
 - v1.2.3 Update outdated dependencies; update TypeScript version to 4.5.2

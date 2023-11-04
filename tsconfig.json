@@ -12,7 +12,8 @@
     "noImplicitThis": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "moduleResolution": "Node"
   },
   "include": ["src", "jest.config.mjs"],
   "exclude": ["node_modules"]

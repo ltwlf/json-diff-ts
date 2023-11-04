@@ -1,2 +1,2 @@
-export * from './jsonDiff';
-export * from './jsonCompare';
+export * from './jsonDiff.js';
+export * from './jsonCompare.js';

@@ -1,4 +1,4 @@
-import { difference, find, intersection, keyBy } from 'lodash-es';
+import { difference, find, intersection, keyBy } from 'lodash';
 
 type FunctionKey = (obj: any, getKeyName?: boolean) => any;
 

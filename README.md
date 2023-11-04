@@ -41,7 +41,7 @@ const newData = {
   ]
 };
 
-const diffs = diff(oldData, newData, { arrayKey: { characters: 'id' } });
+const diffs = diff(oldData, newData, { characters: 'id' });
 
 const expectedDiffs = [
   {
@@ -79,6 +79,30 @@ const expectedDiffs = [
     ]
   }
 ];
+```
+
+#### Advanced
+
+You can use a path to define keys of nested arrays
+
+```javascript
+const diffs = diff(oldData, newData, { characters.subarray: 'id' });
+```
+
+You can use a function to dynamically resolve the key of the object
+
+```javascript
+const diffs = diff(oldData, newData, { characters : (obj:any) => obj.id ? "id": "$index" });
+```
+
+You can use regex for path if you use this Map type:
+
+```javascript
+const embeddedObjKeys: EmbeddedObjKeysMapType = new Map();
+
+embeddedObjKeys.set(/^char\w+$/, 'id'); // instead of 'id' you can specify a function
+
+const diffs = diff(oldObj, newObj, embeddedObjKeys);
 ```
 
 ### `flattenChangeset`

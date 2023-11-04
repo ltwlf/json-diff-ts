@@ -1,6 +1,7 @@
 import {
   applyChangeset,
   diff,
+  EmbeddedObjKeysMapType,
   flattenChangeset,
   IChange,
   Operation,
@@ -426,7 +427,7 @@ describe('jsonDiff#diff', () => {
   });
 
   test('should return correct diff for object with embedded array object that does have regex key', (done) => {
-    const embeddedObjKeys = new Map<string | RegExp, string>();
+    const embeddedObjKeys: EmbeddedObjKeysMapType = new Map();
     embeddedObjKeys.set(/^children$/, 'name');
     embeddedObjKeys.set(/\.subset$/, 'id');
 

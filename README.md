@@ -4,315 +4,109 @@
 [![Known Vulnerabilities](https://snyk.io/test/github/ltwlf/json-diff-ts/badge.svg?targetFile=package.json)](https://snyk.io/test/github/ltwlf/json-diff-ts?targetFile=package.json)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ltwlf_json-diff-ts&metric=alert_status)](https://sonarcloud.io/dashboard?id=ltwlf_json-diff-ts)
 
-TypeScript diff tool with support for array keys instead of just indexes and compatible with JSONPath.
+json-diff-ts is a TypeScript-based library that provides robust tools for calculating differences between JSON objects. It offers unique features such as support for array keys beyond simple indexes and full compatibility with JSONPath.
 
-## Features
+## Capabilities
 
-### diff
+### Diffing with `diff`
 
-If a embedded key is specified for an array, the diff will be generated based on the objects with the same keys.
+Generates a diff for JSON objects, with an optional parameter to specify keys within arrays, allowing for key-based comparison rather than index-based.
 
-#### Examples:
+#### Usage Example:
 
 ```javascript
-var changesets = require('json-diff-ts');
-var newObj, oldObj;
+const changesets = require('json-diff-ts');
 
-oldObj = {
-  name: 'joe',
-  age: 55,
-  coins: [2, 5],
-  children: [
-    { name: 'kid1', age: 1 },
-    { name: 'kid2', age: 2 }
-  ]
+let oldObj = {
+  // original JSON object
 };
 
-newObj = {
-  name: 'smith',
-  coins: [2, 5, 1],
-  children: [
-    { name: 'kid3', age: 3 },
-    { name: 'kid1', age: 0 },
-    { name: 'kid2', age: 2 }
-  ]
+let newObj = {
+  // new JSON object with changes
 };
 
-// Assume children is an array of child object and the child object has 'name' as its primary key
-// keys can also be hierarchical e.g. {children: 'name', 'children.grandChildren', 'age'}
-// or use functions that return the key of an object e.g. {children: function(obj) { return obj.key; }}
-// when you use a function flatten can not generate the correct path.
-// to fix this, you can add an additional parameter e.g. (obj, getKeyNameFlag) => {...}. getKeyNameFlag will be true when the diff library try to resolve the key name instead of the key value. You can return a static string or use obj to check which key name you should return. obj will be the first object of the array!
-diffs = changesets.diff(oldObj, newObj, { children: 'name' });
+// Generate diff with 'name' as the key for array items in 'children'
+let diffs = changesets.diff(oldObj, newObj, { children: 'name' });
 
-expect(diffs).to.eql([
-  {
-    type: 'update',
-    key: 'name',
-    value: 'smith',
-    oldValue: 'joe'
-  },
-  {
-    type: 'update',
-    key: 'coins',
-    embededKey: '$index',
-    changes: [{ type: 'add', key: '2', value: 1 }]
-  },
-  {
-    type: 'update',
-    key: 'children',
-    embededKey: 'name',
-    changes: [
-      {
-        type: 'update',
-        key: 'kid1',
-        changes: [{ type: 'update', key: 'age', value: 0, oldValue: 1 }]
-      },
-      {
-        type: 'add',
-        key: 'kid3',
-        value: { name: 'kid3', age: 3 }
-      }
-    ]
-  },
-  {
-    type: 'remove',
-    key: 'age',
-    value: 55
-  }
-]);
+// diffs will contain a comprehensive list of changes between oldObj and newObj
 ```
 
-### flattenChangeset
+### Flatten Changes with `flattenChangeset`
 
-Converts the changeset into a flat atomic change list compatible with JSONPath.
+Converts complex changesets into a flattened list of atomic changes that adhere to JSONPath syntax.
 
-#### Examples:
+#### Usage Example:
 
 ```javascript
 const flatChanges = flattenChangeset(diffs);
-// convert changes back to changeset format
-const changeset = unflattenChanges(flatChanges.slice(1, 5));
-// or use a JSONPath library to apply the patches
-// ...
+
+// flatChanges now contains a simplified array of changes
+// These changes can be converted back to a changeset or applied using a JSONPath library
 ```
 
-The **flatChange** format will look like this:
+### Applying Changes with `applyChange`
+
+Applies a changeset to a JSON object to update it with new changes.
+
+#### Usage Example:
 
 ```javascript
-[
-  { type: 'UPDATE', key: 'name', value: 'smith', oldValue: 'joe', path: '$.name', valueType: 'String' },
-  { type: 'REMOVE', key: 'mixed', value: 10, path: '$.mixed', valueType: 'Number' },
-  { type: 'UPDATE', key: 'inner', value: 2, oldValue: 1, path: '$.nested.inner', valueType: 'Number' },
-  {
-    type: 'UPDATE',
-    key: 'date',
-    value: '2014-10-12T09:13:00.000Z',
-    oldValue: '2014-10-13T09:13:00.000Z',
-    path: '$.date',
-    valueType: 'Date'
-  },
-  { type: 'ADD', key: '2', value: 1, path: '$.coins[2]', valueType: 'Number' },
-  { type: 'REMOVE', key: '0', value: 'car', path: '$.toys[0]', valueType: 'String' },
-  { type: 'REMOVE', key: '1', value: 'doll', path: '$.toys[1]', valueType: 'String' },
-  { type: 'REMOVE', key: '0', path: '$.pets[0]', valueType: 'undefined' },
-  { type: 'REMOVE', key: '1', value: null, path: '$.pets[1]', valueType: null },
-  { type: 'UPDATE', key: 'age', value: 0, oldValue: 1, path: "$.children[?(@.name='kid1')].age", valueType: 'Number' },
-  {
-    type: 'UPDATE',
-    key: 'value',
-    value: 'heihei',
-    oldValue: 'haha',
-    path: "$.children[?(@.name='kid1')].subset[?(@.id='1')].value",
-    valueType: 'String'
-  },
-  {
-    type: 'REMOVE',
-    key: '2',
-    value: { id: 2, value: 'hehe' },
-    path: "$.children[?(@.name='kid1')].subset[?(@.id='2')]",
-    valueType: 'Object'
-  },
-  { type: 'ADD', key: 'kid3', value: { name: 'kid3', age: 3 }, path: '$.children', valueType: 'Object' }
-];
-```
-
-### applyChange
-
-#### Examples:
-
-```javascript
-var changesets = require('json-diff-ts');
-var oldObj = {
-  name: 'joe',
-  age: 55,
-  coins: [2, 5],
-  children: [
-    { name: 'kid1', age: 1 },
-    { name: 'kid2', age: 2 }
-  ]
-};
-
-// Assume children is an array of child object and the child object has 'name' as its primary key
-diffs = [
-  {
-    type: 'update',
-    key: 'name',
-    value: 'smith',
-    oldValue: 'joe'
-  },
-  {
-    type: 'update',
-    key: 'coins',
-    embededKey: '$index',
-    changes: [{ type: 'add', key: '2', value: 1 }]
-  },
-  {
-    type: 'update',
-    key: 'children',
-    embededKey: 'name', // The key property name of the elements in an array
-    changes: [
-      {
-        type: 'update',
-        key: 'kid1',
-        changes: [{ type: 'update', key: 'age', value: 0, oldValue: 1 }]
-      },
-      {
-        type: 'add',
-        key: 'kid3',
-        value: { name: 'kid3', age: 3 }
-      }
-    ]
-  },
-  {
-    type: 'remove',
-    key: 'age',
-    value: 55
-  }
-];
-
 changesets.applyChanges(oldObj, diffs);
-expect(oldObj).to.eql({
-  name: 'smith',
-  coins: [2, 5, 1],
-  children: [
-    { name: 'kid3', age: 3 },
-    { name: 'kid1', age: 0 },
-    { name: 'kid2', age: 2 }
-  ]
-});
+
+// oldObj is now updated with the changes described in diffs
 ```
 
-### revertChange
+### Reverting Changes with `revertChange`
 
-#### Examples:
+Allows for reverting applied changes from a JSON object, effectively undoing the diff.
+
+#### Usage Example:
 
 ```javascript
+changesets.revertChanges(newObj, diffs);
 
-  var changesets = require('json-diff-ts');
-
-  var newObj = {
-    name: 'smith',
-    coins: [2, 5, 1],
-    children: [
-      {name: 'kid3', age: 3},
-      {name: 'kid1', age: 0},
-      {name: 'kid2', age: 2}
-   ]};
-
-  // Assume children is an array of child object and the child object has 'name' as its primary key
-  diffs =  [
-    {
-      type: 'update', key: 'name', value: 'smith', oldValue: 'joe'
-    },
-    {
-      type: 'update', key: 'coins', embededKey: '$index', changes: [
-          {type: 'add', key: '2', value: 1 }
-        ]
-    },
-    {
-      type: 'update',
-      key: 'children',
-      embededKey: 'name', // The key property name of the elements in an array
-      changes: [
-        {
-          type: 'update', key: 'kid1', changes: [
-            {type: 'update', key: 'age', value: 0, oldValue: 1 }
-          ]
-        },
-        {
-          type: 'add', key: 'kid3', value: {name: 'kid3', age: 3 }
-        }
-      ]
-    },
-    {
-      type: 'remove', key: 'age', value: 55
-    }
-  ]
-
-  changesets.revertChanges(newObj, diffs)
-  expect(newObj).to.eql {
-    name: 'joe',
-    age: 55,
-    coins: [2, 5],
-    children: [
-      {name: 'kid1', age: 1},
-      {name: 'kid2', age: 2}
-    ]};
-
+// newObj is reverted back to its original state before the diffs were applied
 ```
 
-## Get started
+## Getting Started
+
+Install the package with npm:
 
 ```
 npm install json-diff-ts
 ```
 
-## Run the test
+## Testing the Library
+
+Execute the test suite using npm:
 
 ```
 npm run test
 ```
 
-## Contact
+## Connect
 
-Blog: https://blog.leitwolf.io
+Reach out to the maintainer via LinkedIn or Twitter:
 
-Twitter: [@cglessner](https://twitter.com/cglessner)
+- LinkedIn: [Christian Glessner](https://www.linkedin.com/in/christian-glessner/)
+- Twitter: [@cglessner](https://twitter.com/leitwolf_io)
 
-## Changelog
-- v1.2.6 Improve handling of JSON Path segments that include periods (PR by [EdVinyard](https://github.com/EdVinyard))
-- v1.2.5 Patch all dependencies; add support for resolving a key name if a function is used to get the key value
-- v1.2.4 Fix readme (npm install); update TypeScript and Lodash
-- v1.2.3 Update outdated dependencies; update TypeScript version to 4.5.2
-- v1.2.2 Add support for functions to resove object keys (PR by [Abraxxa](https://github.com/abraxxa))
+Discover more about the company behind this project: [hololux](https://hololux.com)
 
-## Credits
+## Release Notes
 
-This project was based on https://www.npmjs.com/package/diff-json (viruschidai@gmail.com)
+- **v1.2.6:** Enhanced JSON Path handling for period-inclusive segments.
+- **v1.2.5:** Patched dependencies; added key name resolution support for key functions.
+- **v1.2.4:** Documentation updates; upgraded TypeScript and Lodash.
+- **v1.2.3:** Dependency updates; switched to TypeScript 4.5.2.
+- **v1.2.2:** Implemented object key resolution functions support.
 
-## Licence
+## Acknowledgments
 
-**The MIT License (MIT)**
+This project takes inspiration and code from [diff-json](https://www.npmjs.com/package/diff-json) by viruschidai@gmail.com.
 
-Copyright (c) 2019 Christian Glessner
+## License
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+json-diff-ts is open-sourced software licensed under the [MIT license](LICENSE).
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-The project is based on diff-json (https://www.npmjs.com/package/diff-json). Copyright 2013 viruschidai@gmail.com. for additional details.
-
-**Original License**
-
-The MIT License (MIT)
-
-Copyright (c) 2013 viruschidai@gmail.com
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+The original diff-json project is also under the MIT License. For more information, refer to its [license details](https://www.npmjs.com/package/diff-json#license).

@@ -139,14 +139,24 @@ const compareArray = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any,
 const getObjectKey = (embeddedObjKeys: any, keyPath: any) => {
   if (embeddedObjKeys != null) {
     const path = keyPath.join('.');
+
+    if (embeddedObjKeys instanceof Map) {
+      for (const [key, value] of embeddedObjKeys.entries()) {
+        if (key instanceof RegExp) {
+          if (path.match(key)) {
+            return value;
+          }
+        } else {
+          if (path === key) {
+            return value;
+          }
+        }
+      }
+    }
+
     const key = embeddedObjKeys[path];
     if (key != null) {
       return key;
-    }
-    for (const regex in embeddedObjKeys) {
-      if (path.match(new RegExp(regex))) {
-        return embeddedObjKeys[regex];
-      }
     }
   }
   return undefined;
@@ -298,8 +308,16 @@ const revertBranchChange = (obj: any, change: any) => {
   }
 };
 
-export const diff = (oldObj: any, newObj: any, embeddedObjKeys?: Record<string, string | FunctionKey>): IChange[] =>
-  compare(oldObj, newObj, [], embeddedObjKeys, []);
+export type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
+export type EmbeddedObjKeysMapType = Map<string | RegExp, string | FunctionKey>;
+
+export function diff(
+  oldObj: any,
+  newObj: any,
+  embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType
+): IChange[] {
+  return compare(oldObj, newObj, [], embeddedObjKeys, []);
+}
 
 export const applyChangeset = (obj: any, changeset: Changeset) => {
   if (changeset) {
@@ -371,9 +389,7 @@ export const flattenChangeset = (
       return [
         {
           ...obj,
-          path: valueType === 'Object' || path.endsWith(`[${obj.key}]`)
-            ? path
-            : append(path, obj.key),
+          path: valueType === 'Object' || path.endsWith(`[${obj.key}]`) ? path : append(path, obj.key),
           valueType
         }
       ];
@@ -497,14 +513,12 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
 
 /** combine a base JSON Path with a subsequent segment */
 function append(basePath: string, nextSegment: string): string {
-  return nextSegment.includes('.')
-    ? `${basePath}[${nextSegment}]`
-    : `${basePath}.${nextSegment}`;
+  return nextSegment.includes('.') ? `${basePath}[${nextSegment}]` : `${basePath}.${nextSegment}`;
 }
 
 /** returns a JSON Path filter expression; e.g., `$.pet[(?name='spot')]` */
 function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string) {
   return typeof filterKey === 'string' && filterKey.includes('.')
     ? `${basePath}[?(@[${filterKey}]='${filterValue}')]`
-    : `${basePath}[?(@.${filterKey}='${filterValue}')]`
+    : `${basePath}[?(@.${filterKey}='${filterValue}')]`;
 }

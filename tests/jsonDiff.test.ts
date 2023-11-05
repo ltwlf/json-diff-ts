@@ -1,496 +1,88 @@
+import _ from 'lodash';
 import {
   applyChangeset,
   diff,
   EmbeddedObjKeysMapType,
   flattenChangeset,
-  IChange,
-  Operation,
   revertChangeset,
   unflattenChanges
 } from '../src/jsonDiff';
+import * as fixtures from './__fixtures__/jsonDiff.fixture';
 
 let oldObj: any;
 let newObj: any;
-let changesetWithoutEmbeddedKey: IChange[];
-let changeset: IChange[];
-let changesetWithDoubleRemove: IChange[];
-let changesetWithFunctionKey: IChange[];
 
-beforeEach((done) => {
-  oldObj = {
-    name: 'joe',
-    age: 55,
-    mixed: 10,
-    nested: { inner: 1 },
-    empty: undefined,
-    date: new Date('October 13, 2014 11:13:00'),
-    coins: [2, 5],
-    toys: ['car', 'doll', 'car'],
-    pets: [undefined, null],
-    children: [
-      {
-        name: 'kid1',
-        age: 1,
-        subset: [
-          { id: 1, value: 'haha' },
-          { id: 2, value: 'hehe' }
-        ]
-      },
-      { name: 'kid2', age: 2 }
-    ]
-  };
-
-  newObj = {
-    name: 'smith',
-    mixed: '10',
-    nested: { inner: 2 },
-    date: new Date('October 12, 2014 11:13:00'),
-    coins: [2, 5, 1],
-    toys: [],
-    pets: [],
-    children: [
-      { name: 'kid3', age: 3 },
-      {
-        name: 'kid1',
-        age: 0,
-        subset: [{ id: 1, value: 'heihei' }]
-      },
-      { name: 'kid2', age: 2 }
-    ]
-  };
-
-  changeset = [
-    { type: Operation.UPDATE, key: 'name', value: 'smith', oldValue: 'joe' },
-    { type: Operation.REMOVE, key: 'mixed', value: 10 },
-    { type: Operation.ADD, key: 'mixed', value: '10' },
-    {
-      type: Operation.UPDATE,
-      key: 'nested',
-      changes: [{ type: Operation.UPDATE, key: 'inner', value: 2, oldValue: 1 }]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'date',
-      value: new Date('October 12, 2014 11:13:00'),
-      oldValue: new Date('October 13, 2014 11:13:00')
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'coins',
-      embeddedKey: '$index',
-      changes: [{ type: Operation.ADD, key: '2', value: 1 }]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'toys',
-      embeddedKey: '$index',
-      changes: [
-        { type: Operation.REMOVE, key: '0', value: 'car' },
-        { type: Operation.REMOVE, key: '1', value: 'doll' },
-        { type: Operation.REMOVE, key: '2', value: 'car' }
-      ]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'pets',
-      embeddedKey: '$index',
-      changes: [
-        { type: Operation.REMOVE, key: '0', value: undefined },
-        { type: Operation.REMOVE, key: '1', value: null }
-      ]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'children',
-      embeddedKey: 'name',
-      changes: [
-        {
-          type: Operation.UPDATE,
-          key: 'kid1',
-          changes: [
-            { type: Operation.UPDATE, key: 'age', value: 0, oldValue: 1 },
-            {
-              type: Operation.UPDATE,
-              key: 'subset',
-              embeddedKey: 'id',
-              changes: [
-                {
-                  type: Operation.UPDATE,
-                  key: '1',
-                  changes: [
-                    {
-                      type: Operation.UPDATE,
-                      key: 'value',
-                      value: 'heihei',
-                      oldValue: 'haha'
-                    }
-                  ]
-                },
-                {
-                  type: Operation.REMOVE,
-                  key: '2',
-                  value: { id: 2, value: 'hehe' }
-                }
-              ]
-            }
-          ]
-        },
-        { type: Operation.ADD, key: 'kid3', value: { name: 'kid3', age: 3 } }
-      ]
-    },
-
-    { type: Operation.REMOVE, key: 'age', value: 55 },
-    { type: Operation.REMOVE, key: 'empty', value: undefined }
-  ];
-
-  changesetWithDoubleRemove = [
-    { type: Operation.UPDATE, key: 'name', value: 'smith', oldValue: 'joe' },
-    { type: Operation.REMOVE, key: 'mixed', value: 10 },
-    { type: Operation.ADD, key: 'mixed', value: '10' },
-    {
-      type: Operation.UPDATE,
-      key: 'nested',
-      changes: [{ type: Operation.UPDATE, key: 'inner', value: 2, oldValue: 1 }]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'date',
-      value: new Date('October 12, 2014 11:13:00'),
-      oldValue: new Date('October 13, 2014 11:13:00')
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'coins',
-      embeddedKey: '$index',
-      changes: [{ type: Operation.ADD, key: '2', value: 1 }]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'toys',
-      embeddedKey: '$index',
-      changes: [
-        { type: Operation.REMOVE, key: '0', value: 'car' },
-        { type: Operation.REMOVE, key: '1', value: 'doll' },
-        { type: Operation.REMOVE, key: '2', value: 'car' }
-      ]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'pets',
-      embeddedKey: '$index',
-      changes: [
-        { type: Operation.REMOVE, key: '0', value: undefined },
-        { type: Operation.REMOVE, key: '1', value: null }
-      ]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'children',
-      embeddedKey: 'name',
-      changes: [
-        {
-          type: Operation.UPDATE,
-          key: 'kid1',
-          changes: [
-            { type: Operation.UPDATE, key: 'age', value: 0, oldValue: 1 },
-            {
-              type: Operation.UPDATE,
-              key: 'subset',
-              embeddedKey: 'id',
-              changes: [
-                {
-                  type: Operation.UPDATE,
-                  key: '1',
-                  changes: [
-                    {
-                      type: Operation.UPDATE,
-                      key: 'value',
-                      value: 'heihei',
-                      oldValue: 'haha'
-                    }
-                  ]
-                },
-                {
-                  type: Operation.REMOVE,
-                  key: '2',
-                  value: { id: 2, value: 'hehe' }
-                },
-                {
-                  type: Operation.REMOVE,
-                  key: '2',
-                  value: { id: 2, value: 'hehe' }
-                }
-              ]
-            }
-          ]
-        },
-        { type: Operation.ADD, key: 'kid3', value: { name: 'kid3', age: 3 } }
-      ]
-    },
-
-    { type: Operation.REMOVE, key: 'age', value: 55 },
-    { type: Operation.REMOVE, key: 'empty', value: undefined }
-  ];
-
-  changesetWithoutEmbeddedKey = [
-    { type: Operation.UPDATE, key: 'name', value: 'smith', oldValue: 'joe' },
-    { type: Operation.REMOVE, key: 'mixed', value: 10 },
-    { type: Operation.ADD, key: 'mixed', value: '10' },
-    {
-      type: Operation.UPDATE,
-      key: 'nested',
-      changes: [{ type: Operation.UPDATE, key: 'inner', value: 2, oldValue: 1 }]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'date',
-      value: new Date('October 12, 2014 11:13:00'),
-      oldValue: new Date('October 13, 2014 11:13:00')
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'coins',
-      embeddedKey: '$index',
-      changes: [{ type: Operation.ADD, key: '2', value: 1 }]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'toys',
-      embeddedKey: '$index',
-      changes: [
-        { type: Operation.REMOVE, key: '0', value: 'car' },
-        { type: Operation.REMOVE, key: '1', value: 'doll' },
-        { type: Operation.REMOVE, key: '2', value: 'car' }
-      ]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'pets',
-      embeddedKey: '$index',
-      changes: [
-        { type: Operation.REMOVE, key: '0', value: undefined },
-        { type: Operation.REMOVE, key: '1', value: null }
-      ]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'children',
-      embeddedKey: '$index',
-      changes: [
-        {
-          type: Operation.UPDATE,
-          key: '0',
-          changes: [
-            {
-              type: Operation.UPDATE,
-              key: 'name',
-              value: 'kid3',
-              oldValue: 'kid1'
-            },
-            { type: Operation.UPDATE, key: 'age', value: 3, oldValue: 1 },
-            {
-              type: Operation.REMOVE,
-              key: 'subset',
-              value: [
-                { id: 1, value: 'haha' },
-                { id: 2, value: 'hehe' }
-              ]
-            }
-          ]
-        },
-        {
-          type: Operation.UPDATE,
-          key: '1',
-          changes: [
-            {
-              type: Operation.UPDATE,
-              key: 'name',
-              value: 'kid1',
-              oldValue: 'kid2'
-            },
-            { type: Operation.UPDATE, key: 'age', value: 0, oldValue: 2 },
-            {
-              type: Operation.ADD,
-              key: 'subset',
-              value: [{ id: 1, value: 'heihei' }]
-            }
-          ]
-        },
-        { type: Operation.ADD, key: '2', value: { name: 'kid2', age: 2 } }
-      ]
-    },
-
-    { type: Operation.REMOVE, key: 'age', value: 55 },
-    { type: Operation.REMOVE, key: 'empty', value: undefined }
-  ];
-
-  changesetWithFunctionKey = [
-    { type: Operation.UPDATE, key: 'name', value: 'smith', oldValue: 'joe' },
-    { type: Operation.REMOVE, key: 'mixed', value: 10 },
-    { type: Operation.ADD, key: 'mixed', value: '10' },
-    {
-      type: Operation.UPDATE,
-      key: 'nested',
-      changes: [{ type: Operation.UPDATE, key: 'inner', value: 2, oldValue: 1 }]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'date',
-      value: new Date('October 12, 2014 11:13:00'),
-      oldValue: new Date('October 13, 2014 11:13:00')
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'coins',
-      embeddedKey: '$index',
-      changes: [{ type: Operation.ADD, key: '2', value: 1 }]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'toys',
-      embeddedKey: '$index',
-      changes: [
-        { type: Operation.REMOVE, key: '0', value: 'car' },
-        { type: Operation.REMOVE, key: '1', value: 'doll' },
-        { type: Operation.REMOVE, key: '2', value: 'car' }
-      ]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'pets',
-      embeddedKey: '$index',
-      changes: [
-        { type: Operation.REMOVE, key: '0', value: undefined },
-        { type: Operation.REMOVE, key: '1', value: null }
-      ]
-    },
-    {
-      type: Operation.UPDATE,
-      key: 'children',
-      embeddedKey: expect.any(Function),
-      changes: [
-        {
-          type: Operation.UPDATE,
-          key: 'kid1',
-          changes: [
-            { type: Operation.UPDATE, key: 'age', value: 0, oldValue: 1 },
-            {
-              type: Operation.UPDATE,
-              key: 'subset',
-              embeddedKey: expect.any(Function),
-              changes: [
-                {
-                  type: Operation.UPDATE,
-                  key: '1',
-                  changes: [
-                    {
-                      type: Operation.UPDATE,
-                      key: 'value',
-                      value: 'heihei',
-                      oldValue: 'haha'
-                    }
-                  ]
-                },
-                {
-                  type: Operation.REMOVE,
-                  key: '2',
-                  value: { id: 2, value: 'hehe' }
-                }
-              ]
-            }
-          ]
-        },
-        { type: Operation.ADD, key: 'kid3', value: { name: 'kid3', age: 3 } }
-      ]
-    },
-
-    { type: Operation.REMOVE, key: 'age', value: 55 },
-    { type: Operation.REMOVE, key: 'empty', value: undefined }
-  ];
-  done();
+beforeEach(() => {
+  oldObj = fixtures.oldObj();
+  newObj = fixtures.newObj();
 });
 
 describe('jsonDiff#diff', () => {
-  test('should return correct diff for object with embedded array object that does not have key specified', (done) => {
+  it('returns correct diff for objects with embedded array without specified key', () => {
     const diffs = diff(oldObj, newObj);
-    expect(diffs).toMatchObject(changesetWithoutEmbeddedKey);
-    done();
+    expect(diffs).toMatchSnapshot();
   });
 
-  test('should return correct diff for object with embedded array object that does have keys', (done) => {
+  it('returns correct diff for objects with embedded array with specified keys', () => {
     const diffs = diff(oldObj, newObj, {
       children: 'name',
       'children.subset': 'id'
     });
-    expect(diffs).toMatchObject(changeset);
-    done();
+    expect(diffs).toMatchSnapshot();
   });
 
-  test('should return correct diff for object with embedded array object that does have regex key', (done) => {
+  it('returns correct diff for objects with embedded array with regex keys', () => {
     const embeddedObjKeys: EmbeddedObjKeysMapType = new Map();
     embeddedObjKeys.set(/^children$/, 'name');
     embeddedObjKeys.set(/\.subset$/, 'id');
 
     const diffs = diff(oldObj, newObj, embeddedObjKeys);
-    expect(diffs).toMatchObject(changeset);
-    done();
+    expect(diffs).toMatchSnapshot();
   });
 
-  test('should return correct diff for object with embedded array object that does have function key', (done) => {
+  it('returns correct diff for objects with embedded array with function keys', () => {
     const diffs = diff(oldObj, newObj, {
-      children: function (obj: { name: string }) {
-        return obj.name;
-      },
-      'children.subset': function (obj: { id: number }) {
-        return obj.id;
-      }
+      children: (obj: { name: string }) => obj.name,
+      'children.subset': (obj: { id: number }) => obj.id
     });
-    expect(diffs).toMatchObject(changesetWithFunctionKey);
-    done();
+    expect(diffs).toMatchSnapshot();
   });
 });
 
 describe('jsonDiff#applyChangeset', () => {
-  test('should transfer oldObj to newObj with changeset', (done) => {
-    applyChangeset(oldObj, changeset);
+  it('applies changeset to oldObj correctly', () => {
+    applyChangeset(oldObj, fixtures.changeset);
     newObj.children.sort((a: any, b: any) => (a.name > b.name ? 1 : -1));
     expect(oldObj).toMatchObject(newObj);
-    done();
   });
 
-  test('should transfer oldObj to newObj with changesetWithoutEmbeddedKey', (done) => {
-    applyChangeset(oldObj, changesetWithoutEmbeddedKey);
-    newObj.children.sort((a: any, b: any) => a.name > b.name);
-    oldObj.children.sort((a: any, b: any) => a.name > b.name);
-    expect(oldObj).toMatchObject(newObj);
-    done();
+  it('applies changesetWithoutKey to oldObj correctly', () => {
+    applyChangeset(oldObj, fixtures.changesetWithoutEmbeddedKey);
+    expect(_.isEqual(oldObj, newObj)).toBe(true);
   });
-  test('Removing non existing array elements should be ignored', (done) => {
-    applyChangeset(oldObj, changesetWithDoubleRemove);
+
+  it('ignores removal of non-existing array elements', () => {
+    applyChangeset(oldObj, fixtures.changesetWithDoubleRemove);
     newObj.children.sort((a: any, b: any) => (a.name > b.name ? 1 : -1));
     expect(oldObj).toMatchObject(newObj);
-    done();
   });
 });
 
 describe('jsonDiff#revertChangeset', () => {
-  test('should transfer newObj to oldObj with changeset', (done) => {
-    revertChangeset(newObj, changeset);
-    newObj.children.sort((a: any, b: any) => a.name > b.name);
-    expect(newObj).toMatchObject(oldObj);
-    done();
+  it('reverts changeset on newObj correctly', () => {
+    revertChangeset(newObj, fixtures.changeset);
+    expect(_.isEqual(oldObj, newObj)).toBe(true);
   });
 
-  test('should transfer newObj to oldObj with changesetWithoutEmbeddedKey', (done) => {
-    revertChangeset(newObj, changesetWithoutEmbeddedKey);
+  it('reverts changesetWithoutKey on newObj correctly', () => {
+    revertChangeset(newObj, fixtures.changesetWithoutEmbeddedKey);
     newObj.children.sort((a: any, b: any) => a.name > b.name);
-    expect(newObj).toMatchObject(oldObj);
-    done();
+    expect(_.isEqual(oldObj, newObj)).toBe(true);
   });
 });
 
 describe('jsonDiff#flatten', () => {
-  test('flatten changes, unflatten and apply', (done) => {
+  it('flattens changes, unflattens them, and applies them correctly', () => {
     const diffs = diff(oldObj, newObj, {
       children: 'name',
       'children.subset': 'id'
@@ -501,15 +93,13 @@ describe('jsonDiff#flatten', () => {
 
     applyChangeset(oldObj, unflat);
 
-    newObj.children = newObj.children.sort((a: any, b: any) => (a.name > b.name ? 1 : -1));
-    oldObj.children = oldObj.children.sort((a: any, b: any) => (a.name > b.name ? 1 : -1));
+    newObj.children.sort((a: any, b: any) => (a.name > b.name ? 1 : -1));
+    oldObj.children.sort((a: any, b: any) => (a.name > b.name ? 1 : -1));
 
     expect(oldObj).toStrictEqual(newObj);
-
-    done();
   });
 
-  test('Start with blank object, flatten changes, unflatten and apply', (done) => {
+  it('starts with a blank object, flattens changes, unflattens them, and applies them correctly', () => {
     const beforeObj = {};
     const afterObj = newObj;
 
@@ -521,11 +111,9 @@ describe('jsonDiff#flatten', () => {
     applyChangeset(beforeObj, unflat);
 
     expect(beforeObj).toMatchObject(afterObj);
-
-    done();
   });
 
-  test('Get key name for flattening when using a key function', (done) => {
+  it('gets key name for flattening when using a key function', () => {
     const beforeObj = {
       items: [
         {
@@ -560,7 +148,5 @@ describe('jsonDiff#flatten', () => {
     const flat = flattenChangeset(diffs);
 
     expect(flat).toMatchSnapshot();
-
-    done();
   });
 });

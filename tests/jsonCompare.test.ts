@@ -1,11 +1,10 @@
-import { keys } from 'lodash';
 import { compare, CompareOperation, IComparisonEnrichedNode, enrich } from '../src/jsonCompare';
 import { Operation } from '../src/jsonDiff';
 
 let testedObject: any;
 let enrichedObject: IComparisonEnrichedNode;
 
-beforeEach((done) => {
+beforeEach(() => {
   const prepareTestCase = (): any => ({
     undefined: undefined,
     null: null,
@@ -16,15 +15,18 @@ beforeEach((done) => {
     emptyArray: []
   });
 
+  const testCase = prepareTestCase();
+
   testedObject = {
-    ...prepareTestCase(),
-    objectWithTestCase: prepareTestCase(),
-    ...keys(prepareTestCase())
-      .map((key) => ({ key, value: [prepareTestCase()[key]] }))
-      .reduce((accumulator, entry) => {
-        accumulator['arrayWith' + entry.key] = entry.value;
+    ...testCase,
+    objectWithTestCase: { ...testCase },
+    ...Object.keys(testCase).reduce(
+      (accumulator, key) => {
+        accumulator['arrayWith' + key] = [testCase[key]];
         return accumulator;
-      }, {} as { [key: string]: any })
+      },
+      {} as { [key: string]: any }
+    )
   };
 
   const prepareEnrichedObject = (): { [key: string]: IComparisonEnrichedNode } => ({
@@ -58,37 +60,41 @@ beforeEach((done) => {
     }
   });
 
+  const enrichedTestCase = prepareEnrichedObject();
+
   enrichedObject = {
     type: CompareOperation.CONTAINER,
     value: {
-      ...prepareEnrichedObject(),
+      ...enrichedTestCase,
       objectWithTestCase: {
         type: CompareOperation.CONTAINER,
-        value: prepareEnrichedObject()
+        value: { ...enrichedTestCase }
       },
-      ...keys(prepareEnrichedObject())
-        .map((key) => ({ key, value: { type: CompareOperation.CONTAINER, value: [prepareEnrichedObject()[key]] } }))
-        .reduce((accumulator, entry) => {
-          accumulator['arrayWith' + entry.key] = entry.value;
+      ...Object.keys(enrichedTestCase).reduce(
+        (accumulator, key) => {
+          accumulator['arrayWith' + key] = { type: CompareOperation.CONTAINER, value: [enrichedTestCase[key]] };
           return accumulator;
-        }, {} as { [key: string]: any })
+        },
+        {} as { [key: string]: any }
+      )
     }
   };
-  done();
 });
 
 describe('jsonCompare#compare', () => {
-  test('should enrich empty object', (done) => {
+  it('enriches an empty object correctly', (done) => {
     const comparison = enrich({});
     expect(comparison).toMatchObject({ type: CompareOperation.CONTAINER, value: {} });
     done();
   });
-  test('should enrich complex object', (done) => {
+
+  it('enriches a complex object correctly', (done) => {
     const comparison = enrich(testedObject);
     expect(comparison).toMatchObject(enrichedObject);
     done();
   });
-  test('Should apply flattened diff results', (done) => {
+
+  it('applies flattened diff results correctly', (done) => {
     const oldObject = {
       code: 'code',
       variants: [

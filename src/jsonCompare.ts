@@ -1,5 +1,5 @@
-import { chain, keys, replace, set } from 'lodash';
-import { diff, flattenChangeset, getTypeOfObj, IFlatChange, Operation } from './jsonDiff';
+import { chain, keys, replace, set } from 'lodash-es';
+import { diff, flattenChangeset, getTypeOfObj, IFlatChange, Operation } from './jsonDiff.js';
 
 export enum CompareOperation {
   CONTAINER = 'CONTAINER',
@@ -31,7 +31,7 @@ export const enrich = (object: any): IComparisonEnrichedNode => {
         }, createContainer({}));
     case 'Array':
       return chain(object)
-        .map(value => enrich(value))
+        .map((value) => enrich(value))
         .reduce((accumulator, value) => {
           accumulator.value.push(value);
           return accumulator;
@@ -46,16 +46,22 @@ export const enrich = (object: any): IComparisonEnrichedNode => {
   }
 };
 
-export const applyChangelist = (object: IComparisonEnrichedNode, changelist: IFlatChange[]): IComparisonEnrichedNode => {
+export const applyChangelist = (
+  object: IComparisonEnrichedNode,
+  changelist: IFlatChange[]
+): IComparisonEnrichedNode => {
   chain(changelist)
-    .map(entry => ({ ...entry, path: replace(entry.path, '$.', '.') }))
-    .map(entry => ({ ...entry, path: replace(entry.path, /(\[(?<array>\d)\]\.)/g, 'ARRVAL_START$<array>ARRVAL_END') }))
-    .map(entry => ({ ...entry, path: replace(entry.path, /(?<dot>\.)/g, '.value$<dot>') }))
-    .map(entry => ({ ...entry, path: replace(entry.path, /\./, '') }))
-    .map(entry => ({ ...entry, path: replace(entry.path, /ARRVAL_START/g, '.value[') }))
-    .map(entry => ({ ...entry, path: replace(entry.path, /ARRVAL_END/g, '].value.') }))
+    .map((entry) => ({ ...entry, path: replace(entry.path, '$.', '.') }))
+    .map((entry) => ({
+      ...entry,
+      path: replace(entry.path, /(\[(?<array>\d)\]\.)/g, 'ARRVAL_START$<array>ARRVAL_END')
+    }))
+    .map((entry) => ({ ...entry, path: replace(entry.path, /(?<dot>\.)/g, '.value$<dot>') }))
+    .map((entry) => ({ ...entry, path: replace(entry.path, /\./, '') }))
+    .map((entry) => ({ ...entry, path: replace(entry.path, /ARRVAL_START/g, '.value[') }))
+    .map((entry) => ({ ...entry, path: replace(entry.path, /ARRVAL_END/g, '].value.') }))
     .value()
-    .forEach(entry => {
+    .forEach((entry) => {
       switch (entry.type) {
         case Operation.ADD:
         case Operation.UPDATE:

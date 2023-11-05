@@ -1,16 +1,10 @@
-import { keys } from 'lodash'
-import {
-  compare,
-  CompareOperation,
-  IComparisonEnrichedNode,
-  enrich
-} from '../src/jsonCompare'
-import { Operation } from '../src/jsonDiff'
+import { compare, CompareOperation, IComparisonEnrichedNode, enrich } from '../src/jsonCompare';
+import { Operation } from '../src/jsonDiff';
 
-let testedObject: any
-let enrichedObject: IComparisonEnrichedNode
+let testedObject: any;
+let enrichedObject: IComparisonEnrichedNode;
 
-beforeEach(done => {
+beforeEach(() => {
   const prepareTestCase = (): any => ({
     undefined: undefined,
     null: null,
@@ -21,14 +15,19 @@ beforeEach(done => {
     emptyArray: []
   });
 
+  const testCase = prepareTestCase();
+
   testedObject = {
-    ...prepareTestCase(),
-    objectWithTestCase: prepareTestCase(),
-    ...(keys(prepareTestCase()).map(key => ({ key, value: [prepareTestCase()[key]] })).reduce((accumulator, entry) => {
-      accumulator["arrayWith" + entry.key] = entry.value
-      return accumulator;
-    }, {} as { [key: string]: any }))
-  }
+    ...testCase,
+    objectWithTestCase: { ...testCase },
+    ...Object.keys(testCase).reduce(
+      (accumulator, key) => {
+        accumulator['arrayWith' + key] = [testCase[key]];
+        return accumulator;
+      },
+      {} as { [key: string]: any }
+    )
+  };
 
   const prepareEnrichedObject = (): { [key: string]: IComparisonEnrichedNode } => ({
     undefined: {
@@ -59,48 +58,52 @@ beforeEach(done => {
       type: CompareOperation.CONTAINER,
       value: []
     }
-  })
+  });
+
+  const enrichedTestCase = prepareEnrichedObject();
 
   enrichedObject = {
     type: CompareOperation.CONTAINER,
     value: {
-      ...prepareEnrichedObject(),
+      ...enrichedTestCase,
       objectWithTestCase: {
         type: CompareOperation.CONTAINER,
-        value: prepareEnrichedObject()
+        value: { ...enrichedTestCase }
       },
-      ...(keys(prepareEnrichedObject())
-        .map(key => ({ key, value: { type: CompareOperation.CONTAINER, value: [prepareEnrichedObject()[key]] } }))
-        .reduce((accumulator, entry) => {
-          accumulator["arrayWith" + entry.key] = entry.value
+      ...Object.keys(enrichedTestCase).reduce(
+        (accumulator, key) => {
+          accumulator['arrayWith' + key] = { type: CompareOperation.CONTAINER, value: [enrichedTestCase[key]] };
           return accumulator;
-        }, {} as { [key: string]: any }))
+        },
+        {} as { [key: string]: any }
+      )
     }
-  }
-  done()
-})
+  };
+});
 
 describe('jsonCompare#compare', () => {
-  test('should enrich empty object', done => {
-    const comparison = enrich({})
-    expect(comparison).toMatchObject({ type: CompareOperation.CONTAINER, value: {} })
-    done()
-  })
-  test('should enrich complex object', done => {
-    const comparison = enrich(testedObject)
-    expect(comparison).toMatchObject(enrichedObject)
-    done()
-  })
-  test('Should apply flattened diff results', done => {
+  it('enriches an empty object correctly', (done) => {
+    const comparison = enrich({});
+    expect(comparison).toMatchObject({ type: CompareOperation.CONTAINER, value: {} });
+    done();
+  });
+
+  it('enriches a complex object correctly', (done) => {
+    const comparison = enrich(testedObject);
+    expect(comparison).toMatchObject(enrichedObject);
+    done();
+  });
+
+  it('applies flattened diff results correctly', (done) => {
     const oldObject = {
-      code: "code",
+      code: 'code',
       variants: [
         {
-          identifier: "variantId",
+          identifier: 'variantId',
           nested: {
             nestedValue: 1,
             unchanged: 1,
-            deleted: "x"
+            deleted: 'x'
           },
           levels: [
             {
@@ -112,10 +115,10 @@ describe('jsonCompare#compare', () => {
     };
 
     const newObject = {
-      code: "newCode",
+      code: 'newCode',
       variants: [
         {
-          identifier: "newVariantId",
+          identifier: 'newVariantId',
           nested: {
             nestedValue: 2,
             unchanged: 1,
@@ -128,7 +131,7 @@ describe('jsonCompare#compare', () => {
           ]
         }
       ]
-    }
+    };
 
     const result = compare(oldObject, newObject);
     expect(result).toMatchObject({
@@ -136,8 +139,8 @@ describe('jsonCompare#compare', () => {
       value: {
         code: {
           type: Operation.UPDATE,
-          value: "newCode",
-          oldValue: "code"
+          value: 'newCode',
+          oldValue: 'code'
         },
         variants: {
           type: CompareOperation.CONTAINER,
@@ -147,8 +150,8 @@ describe('jsonCompare#compare', () => {
               value: {
                 identifier: {
                   type: Operation.UPDATE,
-                  value: "newVariantId",
-                  oldValue: "variantId"
+                  value: 'newVariantId',
+                  oldValue: 'variantId'
                 },
                 nested: {
                   type: CompareOperation.CONTAINER,
@@ -160,12 +163,12 @@ describe('jsonCompare#compare', () => {
                     },
                     unchanged: {
                       type: CompareOperation.UNCHANGED,
-                      value: 1,
+                      value: 1
                     },
                     deleted: {
                       type: Operation.REMOVE,
                       value: undefined,
-                      oldValue: "x"
+                      oldValue: 'x'
                     },
                     new: {
                       type: Operation.ADD,
@@ -193,7 +196,7 @@ describe('jsonCompare#compare', () => {
           ]
         }
       }
-    })
-    done()
-  })
-})
+    });
+    done();
+  });
+});

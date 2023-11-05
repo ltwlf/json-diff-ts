@@ -26,7 +26,8 @@ describe('jsonDiff#diff', () => {
   it('returns correct diff for objects with embedded array with specified keys', () => {
     const diffs = diff(oldObj, newObj, {
       children: 'name',
-      'children.subset': 'id'
+      // path can either starts with "" or "."
+      '.children.subset': 'id'
     });
     expect(diffs).toMatchSnapshot();
   });

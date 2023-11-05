@@ -28,11 +28,34 @@ export interface IFlatChange {
   oldValue?: any;
 }
 
+/**
+ * Computes the difference between two objects.
+ *
+ * @param {any} oldObj - The original object.
+ * @param {any} newObj - The updated object.
+ * @param {EmbeddedObjKeysType | EmbeddedObjKeysMapType} embeddedObjKeys - An optional parameter specifying keys of embedded objects.
+ * @returns {IChange[]} - An array of changes that transform the old object into the new object.
+ */
 export function diff(
   oldObj: any,
   newObj: any,
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType
 ): IChange[] {
+  // Trim leading '.' from keys in embeddedObjKeys
+  if (embeddedObjKeys instanceof Map) {
+    embeddedObjKeys = new Map(
+      Array.from(embeddedObjKeys.entries()).map(([key, value]) => [
+        key instanceof RegExp ? key : key.replace(/^\./, ''),
+        value
+      ])
+    );
+  } else if (embeddedObjKeys) {
+    embeddedObjKeys = Object.fromEntries(
+      Object.entries(embeddedObjKeys).map(([key, value]) => [key.replace(/^\./, ''), value])
+    );
+  }
+
+  // Compare old and new objects to generate a list of changes
   return compare(oldObj, newObj, [], embeddedObjKeys, []);
 }
 
@@ -154,14 +177,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     const obj = {} as IChange;
     let ptr = obj;
 
-    const segments = change.path.split(/([^@])\./).reduce((acc, curr, i) => {
-      const x = Math.floor(i / 2);
-      if (!acc[x]) {
-        acc[x] = '';
-      }
-      acc[x] += curr;
-      return acc;
-    }, []);
+    const segments = change.path.split(/(?<=[^@])\.(?=[^@])/);
 
     if (segments.length === 1) {
       ptr.key = change.key;
@@ -172,8 +188,8 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     } else {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
-        // Matches JSONPath segments: "items[?(@.id='123')]" or "items[2]"
-        const result = /^(.+)\[\?\(@\.(.+)='(.+)'\)]$|^(.+)\[(\d+)\]/.exec(segment);
+        // Matches JSONPath segments: "items[?(@.id=='123')]", items[?(@.id==123)], "items[2]"
+        const result = /^(.+)\[\?\(@\.([^=]+)={1,2}(?:'(.*)'|(\d+))\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
         // array
         if (result) {
           let key: string;
@@ -184,9 +200,9 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
             embeddedKey = result[2];
             arrKey = result[3];
           } else {
-            key = result[4];
+            key = result[5];
             embeddedKey = '$index';
-            arrKey = Number(result[5]);
+            arrKey = Number(result[6]);
           }
           // leaf
           if (i === segments.length - 1) {
@@ -510,7 +526,7 @@ const applyArrayChange = (arr: any, change: any) =>
         if (change.embeddedKey === '$index') {
           element = arr[subchange.key];
         } else {
-          element = find(arr, (el) => el[change.embeddedKey].toString() === subchange.key.toString());
+          element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
         }
         result.push(applyChangeset(element, subchange.changes));
       }
@@ -571,8 +587,9 @@ function append(basePath: string, nextSegment: string): string {
 }
 
 /** returns a JSON Path filter expression; e.g., `$.pet[(?name='spot')]` */
-function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string) {
+function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string | number) {
+  const value = typeof filterValue === 'number' ? filterValue : `'${filterValue}'`;
   return typeof filterKey === 'string' && filterKey.includes('.')
-    ? `${basePath}[?(@[${filterKey}]='${filterValue}')]`
-    : `${basePath}[?(@.${filterKey}='${filterValue}')]`;
+    ? `${basePath}[?(@[${filterKey}]==${value})]`
+    : `${basePath}[?(@.${filterKey}==${value})]`;
 }

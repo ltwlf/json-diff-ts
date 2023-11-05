@@ -154,14 +154,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     const obj = {} as IChange;
     let ptr = obj;
 
-    const segments = change.path.split(/([^@])\./).reduce((acc, curr, i) => {
-      const x = Math.floor(i / 2);
-      if (!acc[x]) {
-        acc[x] = '';
-      }
-      acc[x] += curr;
-      return acc;
-    }, []);
+    const segments = change.path.split(/(?<=[^@])\.(?=[^@])/);
 
     if (segments.length === 1) {
       ptr.key = change.key;
@@ -172,8 +165,10 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     } else {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
-        // Matches JSONPath segments: "items[?(@.id='123')]" or "items[2]"
-        const result = /^(.+)\[\?\(@\.(.+)='(.+)'\)]$|^(.+)\[(\d+)\]/.exec(segment);
+        console.log(segment);
+        // Matches JSONPath segments: "items[?(@.id=='123')]", items[?(@.id==123)], "items[2]"
+        const result = /^(.+)\[\?\(@\.([^=]+)={1,2}(?:'(.*)'|(\d+))\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
+        console.log(result);
         // array
         if (result) {
           let key: string;
@@ -184,9 +179,9 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
             embeddedKey = result[2];
             arrKey = result[3];
           } else {
-            key = result[4];
+            key = result[5];
             embeddedKey = '$index';
-            arrKey = Number(result[5]);
+            arrKey = Number(result[6]);
           }
           // leaf
           if (i === segments.length - 1) {
@@ -510,7 +505,7 @@ const applyArrayChange = (arr: any, change: any) =>
         if (change.embeddedKey === '$index') {
           element = arr[subchange.key];
         } else {
-          element = find(arr, (el) => el[change.embeddedKey].toString() === subchange.key.toString());
+          element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
         }
         result.push(applyChangeset(element, subchange.changes));
       }
@@ -571,8 +566,9 @@ function append(basePath: string, nextSegment: string): string {
 }
 
 /** returns a JSON Path filter expression; e.g., `$.pet[(?name='spot')]` */
-function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string) {
+function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string | number) {
+  const value = typeof filterValue === 'number' ? filterValue : `'${filterValue}'`;
   return typeof filterKey === 'string' && filterKey.includes('.')
-    ? `${basePath}[?(@[${filterKey}]='${filterValue}')]`
-    : `${basePath}[?(@.${filterKey}='${filterValue}')]`;
+    ? `${basePath}[?(@[${filterKey}]==${value})]`
+    : `${basePath}[?(@.${filterKey}==${value})]`;
 }

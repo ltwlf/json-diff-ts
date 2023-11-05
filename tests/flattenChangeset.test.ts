@@ -21,7 +21,7 @@ describe('flattenChangeset', () => {
 
     expect(actual.length).toBe(2);
     expect(actual[0].path).toBe('$[a.b]');
-    expect(actual[1].path).toBe("$[a.b][?(@.c='1')]");
+    expect(actual[1].path).toBe("$[a.b][?(@.c=='1')]");
     done();
   });
 
@@ -34,7 +34,7 @@ describe('flattenChangeset', () => {
 
     expect(actual.length).toBe(2);
     expect(actual[0].path).toBe('$.a');
-    expect(actual[1].path).toBe("$.a[?(@[c.d]='10')]");
+    expect(actual[1].path).toBe("$.a[?(@[c.d]=='10')]");
     done();
   });
 });

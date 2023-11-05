@@ -650,7 +650,7 @@ exports[`jsonDiff#flatten gets key name for flattening when using a key function
   },
   {
     "key": "1",
-    "path": "$.items[?(@._id='1')]",
+    "path": "$.items[?(@._id=='1')]",
     "type": "REMOVE",
     "value": {
       "_id": "1",

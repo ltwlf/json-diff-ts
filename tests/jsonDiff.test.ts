@@ -91,6 +91,9 @@ describe('jsonDiff#flatten', () => {
     const flat = flattenChangeset(diffs);
     const unflat = unflattenChanges(flat);
 
+    console.log(flat);
+    //console.log(unflat);
+
     applyChangeset(oldObj, unflat);
 
     newObj.children.sort((a: any, b: any) => (a.name > b.name ? 1 : -1));

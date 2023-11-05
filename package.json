@@ -1,7 +1,7 @@
 {
   "name": "json-diff-ts",
   "version": "1.2.6",
-  "description": "A diff tool for JavaScript based on https://www.npmjs.com/package/diff-json written in TypeScript.",
+  "description": "A JSON diff tool for JavaScript written in TypeScript.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "type": "module",

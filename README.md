@@ -119,6 +119,18 @@ Paths can be utilized to identify keys within nested arrays.
 const diffs = diff(oldData, newData, { characters.subarray: 'id' });
 ```
 
+Alternative Syntax
+
+```javascript
+const diffs = diff(oldData, newData, { 'characters.subarray': 'id' });
+```
+
+You can also designate the root by using '.' instead of an empty string ('').
+
+```javascript
+const diffs = diff(oldData, newData, { '.characters.subarray': 'id' });
+```
+
 You can use a function to dynamically resolve the key of the object.
 The first parameter is the object and the second is to signal if the function should return the key name instead of the value. This is needed to flatten the changeset
 
@@ -238,7 +250,7 @@ Discover more about the company behind this project: [hololux](https://hololux.c
 
 ## Release Notes
 
-- **v2.0.1:** Resolves a problem related to JSON Path filters by replacing the single equal sign (=) with a double equal sign (==). This update maintains compatibility with existing flat changes.
+- **v2.1.0:** Resolves a problem related to JSON Path filters by replacing the single equal sign (=) with a double equal sign (==). This update maintains compatibility with existing flat changes. Allows to use either '' or '.' as root in the path.
 - **v2.0.0:** json-diff-ts has been upgraded to an ECMAScript module! This major update brings optimizations and enhanced documentation. Additionally, a previously existing issue where all paths were treated as regex has been fixed. In this new version, you'll need to use a Map instead of a Record for regex paths. Please note that this is a breaking change if you were using regex paths in the previous versions.
 - **v1.2.6:** Enhanced JSON Path handling for period-inclusive segments.
 - **v1.2.5:** Patched dependencies; added key name resolution support for key functions.

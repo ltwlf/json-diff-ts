@@ -28,11 +28,34 @@ export interface IFlatChange {
   oldValue?: any;
 }
 
+/**
+ * Computes the difference between two objects.
+ *
+ * @param {any} oldObj - The original object.
+ * @param {any} newObj - The updated object.
+ * @param {EmbeddedObjKeysType | EmbeddedObjKeysMapType} embeddedObjKeys - An optional parameter specifying keys of embedded objects.
+ * @returns {IChange[]} - An array of changes that transform the old object into the new object.
+ */
 export function diff(
   oldObj: any,
   newObj: any,
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType
 ): IChange[] {
+  // Trim leading '.' from keys in embeddedObjKeys
+  if (embeddedObjKeys instanceof Map) {
+    embeddedObjKeys = new Map(
+      Array.from(embeddedObjKeys.entries()).map(([key, value]) => [
+        key instanceof RegExp ? key : key.replace(/^\./, ''),
+        value
+      ])
+    );
+  } else if (embeddedObjKeys) {
+    embeddedObjKeys = Object.fromEntries(
+      Object.entries(embeddedObjKeys).map(([key, value]) => [key.replace(/^\./, ''), value])
+    );
+  }
+
+  // Compare old and new objects to generate a list of changes
   return compare(oldObj, newObj, [], embeddedObjKeys, []);
 }
 
@@ -165,10 +188,8 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     } else {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
-        console.log(segment);
         // Matches JSONPath segments: "items[?(@.id=='123')]", items[?(@.id==123)], "items[2]"
         const result = /^(.+)\[\?\(@\.([^=]+)={1,2}(?:'(.*)'|(\d+))\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
-        console.log(result);
         // array
         if (result) {
           let key: string;

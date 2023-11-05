@@ -13,5 +13,6 @@ export default {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
-  transformIgnorePatterns: ['node_modules/(?!(lodash-es)/)']
+
+  extensionsToTreatAsEsm: ['.ts', '.tsx']
 };

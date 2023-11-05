@@ -1,7 +1,5 @@
 import { difference, find, intersection, keyBy } from 'lodash';
 
-type FunctionKey = (obj: any, getKeyName?: boolean) => any;
-
 export const getTypeOfObj = (obj: any) => {
   if (typeof obj === 'undefined') {
     return 'undefined';
@@ -188,8 +186,6 @@ const comparePrimitives = (oldObj: any, newObj: any, path: any) => {
   return changes;
 };
 
-// const isEmbeddedKey = key => /\$.*=/gi.test(key)
-
 const removeKey = (obj: any, key: any, embeddedKey: any) => {
   if (Array.isArray(obj)) {
     if (embeddedKey === '$index') {
@@ -308,6 +304,7 @@ const revertBranchChange = (obj: any, change: any) => {
   }
 };
 
+type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
 export type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
 export type EmbeddedObjKeysMapType = Map<string | RegExp, string | FunctionKey>;
 

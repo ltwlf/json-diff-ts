@@ -4,7 +4,11 @@
 [![Known Vulnerabilities](https://snyk.io/test/github/ltwlf/json-diff-ts/badge.svg?targetFile=package.json)](https://snyk.io/test/github/ltwlf/json-diff-ts?targetFile=package.json)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ltwlf_json-diff-ts&metric=alert_status)](https://sonarcloud.io/dashboard?id=ltwlf_json-diff-ts)
 
-`json-diff-ts` is a TypeScript library designed to compute and apply differences between JSON objects. It introduces support for identifying array elements by keys rather than indices, and is compatible with JSONPath for addressing specific parts of a JSON document.
+`json-diff-ts` is a TypeScript library that calculates and applies differences between JSON objects. A standout feature is its ability to identify elements in arrays using keys instead of indices, which offers a more intuitive way to handle arrays. It also supports JSONPath, a query language for JSON, which enables you to target specific parts of a JSON document with precision.
+
+Another significant feature of this library is its ability to transform changesets into atomic changes. This means that each change in the data can be isolated and applied independently, providing a granular level of control over the data manipulation process.
+
+This library is particularly valuable for applications where tracking changes in JSON data is crucial. It simplifies the process of comparing JSON objects and applying changes. The support for key-based array identification can be especially useful in complex JSON structures where tracking by index is not efficient or intuitive. JSONPath support further enhances its capabilities by allowing precise targeting of specific parts in a JSON document, making it a versatile tool for handling JSON data.
 
 ## Installation
 
@@ -83,19 +87,22 @@ const expectedDiffs = [
 
 #### Advanced
 
-You can use a path to define keys of nested arrays
+Paths can be utilized to identify keys within nested arrays.
 
 ```javascript
 const diffs = diff(oldData, newData, { characters.subarray: 'id' });
 ```
 
-You can use a function to dynamically resolve the key of the object
+You can use a function to dynamically resolve the key of the object.
+The first parameter is the object and the second is to signal if the function should return the key name instead of the value. This is needed to flatten the changeset
 
 ```javascript
-const diffs = diff(oldData, newData, { characters : (obj:any) => obj.id ? "id": "$index" });
+const diffs = diff(oldData, newData, {
+  characters: (obj, shouldReturnKeyName) => (shouldReturnKeyName ? 'id' : obj.id)
+});
 ```
 
-You can use regex for path if you use this Map type:
+If you're using the Map type, you can employ regular expressions for path identification.
 
 ```javascript
 const embeddedObjKeys: EmbeddedObjKeysMapType = new Map();

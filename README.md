@@ -49,36 +49,62 @@ const diffs = diff(oldData, newData, { characters: 'id' });
 
 const expectedDiffs = [
   {
-    type: 'update',
+    type: 'UPDATE',
     key: 'planet',
     value: 'Alderaan',
     oldValue: 'Tatooine'
   },
   {
-    type: 'update',
+    type: 'UPDATE',
     key: 'faction',
     value: 'Rebel Alliance',
     oldValue: 'Jedi'
   },
   {
-    type: 'update',
+    type: 'UPDATE',
     key: 'characters',
-    embededKey: 'id',
+    embeddedKey: 'id',
     changes: [
       {
-        type: 'add',
-        key: 'HAN',
-        value: { id: 'HAN', name: 'Han Solo', force: false }
-      },
-      {
-        type: 'remove',
-        key: 'LEI',
-        oldValue: { id: 'LEI', name: 'Leia Organa', force: true }
-      },
-      {
-        type: 'update',
+        type: 'UPDATE',
         key: 'LUK',
-        changes: [{ type: 'add', key: 'rank', value: 'Commander' }]
+        changes: [
+          {
+            type: 'ADD',
+            key: 'rank',
+            value: 'Commander'
+          }
+        ]
+      },
+      {
+        type: 'ADD',
+        key: 'HAN',
+        value: {
+          id: 'HAN',
+          name: 'Han Solo',
+          force: false
+        }
+      },
+      {
+        type: 'REMOVE',
+        key: 'LEI',
+        value: {
+          id: 'LEI',
+          name: 'Leia Organa',
+          force: true
+        }
+      }
+    ]
+  },
+  {
+    type: 'UPDATE',
+    key: 'weapons',
+    embeddedKey: '$index',
+    changes: [
+      {
+        type: 'ADD',
+        key: '2',
+        value: 'Bowcaster'
       }
     ]
   }
@@ -212,7 +238,7 @@ Discover more about the company behind this project: [hololux](https://hololux.c
 
 ## Release Notes
 
-- **v2.0.0:** tbd
+- **v2.0.0:** json-diff-ts has been upgraded to an ECMAScript module! This major update brings optimizations and enhanced documentation. Additionally, a previously existing issue where all paths were treated as regex has been fixed. In this new version, you'll need to use a Map instead of a Record for regex paths. Please note that this is a breaking change if you were using regex paths in the previous versions.
 - **v1.2.6:** Enhanced JSON Path handling for period-inclusive segments.
 - **v1.2.5:** Patched dependencies; added key name resolution support for key functions.
 - **v1.2.4:** Documentation updates; upgraded TypeScript and Lodash.

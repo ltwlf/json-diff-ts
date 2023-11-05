@@ -407,10 +407,8 @@ const getObjectKey = (embeddedObjKeys: any, keyPath: any) => {
           if (path.match(key)) {
             return value;
           }
-        } else {
-          if (path === key) {
-            return value;
-          }
+        } else if (path === key) {
+          return value;
         }
       }
     }

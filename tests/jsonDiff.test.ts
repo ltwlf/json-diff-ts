@@ -48,6 +48,14 @@ describe('jsonDiff#diff', () => {
     });
     expect(diffs).toMatchSnapshot();
   });
+
+  it('returns correct diff for object without keys to skip', () => {
+    const keyToSkip = '@_index';
+    oldObj[keyToSkip] = 'This should be ignored';
+    newObj['children'][1][keyToSkip] = { text:'This whole object should be ignored' };
+    const diffs = diff(oldObj, newObj, undefined, [keyToSkip]);
+    expect(diffs).toMatchSnapshot();
+  })
 });
 
 describe('jsonDiff#applyChangeset', () => {

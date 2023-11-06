@@ -33,7 +33,8 @@ const oldData = {
   characters: [
     { id: 'LUK', name: 'Luke Skywalker', force: true },
     { id: 'LEI', name: 'Leia Organa', force: true }
-  ]
+  ],
+  weapons: ['Lightsaber', 'Blaster']
 };
 
 const newData = {
@@ -42,7 +43,8 @@ const newData = {
   characters: [
     { id: 'LUK', name: 'Luke Skywalker', force: true, rank: 'Commander' },
     { id: 'HAN', name: 'Han Solo', force: false }
-  ]
+  ],
+  weapons: ['Lightsaber', 'Blaster', 'Bowcaster']
 };
 
 const diffs = diff(oldData, newData, { characters: 'id' });
@@ -114,12 +116,6 @@ const expectedDiffs = [
 #### Advanced
 
 Paths can be utilized to identify keys within nested arrays.
-
-```javascript
-const diffs = diff(oldData, newData, { characters.subarray: 'id' });
-```
-
-Alternative Syntax
 
 ```javascript
 const diffs = diff(oldData, newData, { 'characters.subarray': 'id' });

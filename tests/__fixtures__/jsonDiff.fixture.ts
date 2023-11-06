@@ -7,7 +7,7 @@ export const oldObj: any = () =>
     mixed: 10,
     nested: { inner: 1 },
     empty: undefined,
-    date: new Date('October 13, 2014 11:13:00'),
+    date: new Date('October 13, 2014 11:13:00Z'),
     coins: [2, 5],
     toys: ['car', 'doll', 'car'],
     pets: [undefined, null],
@@ -29,7 +29,7 @@ export const newObj: any = () =>
     name: 'smith',
     mixed: '10',
     nested: { inner: 2 },
-    date: new Date('October 12, 2014 11:13:00'),
+    date: new Date('October 12, 2014 11:13:00Z'),
     coins: [2, 5, 1],
     toys: [],
     pets: [],
@@ -56,8 +56,8 @@ export const changeset: IChange[] = [
   {
     type: Operation.UPDATE,
     key: 'date',
-    value: new Date('October 12, 2014 11:13:00'),
-    oldValue: new Date('October 13, 2014 11:13:00')
+    value: new Date('October 12, 2014 11:13:00Z'),
+    oldValue: new Date('October 13, 2014 11:13:00Z')
   },
   {
     type: Operation.UPDATE,
@@ -140,8 +140,8 @@ export const changesetWithDoubleRemove: IChange[] = [
   {
     type: Operation.UPDATE,
     key: 'date',
-    value: new Date('October 12, 2014 11:13:00'),
-    oldValue: new Date('October 13, 2014 11:13:00')
+    value: new Date('October 12, 2014 11:13:00Z'),
+    oldValue: new Date('October 13, 2014 11:13:00Z')
   },
   {
     type: Operation.UPDATE,
@@ -229,8 +229,8 @@ export const changesetWithoutEmbeddedKey: IChange[] = [
   {
     type: Operation.UPDATE,
     key: 'date',
-    value: new Date('October 12, 2014 11:13:00'),
-    oldValue: new Date('October 13, 2014 11:13:00')
+    value: new Date('October 12, 2014 11:13:00Z'),
+    oldValue: new Date('October 13, 2014 11:13:00Z')
   },
   {
     type: Operation.UPDATE,

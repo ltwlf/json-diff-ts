@@ -3,6 +3,7 @@ import {
   diff,
   flattenChangeset,
   IChange,
+  IFlatChange,
   Operation,
   revertChangeset,
   unflattenChanges
@@ -560,5 +561,103 @@ describe('jsonDiff#flatten', () => {
     expect(flat).toMatchSnapshot();
 
     done();
+  });
+});
+
+describe('jsonDiff#valueKey', () => {
+  let oldObj: any;
+  let newObj: any;
+
+  beforeEach(() => {
+    oldObj = {
+      items: ['apple', 'banana', 'orange']
+    };
+
+    newObj = {
+      items: ['orange', 'lemon']
+    };
+  });
+
+  it('tracks array changes by array value', () => {
+    const diffs = diff(oldObj, newObj, { items: '$value' });
+    expect(diffs).toMatchSnapshot();
+  });
+
+  it('corretly flatten array value keys', () => {
+    const flattenChanges = flattenChangeset(diff(oldObj, newObj, { items: '$value' }));
+    expect(flattenChanges).toMatchSnapshot();
+  });
+
+  it('corretly unflatten array value keys', () => {
+    const flattenChanges = [
+      {
+        key: 'lemon',
+        path: "$.items[?(@='lemon')]",
+        type: 'ADD',
+        value: 'lemon',
+        valueType: 'String'
+      },
+      {
+        key: 'apple',
+        path: "$.items[?(@='apple')]",
+        type: 'REMOVE',
+        value: 'apple',
+        valueType: 'String'
+      }
+    ] as IFlatChange[];
+
+    const changeset = unflattenChanges(flattenChanges);
+
+    expect(changeset).toMatchSnapshot();
+  });
+
+  it('apply array value keys', () => {
+    const flattenChanges = [
+      {
+        key: 'lemon',
+        path: "$.items[?(@='lemon')]",
+        type: 'ADD',
+        value: 'lemon',
+        valueType: 'String'
+      },
+      {
+        key: 'apple',
+        path: "$.items[?(@='apple')]",
+        type: 'REMOVE',
+        value: 'apple',
+        valueType: 'String'
+      }
+    ] as IFlatChange[];
+
+    const changeset = unflattenChanges(flattenChanges);
+
+    applyChangeset(oldObj, changeset);
+
+    expect(oldObj).toMatchSnapshot();
+  });
+
+  it('revert array value keys', () => {
+    const flattenChanges = [
+      {
+        key: 'banana',
+        path: "$.items[?(@='banana')]",
+        type: 'ADD',
+        value: 'banana',
+        valueType: 'String'
+      },
+      {
+        key: 'lemon',
+        path: "$.items[?(@='lemon')]",
+        type: 'REMOVE',
+        value: 'lemon',
+        valueType: 'String'
+      }
+    ] as IFlatChange[];
+
+    const changeset = unflattenChanges(flattenChanges);
+
+    revertChangeset(oldObj, changeset);
+
+    expect(oldObj).toMatchSnapshot();
   });
 });

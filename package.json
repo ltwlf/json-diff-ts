@@ -1,16 +1,15 @@
 {
   "name": "json-diff-ts",
-  "version": "1.2.5",
+  "version": "1.2.7",
   "description": "A diff tool for JavaScript based on https://www.npmjs.com/package/diff-json written in TypeScript.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "type": "module",
   "scripts": {
     "build": "tsc",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "tslint -p tsconfig.json",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.json",
-    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch --config jest.config.json",
+    "test": "jest --config jest.config.json",
+    "test:watch": "jest --watch --config jest.config.json",
     "prepare": "npm run build",
     "prepublishOnly": "npm test && npm run lint",
     "preversion": "npm run lint",
@@ -48,6 +47,6 @@
     "typescript": "^4.5.2"
   },
   "dependencies": {
-    "lodash-es": "^4.x"
+    "lodash": "^4.17.21"
   }
 }

@@ -1,4 +1,4 @@
-import { difference, find, intersection, keyBy } from 'lodash-es';
+import { difference, find, intersection, keyBy } from 'lodash';
 
 type FunctionKey = (obj: any, getKeyName?: boolean) => any;
 
@@ -154,7 +154,11 @@ const getObjectKey = (embeddedObjKeys: any, keyPath: any) => {
 
 const convertArrayToObj = (arr: any[], uniqKey: any) => {
   let obj: any = {};
-  if (uniqKey !== '$index') {
+  if (uniqKey === '$value') {
+    arr.forEach((value) => {
+      obj[value] = value;
+    });
+  } else if (uniqKey !== '$index') {
     obj = keyBy(arr, uniqKey);
   } else {
     for (let i = 0; i < arr.length; i++) {
@@ -201,15 +205,19 @@ const removeKey = (obj: any, key: any, embeddedKey: any) => {
 };
 
 const indexOfItemInArray = (arr: any[], key: any, value: any) => {
+  if (key === '$value') {
+    return arr.indexOf(value);
+  }
+
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
     if (item && item[key] ? item[key].toString() === value.toString() : undefined) {
       return i;
     }
   }
+
   return -1;
 };
-
 const modifyKeyValue = (obj: any, key: any, value: any) => (obj[key] = value);
 
 const addKeyValue = (obj: any, key: any, value: any) => {
@@ -242,6 +250,11 @@ const applyArrayChange = (arr: any, change: any) =>
         let element;
         if (change.embeddedKey === '$index') {
           element = arr[subchange.key];
+        } else if (change.embeddedKey === '$value') {
+          const index = arr.indexOf(subchange.key);
+          if (index !== -1) {
+            element = arr[index];
+          }
         } else {
           element = find(arr, (el) => el[change.embeddedKey].toString() === subchange.key.toString());
         }
@@ -358,13 +371,25 @@ export const flattenChangeset = (
     return obj.reduce((memo, change) => [...memo, ...flattenChangeset(change, path, embeddedKey)], [] as IFlatChange[]);
   } else {
     if (obj.changes || embeddedKey) {
-      path = embeddedKey
-        ? embeddedKey === '$index'
-          ? `${path}[${obj.key}]`
-          : obj.type === Operation.ADD
-          ? path
-          : `${path}[?(@.${embeddedKey}='${obj.key}')]`
-        : (path = `${path}.${obj.key}`);
+      if (embeddedKey) {
+        if (embeddedKey === '$index') {
+          path = `${path}[${obj.key}]`;
+        } else if (embeddedKey === '$value') {
+          path = `${path}[?(@='${obj.key}')]`;
+          const valueType = getTypeOfObj(obj.value);
+          return [
+            {
+              ...obj,
+              path,
+              valueType
+            }
+          ];
+        } else if (obj.type !== Operation.ADD) {
+          path = `${path}[?(@.${embeddedKey}='${obj.key}')]`;
+        }
+      } else {
+        path = `${path}.${obj.key}`;
+      }
       return flattenChangeset(obj.changes || obj, path, obj.embeddedKey);
     } else {
       const valueType = getTypeOfObj(obj.value);
@@ -414,7 +439,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
         // check for array
-        const result = /^(.+)\[\?\(@\.(.+)='(.+)'\)]$|^(.+)\[(\d+)\]/.exec(segment);
+        const result = /^(.+)\[\?\(@\.?(.{0,})='(.+)'\)]$|^(.+)\[(\d+)\]/.exec(segment);
         // array
         if (result) {
           let key: string;
@@ -422,7 +447,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
           let arrKey: string | number;
           if (result[1]) {
             key = result[1];
-            embeddedKey = result[2];
+            embeddedKey = result[2] || '$value';
             arrKey = result[3];
           } else {
             key = result[4];

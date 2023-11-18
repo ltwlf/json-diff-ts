@@ -1,4 +1,4 @@
-import { chain, keys, replace, set } from 'lodash-es';
+import { chain, keys, replace, set } from 'lodash';
 import { diff, flattenChangeset, getTypeOfObj, IFlatChange, Operation } from './jsonDiff';
 
 export enum CompareOperation {

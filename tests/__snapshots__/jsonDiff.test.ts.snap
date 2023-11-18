@@ -22,3 +22,107 @@ exports[`jsonDiff#flatten Get key name for flattening when using a key function 
   },
 ]
 `;
+
+exports[`jsonDiff#valueKey apply array value keys 1`] = `
+{
+  "items": [
+    "banana",
+    "orange",
+    "lemon",
+  ],
+}
+`;
+
+exports[`jsonDiff#valueKey corretly flatten array value keys 1`] = `
+[
+  {
+    "key": "lemon",
+    "path": "$.items[?(@='lemon')]",
+    "type": "ADD",
+    "value": "lemon",
+    "valueType": "String",
+  },
+  {
+    "key": "apple",
+    "path": "$.items[?(@='apple')]",
+    "type": "REMOVE",
+    "value": "apple",
+    "valueType": "String",
+  },
+  {
+    "key": "banana",
+    "path": "$.items[?(@='banana')]",
+    "type": "REMOVE",
+    "value": "banana",
+    "valueType": "String",
+  },
+]
+`;
+
+exports[`jsonDiff#valueKey corretly unflatten array value keys 1`] = `
+[
+  {
+    "changes": [
+      {
+        "key": "lemon",
+        "oldValue": undefined,
+        "type": "ADD",
+        "value": "lemon",
+      },
+    ],
+    "embeddedKey": "$value",
+    "key": "items",
+    "type": "UPDATE",
+  },
+  {
+    "changes": [
+      {
+        "key": "apple",
+        "oldValue": undefined,
+        "type": "REMOVE",
+        "value": "apple",
+      },
+    ],
+    "embeddedKey": "$value",
+    "key": "items",
+    "type": "UPDATE",
+  },
+]
+`;
+
+exports[`jsonDiff#valueKey revert array value keys 1`] = `
+{
+  "items": [
+    "apple",
+    "orange",
+    "lemon",
+  ],
+}
+`;
+
+exports[`jsonDiff#valueKey tracks array changes by array value 1`] = `
+[
+  {
+    "changes": [
+      {
+        "key": "lemon",
+        "type": "ADD",
+        "value": "lemon",
+      },
+      {
+        "key": "apple",
+        "type": "REMOVE",
+        "value": "apple",
+      },
+      {
+        "key": "banana",
+        "type": "REMOVE",
+        "value": "banana",
+      },
+    ],
+    "embeddedKey": "$value",
+    "key": "items",
+    "type": "UPDATE",
+  },
+]
+`;

@@ -1,15 +1,14 @@
 {
   "testRegex": "(/tests/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
-  "extensionsToTreatAsEsm": [".ts"],
+  "extensionsToTreatAsEsm": [
+    ".ts"
+  ],
   "moduleNameMapper": {
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },
   "transform": {
     "^.+\\.m?[tj]sx?$": [
-      "ts-jest",
-      {
-        "useESM": true
-      }
+      "ts-jest"
     ]
   },
   "preset": "ts-jest/presets/default-esm"

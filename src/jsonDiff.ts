@@ -133,13 +133,28 @@ export const flattenChangeset = (
     return obj.reduce((memo, change) => [...memo, ...flattenChangeset(change, path, embeddedKey)], [] as IFlatChange[]);
   } else {
     if (obj.changes || embeddedKey) {
-      path = embeddedKey
-        ? embeddedKey === '$index'
-          ? `${path}[${obj.key}]`
-          : obj.type === Operation.ADD
-          ? path
-          : filterExpression(path, embeddedKey, obj.key)
-        : (path = append(path, obj.key));
+      if (embeddedKey) {
+        if (embeddedKey === '$index') {
+          path = `${path}[${obj.key}]`;
+        } else if (embeddedKey === '$value') {
+          path = `${path}[?(@='${obj.key}')]`;
+          const valueType = getTypeOfObj(obj.value);
+          return [
+            {
+              ...obj,
+              path,
+              valueType
+            }
+          ];
+        } else if (obj.type === Operation.ADD) {
+          path = path;
+        } else {
+          path = filterExpression(path, embeddedKey, obj.key);
+        }
+      } else {
+        path = append(path, obj.key);
+      }
+
       return flattenChangeset(obj.changes || obj, path, obj.embeddedKey);
     } else {
       const valueType = getTypeOfObj(obj.value);
@@ -189,8 +204,8 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     } else {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
-        // Matches JSONPath segments: "items[?(@.id=='123')]", items[?(@.id==123)], "items[2]"
-        const result = /^(.+)\[\?\(@\.([^=]+)={1,2}(?:'(.*)'|(\d+))\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
+        // Matches JSONPath segments: "items[?(@.id=='123')]", "items[?(@.id==123)]", "items[2]", "items[?(@='123')]"
+        const result = /^(.+)\[\?\(@.?([^=]*)?={1,2}'(.*)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
         // array
         if (result) {
           let key: string;
@@ -198,12 +213,12 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
           let arrKey: string | number;
           if (result[1]) {
             key = result[1];
-            embeddedKey = result[2];
+            embeddedKey = result[2] || '$value';
             arrKey = result[3];
           } else {
-            key = result[5];
+            key = result[4];
             embeddedKey = '$index';
-            arrKey = Number(result[6]);
+            arrKey = Number(result[4]);
           }
           // leaf
           if (i === segments.length - 1) {
@@ -347,7 +362,15 @@ const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyP
   return changes;
 };
 
-const compareObject = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any, skipPath = false, keysToSkip: string[] = []) => {
+const compareObject = (
+  oldObj: any,
+  newObj: any,
+  path: any,
+  embeddedObjKeys: any,
+  keyPath: any,
+  skipPath = false,
+  keysToSkip: string[] = []
+) => {
   let k;
   let newKeyPath;
   let newPath;
@@ -394,7 +417,14 @@ const compareObject = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any
   return changes;
 };
 
-const compareArray = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any, keysToSkip: string[]) => {
+const compareArray = (
+  oldObj: any,
+  newObj: any,
+  path: any,
+  embeddedObjKeys: any,
+  keyPath: any,
+  keysToSkip: string[]
+) => {
   const left = getObjectKey(embeddedObjKeys, keyPath);
   const uniqKey = left != null ? left : '$index';
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
@@ -440,7 +470,11 @@ const getObjectKey = (embeddedObjKeys: any, keyPath: any) => {
 
 const convertArrayToObj = (arr: any[], uniqKey: any) => {
   let obj: any = {};
-  if (uniqKey !== '$index') {
+  if (uniqKey === '$value') {
+    arr.forEach((value) => {
+      obj[value] = value;
+    });
+  } else if (uniqKey !== '$index') {
     obj = keyBy(arr, uniqKey);
   } else {
     for (let i = 0; i < arr.length; i++) {
@@ -485,6 +519,9 @@ const removeKey = (obj: any, key: any, embeddedKey: any) => {
 };
 
 const indexOfItemInArray = (arr: any[], key: any, value: any) => {
+  if (key === '$value') {
+    return arr.indexOf(value);
+  }
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
     if (item && item[key] ? item[key].toString() === value.toString() : undefined) {
@@ -526,6 +563,11 @@ const applyArrayChange = (arr: any, change: any) =>
         let element;
         if (change.embeddedKey === '$index') {
           element = arr[subchange.key];
+        } else if (change.embeddedKey === '$value') {
+          const index = arr.indexOf(subchange.key);
+          if (index !== -1) {
+            element = arr[index];
+          }
         } else {
           element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
         }

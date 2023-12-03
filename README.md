@@ -146,6 +146,12 @@ embeddedObjKeys.set(/^char\w+$/, 'id'); // instead of 'id' you can specify a fun
 const diffs = diff(oldObj, newObj, embeddedObjKeys);
 ```
 
+Compare string arrays by value instead of index
+
+```javascript
+const diffs = diff(oldObj, newObj, { stringArr: '$value' });
+```
+
 ### `flattenChangeset`
 
 Transforms a complex changeset into a flat list of atomic changes, each describable by a JSONPath.
@@ -246,6 +252,7 @@ Discover more about the company behind this project: [hololux](https://hololux.c
 
 ## Release Notes
 
+- **v2.2.0:** Fix lodash-es decependency, exclude keys, compare string arrays by value
 - **v2.1.0:** Resolves a problem related to JSON Path filters by replacing the single equal sign (=) with a double equal sign (==). This update maintains compatibility with existing flat changes. Allows to use either '' or '.' as root in the path.
 - **v2.0.0:** json-diff-ts has been upgraded to an ECMAScript module! This major update brings optimizations and enhanced documentation. Additionally, a previously existing issue where all paths were treated as regex has been fixed. In this new version, you'll need to use a Map instead of a Record for regex paths. Please note that this is a breaking change if you were using regex paths in the previous versions.
 - **v1.2.6:** Enhanced JSON Path handling for period-inclusive segments.

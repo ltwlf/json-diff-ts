@@ -7,7 +7,6 @@ describe('flattenChangeset', () => {
 
     const actual = flattenChangeset(diff(oldObject, newObject))[0];
 
-    console.log(JSON.stringify(actual.path));
     expect(actual.path).toBe('$[a.b]');
     done();
   });

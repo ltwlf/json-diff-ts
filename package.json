@@ -1,6 +1,6 @@
 {
   "name": "json-diff-ts",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "A JSON diff tool for JavaScript written in TypeScript.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,8 +9,8 @@
     "build": "tsc",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint 'src/**/*.ts'",
-    "test": "NODE_OPTIONS=--experimental-vm-modules npx jest --config jest.config.mjs",
-    "test:watch": "NODE_OPTIONS=--experimental-vm-modules npx jest --watch --config jest.config.mjs",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.mjs",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch --config jest.config.mjs",
     "prepare": "npm run build",
     "prepublishOnly": "npm test && npm run lint",
     "preversion": "npm run lint",
@@ -37,13 +37,15 @@
     "url": "https://github.com/ltwlf/json-diff-ts/issues"
   },
   "homepage": "https://github.com/ltwlf/json-diff-ts#readme",
+  "dependencies": {
+    "lodash-es": "^4.17.21"
+  },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
     "@types/jest": "^29.5.7",
     "@types/lodash-es": "^4.17.10",
     "eslint": "^8.53.0",
-    "jest": "^29.5.0",
-    "lodash-es": "^4.17.21",
+    "jest": "^29.7.0",
     "prettier": "^3.0.3",
     "ts-jest": "^29.0.5",
     "typescript": "^5.3.2"

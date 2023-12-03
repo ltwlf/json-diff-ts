@@ -147,7 +147,7 @@ export const flattenChangeset = (
             }
           ];
         } else if (obj.type === Operation.ADD) {
-          path = path;
+          // do nothing
         } else {
           path = filterExpression(path, embeddedKey, obj.key);
         }
@@ -205,6 +205,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
         // Matches JSONPath segments: "items[?(@.id=='123')]", "items[?(@.id==123)]", "items[2]", "items[?(@='123')]"
+        // NOSONAR
         const result = /^(.+)\[\?\(@.?([^=]*)?={1,2}'(.*)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
         // array
         if (result) {

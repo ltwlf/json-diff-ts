@@ -10,7 +10,7 @@ beforeEach(() => {
     null: null,
     number: 1,
     string: '1',
-    date: new Date('October 13, 2014 11:13:00'),
+    date: new Date('October 13, 2014 11:13:00Z'),
     emptyObject: {},
     emptyArray: []
   });
@@ -48,7 +48,7 @@ beforeEach(() => {
     },
     date: {
       type: CompareOperation.UNCHANGED,
-      value: new Date('October 13, 2014 11:13:00')
+      value: new Date('October 13, 2014 11:13:00Z')
     },
     emptyObject: {
       type: CompareOperation.CONTAINER,

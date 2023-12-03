@@ -1,5 +1,180 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`jsonDiff#diff returns correct diff for object without keys to skip 1`] = `
+[
+  {
+    "key": "name",
+    "oldValue": "joe",
+    "type": "UPDATE",
+    "value": "smith",
+  },
+  {
+    "key": "mixed",
+    "type": "REMOVE",
+    "value": 10,
+  },
+  {
+    "key": "mixed",
+    "type": "ADD",
+    "value": "10",
+  },
+  {
+    "changes": [
+      {
+        "key": "inner",
+        "oldValue": 1,
+        "type": "UPDATE",
+        "value": 2,
+      },
+    ],
+    "key": "nested",
+    "type": "UPDATE",
+  },
+  {
+    "key": "date",
+    "oldValue": 2014-10-13T11:13:00.000Z,
+    "type": "UPDATE",
+    "value": 2014-10-12T11:13:00.000Z,
+  },
+  {
+    "changes": [
+      {
+        "key": "2",
+        "type": "ADD",
+        "value": 1,
+      },
+    ],
+    "embeddedKey": "$index",
+    "key": "coins",
+    "type": "UPDATE",
+  },
+  {
+    "changes": [
+      {
+        "key": "0",
+        "type": "REMOVE",
+        "value": "car",
+      },
+      {
+        "key": "1",
+        "type": "REMOVE",
+        "value": "doll",
+      },
+      {
+        "key": "2",
+        "type": "REMOVE",
+        "value": "car",
+      },
+    ],
+    "embeddedKey": "$index",
+    "key": "toys",
+    "type": "UPDATE",
+  },
+  {
+    "changes": [
+      {
+        "key": "0",
+        "type": "REMOVE",
+        "value": undefined,
+      },
+      {
+        "key": "1",
+        "type": "REMOVE",
+        "value": null,
+      },
+    ],
+    "embeddedKey": "$index",
+    "key": "pets",
+    "type": "UPDATE",
+  },
+  {
+    "changes": [
+      {
+        "changes": [
+          {
+            "key": "name",
+            "oldValue": "kid1",
+            "type": "UPDATE",
+            "value": "kid3",
+          },
+          {
+            "key": "age",
+            "oldValue": 1,
+            "type": "UPDATE",
+            "value": 3,
+          },
+          {
+            "key": "subset",
+            "type": "REMOVE",
+            "value": [
+              {
+                "id": 1,
+                "value": "haha",
+              },
+              {
+                "id": 2,
+                "value": "hehe",
+              },
+            ],
+          },
+        ],
+        "key": "0",
+        "type": "UPDATE",
+      },
+      {
+        "changes": [
+          {
+            "key": "name",
+            "oldValue": "kid2",
+            "type": "UPDATE",
+            "value": "kid1",
+          },
+          {
+            "key": "age",
+            "oldValue": 2,
+            "type": "UPDATE",
+            "value": 0,
+          },
+          {
+            "key": "subset",
+            "type": "ADD",
+            "value": [
+              {
+                "id": 1,
+                "value": "heihei",
+              },
+            ],
+          },
+        ],
+        "key": "1",
+        "type": "UPDATE",
+      },
+      {
+        "key": "2",
+        "type": "ADD",
+        "value": {
+          "age": 2,
+          "name": "kid2",
+        },
+      },
+    ],
+    "embeddedKey": "$index",
+    "key": "children",
+    "type": "UPDATE",
+  },
+  {
+    "key": "age",
+    "type": "REMOVE",
+    "value": 55,
+  },
+  {
+    "key": "empty",
+    "type": "REMOVE",
+    "value": undefined,
+  },
+]
+`;
+
 exports[`jsonDiff#diff returns correct diff for objects with embedded array with function keys 1`] = `
 [
   {

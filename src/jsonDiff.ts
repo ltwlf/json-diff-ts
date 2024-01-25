@@ -193,7 +193,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     const obj = {} as IChange;
     let ptr = obj;
 
-    const segments = change.path.split(/(?<=[^@])\.(?=[^@])/);
+    const segments = change.path.split(/\.(?=[^\]]*(?:\[|$))/);
 
     if (segments.length === 1) {
       ptr.key = change.key;

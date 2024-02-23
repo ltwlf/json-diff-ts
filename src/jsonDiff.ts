@@ -218,7 +218,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
           } else {
             key = result[4];
             embeddedKey = '$index';
-            arrKey = Number(result[4]);
+            arrKey = Number(result[5]);
           }
           // leaf
           if (i === segments.length - 1) {

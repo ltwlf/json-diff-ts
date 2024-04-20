@@ -1,4 +1,7 @@
-import { difference, find, intersection, keyBy } from 'lodash-es';
+import difference from 'lodash/difference';
+import find from 'lodash/find';
+import intersection from 'lodash/intersection';
+import keyBy from 'lodash/keyBy';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
 export type EmbeddedObjKeysType = Record<string, string | FunctionKey>;

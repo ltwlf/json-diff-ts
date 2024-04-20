@@ -1,7 +1,4 @@
-import chain from 'lodash/chain';
-import keys from 'lodash/keys';
-import replace from 'lodash/replace';
-import set from 'lodash/set';
+import { chain, keys, replace, set } from 'lodash';
 import { diff, flattenChangeset, getTypeOfObj, IFlatChange, Operation } from './jsonDiff.js';
 
 export enum CompareOperation {

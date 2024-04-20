@@ -1,6 +1,6 @@
 // jest.config.js
 export default {
-  preset: 'ts-jest/presets/default-esm', // or other ESM presets
+  preset: 'ts-jest/presets/default', // or other ESM presets (use ts-jest/presets/default-esm if lodash-es is used)
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
@@ -10,7 +10,7 @@ export default {
     '^.+\\.tsx?$': [
       'ts-jest',
       {
-        useESM: true
+        useESM: false // true if lodash-es is used
       }
     ]
   }

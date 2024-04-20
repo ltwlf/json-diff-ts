@@ -1,10 +1,8 @@
-# This workflow will do a clean install of node dependencies, build the source code and run tests across different versions of node
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
-
-name: Master CI/Publish
+name: Publish
 
 on:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,15 +22,28 @@ jobs:
       - run: npm test -- --coverage
 
   publish:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v1
         with:
           node-version: 21
+          registry-url: 'https://registry.npmjs.org'
       - run: npm install
       - run: npm test -- --coverage
-      - uses: JS-DevTools/npm-publish@v3
+      - name: Check version
+        id: check-version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+      - name: Publish package
+        uses: JS-DevTools/npm-publish@v3
         with:
-          check-version: true
           token: ${{ secrets.NPM_TOKEN }}
+          tag: latest
+        if: "!contains(env.VERSION, '-beta')"
+      - name: Publish beta package
+        uses: JS-DevTools/npm-publish@v3
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
+          tag: beta
+        if: "contains(env.VERSION, '-beta')"

@@ -1,13 +1,13 @@
 {
   "name": "json-diff-ts",
-  "version": "3.0.0-beta.2",
+  "version": "3.0.0-beta.3",
   "description": "A JSON diff tool for JavaScript written in TypeScript.",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "type": "module",
   "scripts": {
-    "build": "tsup",
+    "build": "tsup --format cjs,esm",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint 'src/**/*.ts'",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.mjs",

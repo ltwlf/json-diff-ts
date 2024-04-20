@@ -30,3 +30,20 @@ jobs:
         with:
           node-version: 21
           registry-url: 'https://registry.npmjs.org'
+      - run: npm install
+      - run: npm test -- --coverage
+      - name: Check version
+        id: check-version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+      - name: Publish package
+        uses: JS-DevTools/npm-publish@v3
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
+          tag: latest
+        if: "!contains(env.VERSION, '-beta')"
+      - name: Publish beta package
+        uses: JS-DevTools/npm-publish@v3
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
+          tag: beta
+        if: "contains(env.VERSION, '-beta')"

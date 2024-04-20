@@ -1,0 +1,9 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+      "module": "CommonJS",
+      "paths": {
+        "lodash-es": ["./node_modules/lodash"]
+      }
+    }
+  }

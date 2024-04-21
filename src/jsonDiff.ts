@@ -142,44 +142,59 @@ export const atomizeChangeset = (
   embeddedKey?: string | FunctionKey
 ): IAtomicChange[] => {
   if (Array.isArray(obj)) {
-    return obj.reduce((memo, change) => [...memo, ...atomizeChangeset(change, path, embeddedKey)], [] as IAtomicChange[]);
-  } else {
-    if (obj.changes || embeddedKey) {
-      if (embeddedKey) {
-        if (embeddedKey === '$index') {
-          path = `${path}[${obj.key}]`;
-        } else if (embeddedKey === '$value') {
-          path = `${path}[?(@=='${obj.key}')]`;
-          const valueType = getTypeOfObj(obj.value);
-          return [
-            {
-              ...obj,
-              path,
-              valueType
-            }
-          ];
-        } else if (obj.type === Operation.ADD) {
-          // do nothing
-        } else {
-          path = filterExpression(path, embeddedKey, obj.key);
-        }
-      } else {
-        path = append(path, obj.key);
+    return handleArray(obj, path, embeddedKey);
+  } else if (obj.changes || embeddedKey) {
+    if (embeddedKey) {
+      const [updatedPath, atomicChange] = handleEmbeddedKey(embeddedKey, obj, path);
+      path = updatedPath;
+      if (atomicChange) {
+        return atomicChange;
       }
-
-      return atomizeChangeset(obj.changes || obj, path, obj.embeddedKey);
     } else {
-      const valueType = getTypeOfObj(obj.value);
-      return [
-        {
-          ...obj,
-          path: valueType === 'Object' || path.endsWith(`[${obj.key}]`) ? path : append(path, obj.key),
-          valueType
-        }
-      ];
+      path = append(path, obj.key);
     }
+    return atomizeChangeset(obj.changes || obj, path, obj.embeddedKey);
+  } else {
+    const valueType = getTypeOfObj(obj.value);
+    return [{
+      ...obj,
+      path: valueType === 'Object' || path.endsWith(`[${obj.key}]`) ? path : append(path, obj.key),
+      valueType
+    }];
   }
 };
+
+// Function to handle embeddedKey logic and update the path
+function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path: string): [string, IAtomicChange[]?] {
+  if (embeddedKey === '$index') {
+    path = `${path}[${obj.key}]`;
+    return [path]
+  } else if (embeddedKey === '$value') {
+    path = `${path}[?(@=='${obj.key}')]`;
+    const valueType = getTypeOfObj(obj.value);
+    return [
+      path,
+      [{
+        ...obj,
+        path,
+        valueType
+      }]
+    ];
+  } else if (obj.type === Operation.ADD) {
+    // do nothing
+    return [path];
+  } else {
+    path = filterExpression(path, embeddedKey, obj.key);
+    return [path];
+  }
+}
+
+
+const handleArray = (obj: Changeset | IChange[], path: string, embeddedKey?: string | FunctionKey): IAtomicChange[] => {
+  return obj.reduce((memo, change) => [...memo, ...atomizeChangeset(change, path, embeddedKey)], [] as IAtomicChange[]);
+}
+
+
 
 /**
  * Transforms an atomized changeset into a nested changeset.

@@ -1,6 +1,6 @@
 {
   "name": "json-diff-ts",
-  "version": "4.0.0-beta.0",
+  "version": "4.0.0",
   "description": "A JSON diff tool for JavaScript written in TypeScript.",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",

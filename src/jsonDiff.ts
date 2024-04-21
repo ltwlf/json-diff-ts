@@ -369,6 +369,7 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
       );
       break;
     case 'Object':
+      {
       const diffs = compareObject(oldObj, newObj, path, keyPath, false, options);
       if (diffs.length) {
         if (path.length) {
@@ -382,6 +383,7 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
         }
       }
       break;
+    }
     case 'Array':
       changes = changes.concat(compareArray(oldObj, newObj, path, keyPath, options));
       break;

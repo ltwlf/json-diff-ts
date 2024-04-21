@@ -32,6 +32,7 @@ export interface IAtomicChange {
 export interface Options {
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
   keysToSkip?: string[];
+  treatTypeChangeAsReplace?: boolean;
 }
 
 /**
@@ -47,11 +48,7 @@ export function diff(
   newObj: any,
   options: Options = {}
 ): IChange[] {
-  let embeddedObjKeys;
-
-  if (options) {
-    ({ embeddedObjKeys } = options);
-  }
+  let { embeddedObjKeys, keysToSkip, treatTypeChangeAsReplace } = options;
 
   // Trim leading '.' from keys in embeddedObjKeys
   if (embeddedObjKeys instanceof Map) {
@@ -68,7 +65,11 @@ export function diff(
   }
 
   // Compare old and new objects to generate a list of changes
-  return compare(oldObj, newObj, [], [], { embeddedObjKeys, keysToSkip: options.keysToSkip || [] });
+  return compare(oldObj, newObj, [], [], {
+    embeddedObjKeys,
+    keysToSkip: keysToSkip ?? [],
+    treatTypeChangeAsReplace: treatTypeChangeAsReplace ?? true
+  });
 }
 
 /**
@@ -130,10 +131,10 @@ export const revertChangeset = (obj: any, changeset: Changeset) => {
  * @param {string | FunctionKey} [embeddedKey] - The key to use for embedded objects.
  * @returns {IAtomicChange[]} - An array of atomic changes.
  *
- * The function first checks if the input is an array. If so, it recursively flattens each change in the array.
+ * The function first checks if the input is an array. If so, it recursively atomize each change in the array.
  * If the input is not an array, it checks if the change has nested changes or an embedded key.
  * If so, it updates the path and recursively flattens the nested changes or the embedded object.
- * If the change does not have nested changes or an embedded key, it creates a flat change and returns it in an array.
+ * If the change does not have nested changes or an embedded key, it creates a atomic change and returns it in an array.
  */
 export const atomizeChangeset = (
   obj: Changeset | IChange,
@@ -330,10 +331,15 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
   const typeOfOldObj = getTypeOfObj(oldObj);
   const typeOfNewObj = getTypeOfObj(newObj);
 
-  // if type of object changes, consider it as old obj has been deleted and a new object has been added
-  if (typeOfOldObj !== typeOfNewObj) {
+  // `treatTypeChangeAsReplace` is a flag used to determine if a change in type should be treated as a replacement.
+  if (options.treatTypeChangeAsReplace && typeOfOldObj !== typeOfNewObj) {
     changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
     changes.push({ type: Operation.ADD, key: getKey(path), value: newObj });
+    return changes;
+  }
+
+  if (typeOfNewObj === 'Object' && typeOfOldObj === 'Array') {
+    changes.push({ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj });
     return changes;
   }
 

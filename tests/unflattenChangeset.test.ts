@@ -50,8 +50,6 @@ describe('unflattenChanges', () => {
     const actual = atomizeChangeset(difference)[0];
     expect(actual.path).toBe(`$.characters[?(@.id=='LUK.A')].name`);
 
-    console.log('actual', actual)
-
     const unflattened = unatomizeChangeset(actual);
 
     expect(unflattened[0].key).toBe('characters')

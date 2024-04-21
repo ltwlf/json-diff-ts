@@ -266,4 +266,20 @@ describe('jsonDiff#valueKey', () => {
 
     expect(oldObj).toMatchSnapshot();
   });
+
+  it('it should treat object type changes as an update', () => {
+    const beforeObj = {
+      items: ['apple', 'banana', 'orange']
+    };
+    const afterObj = {
+      items: { 0: 'apple', 1: 'banana', 2: 'orange'}
+    };
+
+    const changeset = diff(beforeObj, afterObj, { treatTypeChangeAsReplace: false});
+
+    applyChangeset(beforeObj, changeset);
+
+    expect(beforeObj).toMatchSnapshot();
+  });
+
 });

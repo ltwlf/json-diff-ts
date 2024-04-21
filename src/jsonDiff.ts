@@ -403,7 +403,7 @@ const compareObject = (
   path: any,
   keyPath: any,
   skipPath = false,
-  options: Options,
+  options: Options = {},
 ) => {
   let k;
   let newKeyPath;

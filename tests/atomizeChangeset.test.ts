@@ -1,11 +1,11 @@
-import { diff, flattenChangeset } from '../src/jsonDiff';
+import { diff, atomizeChangeset } from '../src/jsonDiff';
 
-describe('flattenChangeset', () => {
+describe('atomizeChangeset', () => {
   test('when JSON path segements contain periods', (done) => {
     const oldObject = { 'a.b': 1 };
     const newObject = { 'a.b': 2 };
 
-    const actual = flattenChangeset(diff(oldObject, newObject))[0];
+    const actual = atomizeChangeset(diff(oldObject, newObject))[0];
 
     expect(actual.path).toBe('$[a.b]');
     done();
@@ -14,9 +14,9 @@ describe('flattenChangeset', () => {
   test('when JSON path segments containing periods use embedded keys', (done) => {
     const oldObject = { 'a.b': [{ c: 1 }] };
     const newObject = { 'a.b': [{ c: 2 }] };
-    const diffs = diff(oldObject, newObject, { 'a.b': 'c' });
+    const diffs = diff(oldObject, newObject, { embeddedObjKeys: { 'a.b': 'c' } });
 
-    const actual = flattenChangeset(diffs);
+    const actual = atomizeChangeset(diffs);
 
     expect(actual.length).toBe(2);
     expect(actual[0].path).toBe('$[a.b]');
@@ -27,9 +27,9 @@ describe('flattenChangeset', () => {
   test('when embedded key name contains periods', (done) => {
     const oldObject = { a: [{ b: 1, 'c.d': 10 }] };
     const newObject = { a: [{ b: 2, 'c.d': 20 }] };
-    const diffs = diff(oldObject, newObject, { a: 'c.d' });
+    const diffs = diff(oldObject, newObject, { embeddedObjKeys: { a: 'c.d' } });
 
-    const actual = flattenChangeset(diffs);
+    const actual = atomizeChangeset(diffs);
 
     expect(actual.length).toBe(2);
     expect(actual[0].path).toBe('$.a');

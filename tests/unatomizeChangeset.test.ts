@@ -1,7 +1,17 @@
-import { diff, flattenChangeset, unflattenChanges } from '../src/jsonDiff';
+import { diff, atomizeChangeset, unatomizeChangeset, applyChangeset } from '../src/jsonDiff';
 
-describe('unflattenChanges', () => {
-  
+describe('unatomizeChangeset', () => {
+
+  test('unatomizeChangeset changeset', (done) => {
+    const oldObject = { a: [{ b: [{ c: 'd' }] }] };
+    const newObject = { a: [{ b: [{ c: 'e' }] }] };
+    const diffs = diff(oldObject, newObject);
+
+    expect(applyChangeset(oldObject, unatomizeChangeset(atomizeChangeset(diffs)))).toEqual(newObject)
+
+    done();
+  });
+
   test('when using an embedded key on diff', (done) => {
 
     const oldData = {
@@ -10,7 +20,7 @@ describe('unflattenChanges', () => {
         { id: 'LEI', name: 'Leia Organa' }
       ]
     };
-    
+
     const newData = {
       characters: [
         { id: 'LUK', name: 'Luke' },
@@ -18,9 +28,9 @@ describe('unflattenChanges', () => {
       ]
     };
 
-    const actual = flattenChangeset(diff(oldData, newData, { characters: 'id' }))[0];
+    const actual = atomizeChangeset(diff(oldData, newData, { embeddedObjKeys: { characters: 'id' } }))[0];
     expect(actual.path).toBe(`$.characters[?(@.id=='LUK')].name`);
-    const unflattened = unflattenChanges(actual);
+    const unflattened = unatomizeChangeset(actual);
 
 
     expect(unflattened[0].key).toBe('characters')
@@ -37,7 +47,7 @@ describe('unflattenChanges', () => {
         { id: 'LEI.B', name: 'Leia Organa' }
       ]
     };
-    
+
     const newData = {
       characters: [
         { id: 'LUK.A', name: 'Luke' },
@@ -45,19 +55,18 @@ describe('unflattenChanges', () => {
       ]
     };
 
-    const difference = diff(oldData, newData, { characters: 'id' })
+    const difference = diff(oldData, newData, { embeddedObjKeys: { characters: 'id' } })
 
-    const actual = flattenChangeset(difference)[0];
+    const actual = atomizeChangeset(difference)[0];
     expect(actual.path).toBe(`$.characters[?(@.id=='LUK.A')].name`);
 
-    console.log('actual', actual)
-
-    const unflattened = unflattenChanges(actual);
+    const unflattened = unatomizeChangeset(actual);
 
     expect(unflattened[0].key).toBe('characters')
     expect(unflattened[0].changes?.[0]?.key).toBe('LUK.A')
 
     done();
   });
+
 
 });

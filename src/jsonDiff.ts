@@ -14,13 +14,13 @@ export interface IChange {
   type: Operation;
   key: string;
   embeddedKey?: string | FunctionKey;
-  value?: any | any[];
+  value?: any;
   oldValue?: any;
   changes?: IChange[];
 }
 export type Changeset = IChange[];
 
-export interface IFlatChange {
+export interface IAtomicChange {
   type: Operation;
   key: string;
   path: string;
@@ -29,20 +29,27 @@ export interface IFlatChange {
   oldValue?: any;
 }
 
+export interface Options {
+  embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
+  keysToSkip?: string[];
+  treatTypeChangeAsReplace?: boolean;
+}
+
 /**
  * Computes the difference between two objects.
  *
  * @param {any} oldObj - The original object.
  * @param {any} newObj - The updated object.
- * @param {EmbeddedObjKeysType | EmbeddedObjKeysMapType} embeddedObjKeys - An optional parameter specifying keys of embedded objects.
+ * @param {Options} options - An optional parameter specifying keys of embedded objects and keys to skip.
  * @returns {IChange[]} - An array of changes that transform the old object into the new object.
  */
 export function diff(
   oldObj: any,
   newObj: any,
-  embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType,
-  keysToSkip?: string[]
+  options: Options = {}
 ): IChange[] {
+  let { embeddedObjKeys, keysToSkip, treatTypeChangeAsReplace } = options;
+
   // Trim leading '.' from keys in embeddedObjKeys
   if (embeddedObjKeys instanceof Map) {
     embeddedObjKeys = new Map(
@@ -58,7 +65,11 @@ export function diff(
   }
 
   // Compare old and new objects to generate a list of changes
-  return compare(oldObj, newObj, [], embeddedObjKeys, [], keysToSkip);
+  return compare(oldObj, newObj, [], [], {
+    embeddedObjKeys,
+    keysToSkip: keysToSkip ?? [],
+    treatTypeChangeAsReplace: treatTypeChangeAsReplace ?? true
+  });
 }
 
 /**
@@ -113,67 +124,82 @@ export const revertChangeset = (obj: any, changeset: Changeset) => {
 };
 
 /**
- * Flattens a changeset into an array of flat changes.
+ * Atomize a changeset into an array of single changes.
  *
  * @param {Changeset | IChange} obj - The changeset or change to flatten.
  * @param {string} [path='$'] - The current path in the changeset.
  * @param {string | FunctionKey} [embeddedKey] - The key to use for embedded objects.
- * @returns {IFlatChange[]} - An array of flat changes.
+ * @returns {IAtomicChange[]} - An array of atomic changes.
  *
- * The function first checks if the input is an array. If so, it recursively flattens each change in the array.
+ * The function first checks if the input is an array. If so, it recursively atomize each change in the array.
  * If the input is not an array, it checks if the change has nested changes or an embedded key.
  * If so, it updates the path and recursively flattens the nested changes or the embedded object.
- * If the change does not have nested changes or an embedded key, it creates a flat change and returns it in an array.
+ * If the change does not have nested changes or an embedded key, it creates a atomic change and returns it in an array.
  */
-export const flattenChangeset = (
+export const atomizeChangeset = (
   obj: Changeset | IChange,
   path = '$',
   embeddedKey?: string | FunctionKey
-): IFlatChange[] => {
+): IAtomicChange[] => {
   if (Array.isArray(obj)) {
-    return obj.reduce((memo, change) => [...memo, ...flattenChangeset(change, path, embeddedKey)], [] as IFlatChange[]);
-  } else {
-    if (obj.changes || embeddedKey) {
-      if (embeddedKey) {
-        if (embeddedKey === '$index') {
-          path = `${path}[${obj.key}]`;
-        } else if (embeddedKey === '$value') {
-          path = `${path}[?(@='${obj.key}')]`;
-          const valueType = getTypeOfObj(obj.value);
-          return [
-            {
-              ...obj,
-              path,
-              valueType
-            }
-          ];
-        } else if (obj.type === Operation.ADD) {
-          // do nothing
-        } else {
-          path = filterExpression(path, embeddedKey, obj.key);
-        }
-      } else {
-        path = append(path, obj.key);
+    return handleArray(obj, path, embeddedKey);
+  } else if (obj.changes || embeddedKey) {
+    if (embeddedKey) {
+      const [updatedPath, atomicChange] = handleEmbeddedKey(embeddedKey, obj, path);
+      path = updatedPath;
+      if (atomicChange) {
+        return atomicChange;
       }
-
-      return flattenChangeset(obj.changes || obj, path, obj.embeddedKey);
     } else {
-      const valueType = getTypeOfObj(obj.value);
-      return [
-        {
-          ...obj,
-          path: valueType === 'Object' || path.endsWith(`[${obj.key}]`) ? path : append(path, obj.key),
-          valueType
-        }
-      ];
+      path = append(path, obj.key);
     }
+    return atomizeChangeset(obj.changes || obj, path, obj.embeddedKey);
+  } else {
+    const valueType = getTypeOfObj(obj.value);
+    return [{
+      ...obj,
+      path: valueType === 'Object' || path.endsWith(`[${obj.key}]`) ? path : append(path, obj.key),
+      valueType
+    }];
   }
 };
 
+// Function to handle embeddedKey logic and update the path
+function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path: string): [string, IAtomicChange[]?] {
+  if (embeddedKey === '$index') {
+    path = `${path}[${obj.key}]`;
+    return [path]
+  } else if (embeddedKey === '$value') {
+    path = `${path}[?(@=='${obj.key}')]`;
+    const valueType = getTypeOfObj(obj.value);
+    return [
+      path,
+      [{
+        ...obj,
+        path,
+        valueType
+      }]
+    ];
+  } else if (obj.type === Operation.ADD) {
+    // do nothing
+    return [path];
+  } else {
+    path = filterExpression(path, embeddedKey, obj.key);
+    return [path];
+  }
+}
+
+
+const handleArray = (obj: Changeset | IChange[], path: string, embeddedKey?: string | FunctionKey): IAtomicChange[] => {
+  return obj.reduce((memo, change) => [...memo, ...atomizeChangeset(change, path, embeddedKey)], [] as IAtomicChange[]);
+}
+
+
+
 /**
- * Transforms a flat changeset into a nested changeset.
+ * Transforms an atomized changeset into a nested changeset.
  *
- * @param {IFlatChange | IFlatChange[]} changes - The flat changeset to unflatten.
+ * @param {IAtomicChange | IAtomicChange[]} changes - The atomic changeset to unflatten.
  * @returns {IChange[]} - The unflattened changeset.
  *
  * The function first checks if the input is a single change or an array of changes.
@@ -183,7 +209,7 @@ export const flattenChangeset = (
  * If it represents a leaf node, it sets the key, type, value, and oldValue of the current change object.
  * Finally, it pushes the unflattened change object into the changes array.
  */
-export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
+export const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
   if (!Array.isArray(changes)) {
     changes = [changes];
   }
@@ -220,7 +246,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
           } else {
             key = result[4];
             embeddedKey = '$index';
-            arrKey = Number(result[4]);
+            arrKey = Number(result[5]);
           }
           // leaf
           if (i === segments.length - 1) {
@@ -314,16 +340,21 @@ const getKey = (path: string) => {
   return left != null ? left : '$root';
 };
 
-const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyPath: any, keysToSkip: string[]) => {
+const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Options) => {
   let changes: any[] = [];
 
   const typeOfOldObj = getTypeOfObj(oldObj);
   const typeOfNewObj = getTypeOfObj(newObj);
 
-  // if type of object changes, consider it as old obj has been deleted and a new object has been added
-  if (typeOfOldObj !== typeOfNewObj) {
+  // `treatTypeChangeAsReplace` is a flag used to determine if a change in type should be treated as a replacement.
+  if (options.treatTypeChangeAsReplace && typeOfOldObj !== typeOfNewObj) {
     changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
     changes.push({ type: Operation.ADD, key: getKey(path), value: newObj });
+    return changes;
+  }
+
+  if (typeOfNewObj === 'Object' && typeOfOldObj === 'Array') {
+    changes.push({ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj });
     return changes;
   }
 
@@ -338,7 +369,8 @@ const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyP
       );
       break;
     case 'Object':
-      const diffs = compareObject(oldObj, newObj, path, embeddedObjKeys, keyPath, false, keysToSkip);
+      {
+      const diffs = compareObject(oldObj, newObj, path, keyPath, false, options);
       if (diffs.length) {
         if (path.length) {
           changes.push({
@@ -351,8 +383,9 @@ const compare = (oldObj: any, newObj: any, path: any, embeddedObjKeys: any, keyP
         }
       }
       break;
+    }
     case 'Array':
-      changes = changes.concat(compareArray(oldObj, newObj, path, embeddedObjKeys, keyPath, keysToSkip));
+      changes = changes.concat(compareArray(oldObj, newObj, path, keyPath, options));
       break;
     case 'Function':
       break;
@@ -368,10 +401,9 @@ const compareObject = (
   oldObj: any,
   newObj: any,
   path: any,
-  embeddedObjKeys: any,
   keyPath: any,
   skipPath = false,
-  keysToSkip: string[] = []
+  options: Options = {},
 ) => {
   let k;
   let newKeyPath;
@@ -382,14 +414,14 @@ const compareObject = (
   }
   let changes: any[] = [];
 
-  const oldObjKeys = Object.keys(oldObj).filter((key) => keysToSkip.indexOf(key) === -1);
-  const newObjKeys = Object.keys(newObj).filter((key) => keysToSkip.indexOf(key) === -1);
+  const oldObjKeys = Object.keys(oldObj).filter((key) => options.keysToSkip.indexOf(key) === -1);
+  const newObjKeys = Object.keys(newObj).filter((key) => options.keysToSkip.indexOf(key) === -1);
 
   const intersectionKeys = intersection(oldObjKeys, newObjKeys);
   for (k of intersectionKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
-    const diffs = compare(oldObj[k], newObj[k], newPath, embeddedObjKeys, newKeyPath, keysToSkip);
+    const diffs = compare(oldObj[k], newObj[k], newPath, newKeyPath, options);
     if (diffs.length) {
       changes = changes.concat(diffs);
     }
@@ -423,15 +455,14 @@ const compareArray = (
   oldObj: any,
   newObj: any,
   path: any,
-  embeddedObjKeys: any,
   keyPath: any,
-  keysToSkip: string[]
+  options: Options
 ) => {
-  const left = getObjectKey(embeddedObjKeys, keyPath);
+  const left = getObjectKey(options.embeddedObjKeys, keyPath);
   const uniqKey = left != null ? left : '$index';
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
   const indexedNewObj = convertArrayToObj(newObj, uniqKey);
-  const diffs = compareObject(indexedOldObj, indexedNewObj, path, embeddedObjKeys, keyPath, true, keysToSkip);
+  const diffs = compareObject(indexedOldObj, indexedNewObj, path, keyPath, true, options);
   if (diffs.length) {
     return [
       {

@@ -1,5 +1,5 @@
 import { chain, keys, replace, set } from 'lodash';
-import { diff, flattenChangeset, getTypeOfObj, IFlatChange, Operation } from './jsonDiff.js';
+import { diff, atomizeChangeset, getTypeOfObj, IAtomicChange, Operation } from './jsonDiff.js';
 
 export enum CompareOperation {
   CONTAINER = 'CONTAINER',
@@ -48,7 +48,7 @@ export const enrich = (object: any): IComparisonEnrichedNode => {
 
 export const applyChangelist = (
   object: IComparisonEnrichedNode,
-  changelist: IFlatChange[]
+  changelist: IAtomicChange[]
 ): IComparisonEnrichedNode => {
   chain(changelist)
     .map((entry) => ({ ...entry, path: replace(entry.path, '$.', '.') }))
@@ -78,5 +78,5 @@ export const applyChangelist = (
 };
 
 export const compare = (oldObject: any, newObject: any): IComparisonEnrichedNode => {
-  return applyChangelist(enrich(oldObject), flattenChangeset(diff(oldObject, newObject)));
+  return applyChangelist(enrich(oldObject), atomizeChangeset(diff(oldObject, newObject)));
 };

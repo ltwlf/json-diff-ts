@@ -3,10 +3,10 @@ import {
   applyChangeset,
   diff,
   EmbeddedObjKeysMapType,
-  flattenChangeset,
-  IFlatChange,
+  atomizeChangeset,
+  IAtomicChange,
   revertChangeset,
-  unflattenChanges
+  unatomizeChangeset
 } from '../src/jsonDiff';
 import * as fixtures from './__fixtures__/jsonDiff.fixture';
 
@@ -26,9 +26,11 @@ describe('jsonDiff#diff', () => {
 
   it('returns correct diff for objects with embedded array with specified keys', () => {
     const diffs = diff(oldObj, newObj, {
-      children: 'name',
-      // path can either starts with "" or "."
-      '.children.subset': 'id'
+      embeddedObjKeys: {
+        children: 'name',
+        // path can either starts with "" or "."
+        '.children.subset': 'id'
+      }
     });
     expect(diffs).toMatchSnapshot();
   });
@@ -38,14 +40,16 @@ describe('jsonDiff#diff', () => {
     embeddedObjKeys.set(/^children$/, 'name');
     embeddedObjKeys.set(/\.subset$/, 'id');
 
-    const diffs = diff(oldObj, newObj, embeddedObjKeys);
+    const diffs = diff(oldObj, newObj, { embeddedObjKeys });
     expect(diffs).toMatchSnapshot();
   });
 
   it('returns correct diff for objects with embedded array with function keys', () => {
     const diffs = diff(oldObj, newObj, {
-      children: (obj: { name: string }) => obj.name,
-      'children.subset': (obj: { id: number }) => obj.id
+      embeddedObjKeys: {
+        children: (obj: { name: string }) => obj.name,
+        'children.subset': (obj: { id: number }) => obj.id
+      }
     });
     expect(diffs).toMatchSnapshot();
   });
@@ -54,7 +58,7 @@ describe('jsonDiff#diff', () => {
     const keyToSkip = '@_index';
     oldObj[keyToSkip] = 'This should be ignored';
     newObj['children'][1][keyToSkip] = { text: 'This whole object should be ignored' };
-    const diffs = diff(oldObj, newObj, undefined, [keyToSkip]);
+    const diffs = diff(oldObj, newObj, { keysToSkip: [keyToSkip] });
     expect(diffs).toMatchSnapshot();
   });
 });
@@ -94,12 +98,15 @@ describe('jsonDiff#revertChangeset', () => {
 describe('jsonDiff#flatten', () => {
   it('flattens changes, unflattens them, and applies them correctly', () => {
     const diffs = diff(oldObj, newObj, {
-      children: 'name',
-      'children.subset': 'id'
-    });
+      embeddedObjKeys: {
+        children: 'name',
+        'children.subset': 'id'
+      }
+    }
+    );
 
-    const flat = flattenChangeset(diffs);
-    const unflat = unflattenChanges(flat);
+    const flat = atomizeChangeset(diffs);
+    const unflat = unatomizeChangeset(flat);
 
     applyChangeset(oldObj, unflat);
 
@@ -115,8 +122,8 @@ describe('jsonDiff#flatten', () => {
 
     const diffs = diff(beforeObj, afterObj, {});
 
-    const flat = flattenChangeset(diffs);
-    const unflat = unflattenChanges(flat);
+    const flat = atomizeChangeset(diffs);
+    const unflat = unatomizeChangeset(flat);
 
     applyChangeset(beforeObj, unflat);
 
@@ -141,21 +148,23 @@ describe('jsonDiff#flatten', () => {
     };
 
     const diffs = diff(beforeObj, afterObj, {
-      items: (obj, getKeyName) => {
-        if (getKeyName) {
+      embeddedObjKeys: {
+        items: (obj, getKeyName) => {
+          if (getKeyName) {
+            if (obj?._id) {
+              return '_id';
+            }
+            return '$index';
+          }
           if (obj?._id) {
-            return '_id';
+            return obj?._id;
           }
           return '$index';
         }
-        if (obj?._id) {
-          return obj?._id;
-        }
-        return '$index';
       }
     });
 
-    const flat = flattenChangeset(diffs);
+    const flat = atomizeChangeset(diffs);
 
     expect(flat).toMatchSnapshot();
   });
@@ -176,12 +185,12 @@ describe('jsonDiff#valueKey', () => {
   });
 
   it('tracks array changes by array value', () => {
-    const diffs = diff(oldObj, newObj, { items: '$value' });
+    const diffs = diff(oldObj, newObj, { embeddedObjKeys: { items: '$value' } });
     expect(diffs).toMatchSnapshot();
   });
 
   it('corretly flatten array value keys', () => {
-    const flattenChanges = flattenChangeset(diff(oldObj, newObj, { items: '$value' }));
+    const flattenChanges = atomizeChangeset(diff(oldObj, newObj, { embeddedObjKeys: { items: '$value' } }));
     expect(flattenChanges).toMatchSnapshot();
   });
 
@@ -201,9 +210,9 @@ describe('jsonDiff#valueKey', () => {
         value: 'apple',
         valueType: 'String'
       }
-    ] as IFlatChange[];
+    ] as IAtomicChange[];
 
-    const changeset = unflattenChanges(flattenChanges);
+    const changeset = unatomizeChangeset(flattenChanges);
 
     expect(changeset).toMatchSnapshot();
   });
@@ -224,9 +233,9 @@ describe('jsonDiff#valueKey', () => {
         value: 'apple',
         valueType: 'String'
       }
-    ] as IFlatChange[];
+    ] as IAtomicChange[];
 
-    const changeset = unflattenChanges(flattenChanges);
+    const changeset = unatomizeChangeset(flattenChanges);
 
     applyChangeset(oldObj, changeset);
 
@@ -249,12 +258,28 @@ describe('jsonDiff#valueKey', () => {
         value: 'lemon',
         valueType: 'String'
       }
-    ] as IFlatChange[];
+    ] as IAtomicChange[];
 
-    const changeset = unflattenChanges(flattenChanges);
+    const changeset = unatomizeChangeset(flattenChanges);
 
     revertChangeset(oldObj, changeset);
 
     expect(oldObj).toMatchSnapshot();
   });
+
+  it('it should treat object type changes as an update', () => {
+    const beforeObj = {
+      items: ['apple', 'banana', 'orange']
+    };
+    const afterObj = {
+      items: { 0: 'apple', 1: 'banana', 2: 'orange'}
+    };
+
+    const changeset = diff(beforeObj, afterObj, { treatTypeChangeAsReplace: false});
+
+    applyChangeset(beforeObj, changeset);
+
+    expect(beforeObj).toMatchSnapshot();
+  });
+
 });

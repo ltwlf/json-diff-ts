@@ -28,7 +28,7 @@ In CommonJS, you can import the diff function like this:
 
 ```javascript
 const { diff } = require('json-diff-ts');
-``` 
+```
 
 ## Capabilities
 
@@ -132,13 +132,19 @@ const expectedDiffs = [
 Paths can be utilized to identify keys within nested arrays.
 
 ```javascript
-const diffs = diff(oldData, newData, { 'characters.subarray': 'id' });
+const diffs = diff(oldData, newData, { embeddedObjKeys { 'characters.subarray': 'id' }});
 ```
 
 You can also designate the root by using '.' instead of an empty string ('').
 
 ```javascript
-const diffs = diff(oldData, newData, { '.characters.subarray': 'id' });
+const diffs = diff(oldData, newData, { embeddedObjKeys: { '.characters.subarray': 'id' } });
+```
+
+Determine if type changes are treated as a replace (remove, add) or as an update; default is replace.
+
+```javascript
+const diffs = diff(oldData, newData, { treatTypeChangeAsReplace: false });
 ```
 
 You can use a function to dynamically resolve the key of the object.
@@ -146,7 +152,9 @@ The first parameter is the object and the second is to signal if the function sh
 
 ```javascript
 const diffs = diff(oldData, newData, {
-  characters: (obj, shouldReturnKeyName) => (shouldReturnKeyName ? 'id' : obj.id)
+  embeddedObjKeys: {
+    characters: (obj, shouldReturnKeyName) => (shouldReturnKeyName ? 'id' : obj.id)
+  }
 });
 ```
 
@@ -157,30 +165,30 @@ const embeddedObjKeys: EmbeddedObjKeysMapType = new Map();
 
 embeddedObjKeys.set(/^char\w+$/, 'id'); // instead of 'id' you can specify a function
 
-const diffs = diff(oldObj, newObj, embeddedObjKeys);
+const diffs = diff(oldObj, newObj, { embeddedObjKeys });
 ```
 
 Compare string arrays by value instead of index
 
 ```javascript
-const diffs = diff(oldObj, newObj, { stringArr: '$value' });
+const diffs = diff(oldObj, newObj, { embeddedObjKeys: { stringArr: '$value' } });
 ```
 
-### `flattenChangeset`
+### `atomizeChangeset`
 
-Transforms a complex changeset into a flat list of atomic changes, each describable by a JSONPath.
+Transforms a complex changeset into a list of atomic changes, each describable by a JSONPath.
 
 #### Examples:
 
 ```javascript
-const flatChanges = flattenChangeset(diffs);
-// Restore the changeset from a selection of flat changes
-const changeset = unflattenChanges(flatChanges.slice(0, 3));
+const atomicChanges = atomizeChangeset(diffs);
+// Restore the changeset from a selection of atomic changes
+const changeset = unatomizeChangeset(flatChanges.slice(0, 3));
 // Alternatively, apply the changes using a JSONPath-capable library
 // ...
 ```
 
-A **flatChange** will have the following structure:
+**Atomic Changes** will have the following structure:
 
 ```javascript
 [
@@ -265,6 +273,7 @@ Reach out to the maintainer via LinkedIn or Twitter:
 Discover more about the company behind this project: [hololux](https://hololux.com)
 
 ## Release Notes
+- **v4.0.0:** Change naming of flattenChangest and unflattenChanges to atomizeChangeset and unatomizeChangeset; option to set treatTypeChangeAsReplace
 - **v3.0.1:** Fix issue with unflattenChanges when a key has periods
 - **v3.0.0:** Supports CommonJS and ECMAScript Modules. Dependency to lodash-es was replaced with lodash to support both ECMAScript and CommonJS.
 - **v2.2.0:** Fix lodash-es decependency, exclude keys, compare string arrays by value

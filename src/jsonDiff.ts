@@ -1,4 +1,5 @@
 import { difference, find, intersection, keyBy } from 'lodash';
+import { splitJSONPath } from './helpers';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
 export type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
@@ -189,11 +190,12 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
 
   const changesArr: IChange[] = [];
 
+
   changes.forEach((change) => {
     const obj = {} as IChange;
     let ptr = obj;
 
-    const segments = change.path.split(/(?<=[^@])\.(?=[^@])/);
+    const segments = splitJSONPath(change.path);
 
     if (segments.length === 1) {
       ptr.key = change.key;
@@ -205,7 +207,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
         // Matches JSONPath segments: "items[?(@.id=='123')]", "items[?(@.id==123)]", "items[2]", "items[?(@='123')]"
-        const result = /^(.+?)\[\?\(@.?(?:([^=]*))?={1,2}'(.*)'\)\]$|^(.+?)\[(\d+)\]$/.exec(segment); //NOSONAR
+        const result = /^([^[\]]+)\[\?\(@\.?([^=]*)=+'([^']+)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
         // array
         if (result) {
           let key: string;
@@ -636,3 +638,4 @@ function filterExpression(basePath: string, filterKey: string | FunctionKey, fil
     ? `${basePath}[?(@[${filterKey}]==${value})]`
     : `${basePath}[?(@.${filterKey}==${value})]`;
 }
+

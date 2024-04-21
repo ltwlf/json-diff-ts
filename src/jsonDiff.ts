@@ -205,7 +205,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
         // Matches JSONPath segments: "items[?(@.id=='123')]", "items[?(@.id==123)]", "items[2]", "items[?(@='123')]"
-        const result = /^(.+?)\[\?\(@.?(?:([^=]*))?={1,2}'(.*)'\)\]$|^(.+?)\[(\d+)\]$/.exec(segment);
+        const result = /^([^[]+)\[\?\(@.?([^=]*)?={1,2}'(.*)'\)\]$|^([^[]+)\[(\d+)\]$/.exec(segment);
         // array
         if (result) {
           let key: string;
@@ -374,9 +374,6 @@ const compareObject = (
   let k;
   let newKeyPath;
   let newPath;
-
-
-  console.log(keyPath)
 
   if (skipPath == null) {
     skipPath = false;

@@ -149,7 +149,7 @@ export const atomizeChangeset = (
         if (embeddedKey === '$index') {
           path = `${path}[${obj.key}]`;
         } else if (embeddedKey === '$value') {
-          path = `${path}[?(@='${obj.key}')]`;
+          path = `${path}[?(@=='${obj.key}')]`;
           const valueType = getTypeOfObj(obj.value);
           return [
             {

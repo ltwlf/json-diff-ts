@@ -849,21 +849,21 @@ exports[`jsonDiff#valueKey corretly flatten array value keys 1`] = `
 [
   {
     "key": "lemon",
-    "path": "$.items[?(@='lemon')]",
+    "path": "$.items[?(@=='lemon')]",
     "type": "ADD",
     "value": "lemon",
     "valueType": "String",
   },
   {
     "key": "apple",
-    "path": "$.items[?(@='apple')]",
+    "path": "$.items[?(@=='apple')]",
     "type": "REMOVE",
     "value": "apple",
     "valueType": "String",
   },
   {
     "key": "banana",
-    "path": "$.items[?(@='banana')]",
+    "path": "$.items[?(@=='banana')]",
     "type": "REMOVE",
     "value": "banana",
     "valueType": "String",

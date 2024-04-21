@@ -10,11 +10,25 @@ Another significant feature of this library is its ability to transform changese
 
 This library is particularly valuable for applications where tracking changes in JSON data is crucial. It simplifies the process of comparing JSON objects and applying changes. The support for key-based array identification can be especially useful in complex JSON structures where tracking by index is not efficient or intuitive. JSONPath support further enhances its capabilities by allowing precise targeting of specific parts in a JSON document, making it a versatile tool for handling JSON data.
 
+Starting with version 3, `json-diff-ts` now supports both ECMAScript Modules and CommonJS. This makes the library more versatile and compatible with various JavaScript environments. Whether you're working in a modern project that uses ES modules, or a Node.js project that uses CommonJS, you can now use `json-diff-ts` seamlessly.
+
 ## Installation
 
 ```sh
 npm install json-diff-ts
 ```
+
+In TypeScript or ES Modules, you can import the `diff` function like this:
+
+```typescript
+import { diff } from 'json-diff-ts';
+```
+
+In CommonJS, you can import the diff function like this:
+
+```javascript
+const { diff } = require('json-diff-ts');
+``` 
 
 ## Capabilities
 
@@ -24,7 +38,7 @@ Generates a difference set for JSON objects. When comparing arrays, if a specifi
 
 #### Examples using Star Wars data:
 
-```javascript
+```typescript
 import { diff } from 'json-diff-ts';
 
 const oldData = {
@@ -251,7 +265,7 @@ Reach out to the maintainer via LinkedIn or Twitter:
 Discover more about the company behind this project: [hololux](https://hololux.com)
 
 ## Release Notes
-- **v3.0.0:** Supports CommonJS and ECMAScript Modules
+- **v3.0.0:** Supports CommonJS and ECMAScript Modules. Dependency to lodash-es was replaced with lodash to support both ECMAScript and CommonJS.
 - **v2.2.0:** Fix lodash-es decependency, exclude keys, compare string arrays by value
 - **v2.1.0:** Resolves a problem related to JSON Path filters by replacing the single equal sign (=) with a double equal sign (==). This update maintains compatibility with existing flat changes. Allows to use either '' or '.' as root in the path.
 - **v2.0.0:** json-diff-ts has been upgraded to an ECMAScript module! This major update brings optimizations and enhanced documentation. Additionally, a previously existing issue where all paths were treated as regex has been fixed. In this new version, you'll need to use a Map instead of a Record for regex paths. Please note that this is a breaking change if you were using regex paths in the previous versions.

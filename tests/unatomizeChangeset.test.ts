@@ -1,6 +1,16 @@
-import { diff, atomizeChangeset, unatomizeChangeset } from '../src/jsonDiff';
+import { diff, atomizeChangeset, unatomizeChangeset, applyChangeset } from '../src/jsonDiff';
 
-describe('unflattenChanges', () => {
+describe('unatomizeChangeset', () => {
+
+  test('unatomizeChangeset changeset', (done) => {
+    const oldObject = { a: [{ b: [{ c: 'd' }] }] };
+    const newObject = { a: [{ b: [{ c: 'e' }] }] };
+    const diffs = diff(oldObject, newObject);
+
+    expect(applyChangeset(oldObject, unatomizeChangeset(atomizeChangeset(diffs)))).toEqual(newObject)
+
+    done();
+  });
 
   test('when using an embedded key on diff', (done) => {
 
@@ -57,5 +67,6 @@ describe('unflattenChanges', () => {
 
     done();
   });
+
 
 });

@@ -231,7 +231,7 @@ export const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => 
           } else {
             key = result[4];
             embeddedKey = '$index';
-            arrKey = Number(result[4]);
+            arrKey = Number(result[5]);
           }
           // leaf
           if (i === segments.length - 1) {

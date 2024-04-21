@@ -1,6 +1,6 @@
 import { diff, atomizeChangeset } from '../src/jsonDiff';
 
-describe('flattenChangeset', () => {
+describe('atomizeChangeset', () => {
   test('when JSON path segements contain periods', (done) => {
     const oldObject = { 'a.b': 1 };
     const newObject = { 'a.b': 2 };

@@ -265,6 +265,7 @@ Reach out to the maintainer via LinkedIn or Twitter:
 Discover more about the company behind this project: [hololux](https://hololux.com)
 
 ## Release Notes
+- **v3.0.1:** Fix issue with unflattenChanges when a key has periods
 - **v3.0.0:** Supports CommonJS and ECMAScript Modules. Dependency to lodash-es was replaced with lodash to support both ECMAScript and CommonJS.
 - **v2.2.0:** Fix lodash-es decependency, exclude keys, compare string arrays by value
 - **v2.1.0:** Resolves a problem related to JSON Path filters by replacing the single equal sign (=) with a double equal sign (==). This update maintains compatibility with existing flat changes. Allows to use either '' or '.' as root in the path.

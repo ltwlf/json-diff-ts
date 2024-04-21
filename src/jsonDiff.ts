@@ -193,7 +193,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
     const obj = {} as IChange;
     let ptr = obj;
 
-    const segments = change.path.split(/(?<=[^@\[\(])\.(?=[^@\]\)'](?=(?:[^']*'[^']*')*[^']*$))/g);
+    const segments = change.path.split(/(?<!['[][^'\]]*)\.(?!['[][^'\]]*)/g);
 
     if (segments.length === 1) {
       ptr.key = change.key;
@@ -205,7 +205,7 @@ export const unflattenChanges = (changes: IFlatChange | IFlatChange[]) => {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
         // Matches JSONPath segments: "items[?(@.id=='123')]", "items[?(@.id==123)]", "items[2]", "items[?(@='123')]"
-        const result = /^([^[]+)\[\?\(@.?([^=]*)?={1,2}'(.*)'\)\]$|^([^[]+)\[(\d+)\]$/.exec(segment);
+        const result = /^([^[\]]+)\[\?\(@\.?([^=]*)=+'([^']+)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
         // array
         if (result) {
           let key: string;

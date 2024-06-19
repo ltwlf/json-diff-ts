@@ -31,13 +31,20 @@ jobs:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
       - run: npm install
-      - name: Create tag
+      - name: Create tag and determine release type
+        id: prep
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          echo "Version: $VERSION"
+          if [[ "$VERSION" == *-* ]]; then
+            echo "::set-output name=RELEASE_TYPE::preview"
+          else
+            echo "::set-output name=RELEASE_TYPE::latest"
+          fi
           git tag "v$VERSION"
           git push --tags
       - name: Publish package
         uses: JS-DevTools/npm-publish@v3
         with:
           token: ${{ secrets.NPM_TOKEN }}
-          tag: latest
+          tag: ${{ steps.prep.outputs.RELEASE_TYPE }}

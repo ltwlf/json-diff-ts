@@ -2,15 +2,15 @@ import { difference, find, intersection, keyBy } from 'lodash';
 import { splitJSONPath } from './helpers';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
-export type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
-export type EmbeddedObjKeysMapType = Map<string | RegExp, string | FunctionKey>;
-export enum Operation {
+type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
+type EmbeddedObjKeysMapType = Map<string | RegExp, string | FunctionKey>;
+enum Operation {
   REMOVE = 'REMOVE',
   ADD = 'ADD',
   UPDATE = 'UPDATE'
 }
 
-export interface IChange {
+interface IChange {
   type: Operation;
   key: string;
   embeddedKey?: string | FunctionKey;
@@ -18,9 +18,9 @@ export interface IChange {
   oldValue?: any;
   changes?: IChange[];
 }
-export type Changeset = IChange[];
+type Changeset = IChange[];
 
-export interface IAtomicChange {
+interface IAtomicChange {
   type: Operation;
   key: string;
   path: string;
@@ -29,7 +29,7 @@ export interface IAtomicChange {
   oldValue?: any;
 }
 
-export interface Options {
+interface Options {
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
   keysToSkip?: string[];
   treatTypeChangeAsReplace?: boolean;
@@ -43,11 +43,7 @@ export interface Options {
  * @param {Options} options - An optional parameter specifying keys of embedded objects and keys to skip.
  * @returns {IChange[]} - An array of changes that transform the old object into the new object.
  */
-export function diff(
-  oldObj: any,
-  newObj: any,
-  options: Options = {}
-): IChange[] {
+function diff(oldObj: any, newObj: any, options: Options = {}): IChange[] {
   let { embeddedObjKeys, keysToSkip, treatTypeChangeAsReplace } = options;
 
   // Trim leading '.' from keys in embeddedObjKeys
@@ -83,7 +79,7 @@ export function diff(
  * If the change value is not null or undefined, or if the change type is REMOVE, it applies the change to the object directly.
  * Otherwise, it applies the change to the corresponding branch of the object.
  */
-export const applyChangeset = (obj: any, changeset: Changeset) => {
+const applyChangeset = (obj: any, changeset: Changeset) => {
   if (changeset) {
     changeset.forEach((change) => {
       const { type, key, value, embeddedKey } = change;
@@ -111,7 +107,7 @@ export const applyChangeset = (obj: any, changeset: Changeset) => {
  * It then iterates over each change in the changeset. If the change does not have any nested changes, it reverts the change on the object directly.
  * If the change does have nested changes, it reverts the changes on the corresponding branch of the object.
  */
-export const revertChangeset = (obj: any, changeset: Changeset) => {
+const revertChangeset = (obj: any, changeset: Changeset) => {
   if (changeset) {
     changeset
       .reverse()
@@ -136,7 +132,7 @@ export const revertChangeset = (obj: any, changeset: Changeset) => {
  * If so, it updates the path and recursively flattens the nested changes or the embedded object.
  * If the change does not have nested changes or an embedded key, it creates a atomic change and returns it in an array.
  */
-export const atomizeChangeset = (
+const atomizeChangeset = (
   obj: Changeset | IChange,
   path = '$',
   embeddedKey?: string | FunctionKey
@@ -156,11 +152,13 @@ export const atomizeChangeset = (
     return atomizeChangeset(obj.changes || obj, path, obj.embeddedKey);
   } else {
     const valueType = getTypeOfObj(obj.value);
-    return [{
-      ...obj,
-      path: valueType === 'Object' || path.endsWith(`[${obj.key}]`) ? path : append(path, obj.key),
-      valueType
-    }];
+    return [
+      {
+        ...obj,
+        path: valueType === 'Object' || path.endsWith(`[${obj.key}]`) ? path : append(path, obj.key),
+        valueType
+      }
+    ];
   }
 };
 
@@ -168,17 +166,19 @@ export const atomizeChangeset = (
 function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path: string): [string, IAtomicChange[]?] {
   if (embeddedKey === '$index') {
     path = `${path}[${obj.key}]`;
-    return [path]
+    return [path];
   } else if (embeddedKey === '$value') {
     path = `${path}[?(@=='${obj.key}')]`;
     const valueType = getTypeOfObj(obj.value);
     return [
       path,
-      [{
-        ...obj,
-        path,
-        valueType
-      }]
+      [
+        {
+          ...obj,
+          path,
+          valueType
+        }
+      ]
     ];
   } else if (obj.type === Operation.ADD) {
     // do nothing
@@ -189,12 +189,9 @@ function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path
   }
 }
 
-
 const handleArray = (obj: Changeset | IChange[], path: string, embeddedKey?: string | FunctionKey): IAtomicChange[] => {
   return obj.reduce((memo, change) => [...memo, ...atomizeChangeset(change, path, embeddedKey)], [] as IAtomicChange[]);
-}
-
-
+};
 
 /**
  * Transforms an atomized changeset into a nested changeset.
@@ -209,13 +206,12 @@ const handleArray = (obj: Changeset | IChange[], path: string, embeddedKey?: str
  * If it represents a leaf node, it sets the key, type, value, and oldValue of the current change object.
  * Finally, it pushes the unflattened change object into the changes array.
  */
-export const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
+const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
   if (!Array.isArray(changes)) {
     changes = [changes];
   }
 
   const changesArr: IChange[] = [];
-
 
   changes.forEach((change) => {
     const obj = {} as IChange;
@@ -322,7 +318,7 @@ export const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => 
  * If the object is neither undefined nor null, it uses Object.prototype.toString to get the object's type.
  * The type is extracted from the string returned by Object.prototype.toString using a regular expression.
  */
-export const getTypeOfObj = (obj: any) => {
+const getTypeOfObj = (obj: any) => {
   if (typeof obj === 'undefined') {
     return 'undefined';
   }
@@ -368,8 +364,7 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
         }))
       );
       break;
-    case 'Object':
-      {
+    case 'Object': {
       const diffs = compareObject(oldObj, newObj, path, keyPath, false, options);
       if (diffs.length) {
         if (path.length) {
@@ -397,14 +392,7 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
   return changes;
 };
 
-const compareObject = (
-  oldObj: any,
-  newObj: any,
-  path: any,
-  keyPath: any,
-  skipPath = false,
-  options: Options = {},
-) => {
+const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPath = false, options: Options = {}) => {
   let k;
   let newKeyPath;
   let newPath;
@@ -451,13 +439,7 @@ const compareObject = (
   return changes;
 };
 
-const compareArray = (
-  oldObj: any,
-  newObj: any,
-  path: any,
-  keyPath: any,
-  options: Options
-) => {
+const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options: Options) => {
   const left = getObjectKey(options.embeddedObjKeys, keyPath);
   const uniqKey = left != null ? left : '$index';
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
@@ -670,3 +652,18 @@ function filterExpression(basePath: string, filterKey: string | FunctionKey, fil
     : `${basePath}[?(@.${filterKey}==${value})]`;
 }
 
+export {
+  Changeset,
+  EmbeddedObjKeysMapType,
+  EmbeddedObjKeysType,
+  IAtomicChange,
+  IChange,
+  Operation,
+  Options,
+  applyChangeset,
+  atomizeChangeset,
+  diff,
+  getTypeOfObj,
+  revertChangeset,
+  unatomizeChangeset
+};

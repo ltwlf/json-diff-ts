@@ -61,6 +61,14 @@ describe('jsonDiff#diff', () => {
     const diffs = diff(oldObj, newObj, { keysToSkip: [keyToSkip] });
     expect(diffs).toMatchSnapshot();
   });
+
+  it.each(fixtures.assortedDiffs)(
+    'correctly diffs $oldVal with $newVal',
+    ({ oldVal, newVal, expectedReplacement, expectedUpdate }) => {
+      expect(diff(oldVal, newVal, { treatTypeChangeAsReplace: true })).toEqual(expectedReplacement);
+      expect(diff(oldVal, newVal, { treatTypeChangeAsReplace: false })).toEqual(expectedUpdate);
+    }
+  );
 });
 
 describe('jsonDiff#applyChangeset', () => {
@@ -189,12 +197,12 @@ describe('jsonDiff#valueKey', () => {
     expect(diffs).toMatchSnapshot();
   });
 
-  it('corretly flatten array value keys', () => {
+  it('correctly flatten array value keys', () => {
     const flattenChanges = atomizeChangeset(diff(oldObj, newObj, { embeddedObjKeys: { items: '$value' } }));
     expect(flattenChanges).toMatchSnapshot();
   });
 
-  it('corretly unflatten array value keys', () => {
+  it('correctly unflatten array value keys', () => {
     const flattenChanges = [
       {
         key: 'lemon',

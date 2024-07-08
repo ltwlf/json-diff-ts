@@ -845,7 +845,7 @@ exports[`jsonDiff#valueKey apply array value keys 1`] = `
 }
 `;
 
-exports[`jsonDiff#valueKey corretly flatten array value keys 1`] = `
+exports[`jsonDiff#valueKey correctly flatten array value keys 1`] = `
 [
   {
     "key": "lemon",
@@ -871,7 +871,7 @@ exports[`jsonDiff#valueKey corretly flatten array value keys 1`] = `
 ]
 `;
 
-exports[`jsonDiff#valueKey corretly unflatten array value keys 1`] = `
+exports[`jsonDiff#valueKey correctly unflatten array value keys 1`] = `
 [
   {
     "changes": [

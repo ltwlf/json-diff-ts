@@ -345,7 +345,17 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
   // `treatTypeChangeAsReplace` is a flag used to determine if a change in type should be treated as a replacement.
   if (options.treatTypeChangeAsReplace && typeOfOldObj !== typeOfNewObj) {
     changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
-    changes.push({ type: Operation.ADD, key: getKey(path), value: newObj });
+
+    // As undefined is not serialized into JSON, it should not count as an added value.
+    if (typeOfNewObj !== 'undefined') {
+      changes.push({ type: Operation.ADD, key: getKey(path), value: newObj });
+    }
+
+    return changes;
+  }
+
+  if (typeOfNewObj === 'undefined' && typeOfOldObj !== 'undefined') {
+    changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
     return changes;
   }
 
@@ -440,6 +450,10 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
 };
 
 const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options: Options) => {
+  if (getTypeOfObj(newObj) !== 'Array') {
+    return [{ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj }];
+  }
+
   const left = getObjectKey(options.embeddedObjKeys, keyPath);
   const uniqKey = left != null ? left : '$index';
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);

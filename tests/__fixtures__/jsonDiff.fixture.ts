@@ -308,3 +308,53 @@ export const changesetWithoutEmbeddedKey: IChange[] = [
   { type: Operation.REMOVE, key: 'age', value: 55 },
   { type: Operation.REMOVE, key: 'empty', value: undefined }
 ];
+
+export const assortedDiffs: {
+  oldVal: unknown;
+  newVal: unknown;
+  expectedReplacement: IChange[];
+  expectedUpdate: IChange[];
+}[] = [
+  {
+    oldVal: 1,
+    newVal: 'a',
+    expectedReplacement: [
+      { type: Operation.REMOVE, key: '$root', value: 1 },
+      { type: Operation.ADD, key: '$root', value: 'a' }
+    ],
+    expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: 'a', oldValue: 1 }]
+  },
+  {
+    oldVal: [],
+    newVal: null,
+    expectedReplacement: [
+      { type: Operation.REMOVE, key: '$root', value: [] },
+      { type: Operation.ADD, key: '$root', value: null }
+    ],
+    expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: null, oldValue: [] }]
+  },
+  {
+    oldVal: [],
+    newVal: undefined,
+    expectedReplacement: [{ type: Operation.REMOVE, key: '$root', value: [] }],
+    expectedUpdate: [{ type: Operation.REMOVE, key: '$root', value: [] }]
+  },
+  {
+    oldVal: [],
+    newVal: 0,
+    expectedReplacement: [
+      { type: Operation.REMOVE, key: '$root', value: [] },
+      { type: Operation.ADD, key: '$root', value: 0 }
+    ],
+    expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: 0, oldValue: [] }]
+  },
+  {
+    oldVal: [],
+    newVal: 1,
+    expectedReplacement: [
+      { type: Operation.REMOVE, key: '$root', value: [] },
+      { type: Operation.ADD, key: '$root', value: 1 }
+    ],
+    expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: 1, oldValue: [] }]
+  },
+];

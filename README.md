@@ -61,7 +61,7 @@ const newData = {
   weapons: ['Lightsaber', 'Blaster', 'Bowcaster']
 };
 
-const diffs = diff(oldData, newData, { characters: 'id' });
+const diffs = diff(oldData, newData, { embeddedObjKeys: { characters: 'id' } });
 
 const expectedDiffs = [
   {
@@ -273,6 +273,7 @@ Reach out to the maintainer via LinkedIn or Twitter:
 Discover more about the company behind this project: [hololux](https://hololux.com)
 
 ## Release Notes
+
 - **v4.0.0:** Change naming of flattenChangest and unflattenChanges to atomizeChangeset and unatomizeChangeset; option to set treatTypeChangeAsReplace
 - **v3.0.1:** Fix issue with unflattenChanges when a key has periods
 - **v3.0.0:** Supports CommonJS and ECMAScript Modules. Dependency to lodash-es was replaced with lodash to support both ECMAScript and CommonJS.

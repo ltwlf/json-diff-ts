@@ -1,24 +1,24 @@
 import { chain, keys, replace, set } from 'lodash';
 import { diff, atomizeChangeset, getTypeOfObj, IAtomicChange, Operation } from './jsonDiff.js';
 
-export enum CompareOperation {
+enum CompareOperation {
   CONTAINER = 'CONTAINER',
   UNCHANGED = 'UNCHANGED'
 }
 
-export interface IComparisonEnrichedNode {
+interface IComparisonEnrichedNode {
   type: Operation | CompareOperation;
   value: IComparisonEnrichedNode | IComparisonEnrichedNode[] | any | any[];
   oldValue?: any;
 }
 
-export const createValue = (value: any): IComparisonEnrichedNode => ({ type: CompareOperation.UNCHANGED, value });
-export const createContainer = (value: object | []): IComparisonEnrichedNode => ({
+const createValue = (value: any): IComparisonEnrichedNode => ({ type: CompareOperation.UNCHANGED, value });
+const createContainer = (value: object | []): IComparisonEnrichedNode => ({
   type: CompareOperation.CONTAINER,
   value
 });
 
-export const enrich = (object: any): IComparisonEnrichedNode => {
+const enrich = (object: any): IComparisonEnrichedNode => {
   const objectType = getTypeOfObj(object);
 
   switch (objectType) {
@@ -46,10 +46,7 @@ export const enrich = (object: any): IComparisonEnrichedNode => {
   }
 };
 
-export const applyChangelist = (
-  object: IComparisonEnrichedNode,
-  changelist: IAtomicChange[]
-): IComparisonEnrichedNode => {
+const applyChangelist = (object: IComparisonEnrichedNode, changelist: IAtomicChange[]): IComparisonEnrichedNode => {
   chain(changelist)
     .map((entry) => ({ ...entry, path: replace(entry.path, '$.', '.') }))
     .map((entry) => ({
@@ -77,6 +74,8 @@ export const applyChangelist = (
   return object;
 };
 
-export const compare = (oldObject: any, newObject: any): IComparisonEnrichedNode => {
+const compare = (oldObject: any, newObject: any): IComparisonEnrichedNode => {
   return applyChangelist(enrich(oldObject), atomizeChangeset(diff(oldObject, newObject)));
 };
+
+export { CompareOperation, IComparisonEnrichedNode, createValue, createContainer, enrich, applyChangelist, compare };

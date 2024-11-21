@@ -2,7 +2,8 @@
 export default {
   preset: 'ts-jest/presets/default', // or other ESM presets (use ts-jest/presets/default-esm if lodash-es is used)
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1'
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+    'lodash-es': 'lodash'
   },
   transform: {
     // '^.+\\.[tj]sx?$' to process js/ts with `ts-jest`

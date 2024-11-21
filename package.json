@@ -41,7 +41,7 @@
   "devDependencies": {
     "@jest/globals": "^29.7.0",
     "@types/jest": "^29.5.7",
-    "@types/lodash": "^4.17.0",
+    "@types/lodash-es": "^4.17.12",
     "eslint": "^9.1.1",
     "jest": "^29.7.0",
     "prettier": "^3.0.3",
@@ -50,6 +50,6 @@
     "typescript": "^5.3.2"
   },
   "dependencies": {
-    "lodash": "4.x"
+    "lodash-es": "^4.17.21"
   }
 }

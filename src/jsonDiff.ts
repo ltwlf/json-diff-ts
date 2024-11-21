@@ -1,4 +1,4 @@
-import { difference, find, intersection, keyBy } from 'lodash';
+import { difference, find, intersection, keyBy } from 'lodash-es';
 import { splitJSONPath } from './helpers';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;

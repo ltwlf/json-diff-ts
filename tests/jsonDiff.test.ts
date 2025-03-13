@@ -69,6 +69,33 @@ describe('jsonDiff#diff', () => {
       expect(diff(oldVal, newVal, { treatTypeChangeAsReplace: false })).toEqual(expectedUpdate);
     }
   );
+
+  it('should not include empty REMOVE operation when diffing from undefined to a value', () => {
+    const value = { DBA: "New Val" };
+    const valueDiff = diff(undefined, value);
+    
+    // Check that there's no REMOVE operation
+    const removeOperation = valueDiff.find(change => change.type === 'REMOVE');
+    
+    expect(removeOperation).toBeUndefined();
+    
+    // Check that there's only an ADD operation
+    expect(valueDiff.length).toBe(1);
+    expect(valueDiff[0].type).toBe('ADD');
+    expect(valueDiff[0].key).toBe('$root');
+    expect(valueDiff[0].value).toEqual(value);
+  });
+  
+  it('should include a REMOVE operation with value when diffing from a value to undefined', () => {
+    const value = { DBA: "New Val" };
+    const valueDiff = diff(value, undefined);
+    
+    // Check if there's a REMOVE operation with the original value
+    expect(valueDiff.length).toBe(1);
+    expect(valueDiff[0].type).toBe('REMOVE');
+    expect(valueDiff[0].key).toBe('$root');
+    expect(valueDiff[0].value).toEqual(value);
+  });
 });
 
 describe('jsonDiff#applyChangeset', () => {
@@ -211,6 +238,131 @@ describe('jsonDiff#flatten', () => {
     const flat = atomizeChangeset(diffs);
 
     expect(flat).toMatchSnapshot();
+  });
+});
+
+describe('jsonDiff#arrayHandling', () => {
+  it('should correctly apply changes to nested arrays with id key', () => {
+    // Initial object with a nested array
+    const obj1 = {
+      items: [
+        { id: 1, name: 'item1' },
+        { id: 2, name: 'item2' },
+        { id: 3, name: 'item3' }
+      ]
+    };
+    
+    // Modified object with changes in the nested array
+    const obj2 = {
+      items: [
+        { id: 1, name: 'item1-modified' }, // Modified name
+        { id: 3, name: 'item3' },          // Item 2 removed, item 3 is now at index 1
+        { id: 4, name: 'item4' }           // New item added
+      ]
+    };
+    
+    const changes = diff(obj1, obj2, {
+      embeddedObjKeys: {
+        items: 'id'  // Use 'id' as the key for the items array
+      }
+    });
+    
+    // Make a copy of obj1 to apply changes to
+    const objCopy = JSON.parse(JSON.stringify(obj1));
+    
+    // Apply the changes to the copy
+    const result = applyChangeset(objCopy, changes);
+    
+    // The result should match obj2
+    expect(result).toEqual(obj2);
+  });
+
+  it('should correctly apply changes to nested arrays with index key', () => {
+    // Initial object with a nested array
+    const obj1 = {
+      items: [
+        { id: 1, name: 'item1' },
+        { id: 2, name: 'item2' },
+        { id: 3, name: 'item3' }
+      ]
+    };
+    
+    // Modified object with changes in the nested array
+    const obj2 = {
+      items: [
+        { id: 1, name: 'item1-modified' }, // Modified name
+        { id: 3, name: 'item3-modified' }, // Modified name
+        { id: 4, name: 'item4' }           // New item (replacing item2)
+      ]
+    };
+    
+    // Using no embeddedObjKeys to use the default $index
+    const changes = diff(obj1, obj2);
+    
+    // Make a copy of obj1 to apply changes to
+    const objCopy = JSON.parse(JSON.stringify(obj1));
+    
+    // Apply the changes to the copy
+    const result = applyChangeset(objCopy, changes);
+    
+    // The result should match obj2
+    expect(result).toEqual(obj2);
+  });
+
+  it('should correctly apply complex nested array changes', () => {
+    // Initial object with nested arrays
+    const obj1 = {
+      departments: [
+        {
+          name: 'Engineering',
+          teams: [
+            { id: 'team1', name: 'Frontend', members: ['Alice', 'Bob'] },
+            { id: 'team2', name: 'Backend', members: ['Charlie', 'Dave'] }
+          ]
+        },
+        {
+          name: 'Marketing',
+          teams: [
+            { id: 'team3', name: 'Digital', members: ['Eve', 'Frank'] }
+          ]
+        }
+      ]
+    };
+    
+    // Modified object with nested array changes
+    const obj2 = {
+      departments: [
+        {
+          name: 'Engineering',
+          teams: [
+            { id: 'team1', name: 'Frontend Dev', members: ['Alice', 'Bob', 'Grace'] }, // Changed name, added member
+            { id: 'team4', name: 'DevOps', members: ['Heidi'] } // New team
+          ]
+        },
+        {
+          name: 'Marketing',
+          teams: [
+            { id: 'team3', name: 'Digital Marketing', members: ['Eve', 'Ivy'] } // Changed name, replaced member
+          ]
+        }
+      ]
+    };
+    
+    const changes = diff(obj1, obj2, {
+      embeddedObjKeys: {
+        'departments': 'name',
+        'departments.teams': 'id'
+      }
+    });
+    
+    // Make a copy of obj1 to apply changes to
+    const objCopy = JSON.parse(JSON.stringify(obj1));
+    
+    // Apply the changes to the copy
+    const result = applyChangeset(objCopy, changes);
+    
+    // The result should match obj2
+    expect(result).toEqual(obj2);
   });
 });
 

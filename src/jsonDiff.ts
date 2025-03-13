@@ -353,7 +353,10 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
 
   // `treatTypeChangeAsReplace` is a flag used to determine if a change in type should be treated as a replacement.
   if (options.treatTypeChangeAsReplace && typeOfOldObj !== typeOfNewObj) {
-    changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
+    // Only add a REMOVE operation if oldObj is not undefined
+    if (typeOfOldObj !== 'undefined') {
+      changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
+    }
 
     // As undefined is not serialized into JSON, it should not count as an added value.
     if (typeOfNewObj !== 'undefined') {
@@ -591,29 +594,39 @@ const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
   }
 };
 
-const applyArrayChange = (arr: any, change: any) =>
-  (() => {
-    const result = [];
-    for (const subchange of change.changes) {
-      if (subchange.value != null || subchange.type === Operation.REMOVE) {
-        result.push(applyLeafChange(arr, subchange, change.embeddedKey));
-      } else {
-        let element;
-        if (change.embeddedKey === '$index') {
-          element = arr[subchange.key];
-        } else if (change.embeddedKey === '$value') {
-          const index = arr.indexOf(subchange.key);
-          if (index !== -1) {
-            element = arr[index];
-          }
-        } else {
-          element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+/**
+ * Applies changes to an array.
+ * 
+ * @param {any[]} arr - The array to apply changes to.
+ * @param {any} change - The change to apply, containing nested changes.
+ * @returns {any[]} - The array after changes have been applied.
+ *
+ * Note: This function modifies the array in-place but also returns it for
+ * consistency with other functions.
+ */
+const applyArrayChange = (arr: any, change: any) => {
+  for (const subchange of change.changes) {
+    if (subchange.value != null || subchange.type === Operation.REMOVE) {
+      applyLeafChange(arr, subchange, change.embeddedKey);
+    } else {
+      let element;
+      if (change.embeddedKey === '$index') {
+        element = arr[subchange.key];
+      } else if (change.embeddedKey === '$value') {
+        const index = arr.indexOf(subchange.key);
+        if (index !== -1) {
+          element = arr[index];
         }
-        result.push(applyChangeset(element, subchange.changes));
+      } else {
+        element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+      }
+      if (element) {
+        applyChangeset(element, subchange.changes);
       }
     }
-    return result;
-  })();
+  }
+  return arr;
+};
 
 const applyBranchChange = (obj: any, change: any) => {
   if (Array.isArray(obj)) {
@@ -635,24 +648,39 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
   }
 };
 
-const revertArrayChange = (arr: any, change: any) =>
-  (() => {
-    const result = [];
-    for (const subchange of change.changes) {
-      if (subchange.value != null || subchange.type === Operation.REMOVE) {
-        result.push(revertLeafChange(arr, subchange, change.embeddedKey));
-      } else {
-        let element;
-        if (change.embeddedKey === '$index') {
-          element = arr[+subchange.key];
-        } else {
-          element = find(arr, (el) => el[change.embeddedKey].toString() === subchange.key);
+/**
+ * Reverts changes in an array.
+ * 
+ * @param {any[]} arr - The array to revert changes in.
+ * @param {any} change - The change to revert, containing nested changes.
+ * @returns {any[]} - The array after changes have been reverted.
+ *
+ * Note: This function modifies the array in-place but also returns it for
+ * consistency with other functions.
+ */
+const revertArrayChange = (arr: any, change: any) => {
+  for (const subchange of change.changes) {
+    if (subchange.value != null || subchange.type === Operation.REMOVE) {
+      revertLeafChange(arr, subchange, change.embeddedKey);
+    } else {
+      let element;
+      if (change.embeddedKey === '$index') {
+        element = arr[+subchange.key];
+      } else if (change.embeddedKey === '$value') {
+        const index = arr.indexOf(subchange.key);
+        if (index !== -1) {
+          element = arr[index];
         }
-        result.push(revertChangeset(element, subchange.changes));
+      } else {
+        element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+      }
+      if (element) {
+        revertChangeset(element, subchange.changes);
       }
     }
-    return result;
-  })();
+  }
+  return arr;
+};
 
 const revertBranchChange = (obj: any, change: any) => {
   if (Array.isArray(obj)) {

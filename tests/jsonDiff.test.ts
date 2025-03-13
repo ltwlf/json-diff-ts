@@ -88,6 +88,26 @@ describe('jsonDiff#applyChangeset', () => {
     newObj.children.sort((a: any, b: any) => (a.name > b.name ? 1 : -1));
     expect(oldObj).toMatchObject(newObj);
   });
+
+  it('correctly applies null values', () => {
+    const obj1: { test: string | null } = { test: "foobar" };
+    const obj2: { test: string | null } = { test: null };
+
+    const changeset = diff(obj1, obj2);
+    const result = applyChangeset(obj1, changeset);
+    
+    expect(result.test).toBeNull();
+  });
+
+  it('correctly applies changes from null to string', () => {
+    const obj1: { test: string | null } = { test: null };
+    const obj2: { test: string | null } = { test: "foobar" };
+
+    const changeset = diff(obj1, obj2);
+    const result = applyChangeset(obj1, changeset);
+    
+    expect(result.test).toBe("foobar");
+  });
 });
 
 describe('jsonDiff#revertChangeset', () => {
@@ -100,6 +120,22 @@ describe('jsonDiff#revertChangeset', () => {
     revertChangeset(newObj, fixtures.changesetWithoutEmbeddedKey);
     newObj.children.sort((a: any, b: any) => a.name > b.name);
     expect(_.isEqual(oldObj, newObj)).toBe(true);
+  });
+
+  it('correctly reverts null values', () => {
+    const obj1: { test: string | null } = { test: "foobar" };
+    const obj2: { test: string | null } = { test: null };
+
+    const changeset = diff(obj1, obj2);
+    
+    // First apply the changeset to get to the null state
+    applyChangeset(obj1, changeset);
+    expect(obj1.test).toBeNull();
+    
+    // Now revert the changes
+    revertChangeset(obj1, changeset);
+    
+    expect(obj1.test).toBe("foobar");
   });
 });
 

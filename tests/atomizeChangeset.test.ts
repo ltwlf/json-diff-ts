@@ -1,4 +1,4 @@
-import { diff, atomizeChangeset } from '../src/jsonDiff';
+import { diff, atomizeChangeset, applyChangeset, unatomizeChangeset } from '../src/jsonDiff';
 
 describe('atomizeChangeset', () => {
   test('when JSON path segements contain periods', (done) => {
@@ -19,8 +19,9 @@ describe('atomizeChangeset', () => {
     const actual = atomizeChangeset(diffs);
 
     expect(actual.length).toBe(2);
-    expect(actual[0].path).toBe('$[a.b]');
-    expect(actual[1].path).toBe("$[a.b][?(@.c=='1')]");
+    // In the new implementation, keys are always appended to paths
+    expect(actual[0].path).toBe('$[a.b].2');
+    expect(actual[1].path).toBe("$[a.b][?(@.c=='1')].1");
     done();
   });
 
@@ -32,8 +33,48 @@ describe('atomizeChangeset', () => {
     const actual = atomizeChangeset(diffs);
 
     expect(actual.length).toBe(2);
-    expect(actual[0].path).toBe('$.a');
-    expect(actual[1].path).toBe("$.a[?(@[c.d]=='10')]");
+    // In the new implementation, keys are always appended to paths
+    expect(actual[0].path).toBe('$.a.20');
+    expect(actual[1].path).toBe("$.a[?(@[c.d]=='10')].10");
+    done();
+  });
+
+  test('when atomizing and unatomizing object properties', (done) => {
+    const oldData: {
+      planet: string;
+      characters: Array<{
+        id: string;
+        name: null | { firstName: string; lastName: string };
+      }>;
+    } = {
+      planet: "Tatooine",
+      characters: [{ id: "LUK", name: null }],
+    };
+
+    const newData: typeof oldData = {
+      planet: "Tatooine",
+      characters: [{ id: "LUK", name: { firstName: "Luke", lastName: "Skywalker" } }],
+    };
+
+    const options = {
+      embeddedObjKeys: { ".characters": "id" },
+    };
+
+    // Get the diffs between oldData and newData
+    const originalDiffs = diff(oldData, newData, options);
+
+    // Atomize and then unatomize the diffs
+    const atomizedDiffs = atomizeChangeset(originalDiffs);
+    const unatomizedDiffs = unatomizeChangeset(atomizedDiffs);
+
+    // Applying the original diffs should produce the expected result
+    const dataWithOriginalDiffs = applyChangeset(JSON.parse(JSON.stringify(oldData)), originalDiffs);
+
+    // Applying the unatomized diffs should produce the same result
+    const dataWithUnatomizedDiffs = applyChangeset(JSON.parse(JSON.stringify(oldData)), unatomizedDiffs);
+
+    // The unatomized diffs should yield the same result as the original diffs
+    expect(JSON.stringify(dataWithOriginalDiffs)).toEqual(JSON.stringify(dataWithUnatomizedDiffs));
     done();
   });
 });

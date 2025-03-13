@@ -69,6 +69,33 @@ describe('jsonDiff#diff', () => {
       expect(diff(oldVal, newVal, { treatTypeChangeAsReplace: false })).toEqual(expectedUpdate);
     }
   );
+
+  it('should not include empty REMOVE operation when diffing from undefined to a value', () => {
+    const value = { DBA: "New Val" };
+    const valueDiff = diff(undefined, value);
+    
+    // Check that there's no REMOVE operation
+    const removeOperation = valueDiff.find(change => change.type === 'REMOVE');
+    
+    expect(removeOperation).toBeUndefined();
+    
+    // Check that there's only an ADD operation
+    expect(valueDiff.length).toBe(1);
+    expect(valueDiff[0].type).toBe('ADD');
+    expect(valueDiff[0].key).toBe('$root');
+    expect(valueDiff[0].value).toEqual(value);
+  });
+  
+  it('should include a REMOVE operation with value when diffing from a value to undefined', () => {
+    const value = { DBA: "New Val" };
+    const valueDiff = diff(value, undefined);
+    
+    // Check if there's a REMOVE operation with the original value
+    expect(valueDiff.length).toBe(1);
+    expect(valueDiff[0].type).toBe('REMOVE');
+    expect(valueDiff[0].key).toBe('$root');
+    expect(valueDiff[0].value).toEqual(value);
+  });
 });
 
 describe('jsonDiff#applyChangeset', () => {

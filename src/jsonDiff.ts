@@ -344,7 +344,10 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
 
   // `treatTypeChangeAsReplace` is a flag used to determine if a change in type should be treated as a replacement.
   if (options.treatTypeChangeAsReplace && typeOfOldObj !== typeOfNewObj) {
-    changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
+    // Only add a REMOVE operation if oldObj is not undefined
+    if (typeOfOldObj !== 'undefined') {
+      changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
+    }
 
     // As undefined is not serialized into JSON, it should not count as an added value.
     if (typeOfNewObj !== 'undefined') {

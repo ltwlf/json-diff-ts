@@ -4,13 +4,16 @@
 [![Known Vulnerabilities](https://snyk.io/test/github/ltwlf/json-diff-ts/badge.svg?targetFile=package.json)](https://snyk.io/test/github/ltwlf/json-diff-ts?targetFile=package.json)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ltwlf_json-diff-ts&metric=alert_status)](https://sonarcloud.io/dashboard?id=ltwlf_json-diff-ts)
 
-`json-diff-ts` is a TypeScript library that calculates and applies differences between JSON objects. A standout feature is its ability to identify elements in arrays using keys instead of indices, which offers a more intuitive way to handle arrays. It also supports JSONPath, a query language for JSON, which enables you to target specific parts of a JSON document with precision.
+## Overview
 
-Another significant feature of this library is its ability to transform changesets into atomic changes. This means that each change in the data can be isolated and applied independently, providing a granular level of control over the data manipulation process.
+`json-diff-ts` is a TypeScript library that calculates and applies differences between JSON objects. It offers several advanced features:
 
-This library is particularly valuable for applications where tracking changes in JSON data is crucial. It simplifies the process of comparing JSON objects and applying changes. The support for key-based array identification can be especially useful in complex JSON structures where tracking by index is not efficient or intuitive. JSONPath support further enhances its capabilities by allowing precise targeting of specific parts in a JSON document, making it a versatile tool for handling JSON data.
+- **Key-based array identification**: Compare array elements using keys instead of indices for more intuitive diffing
+- **JSONPath support**: Target specific parts of JSON documents with precision
+- **Atomic changesets**: Transform changes into granular, independently applicable operations
+- **Dual module support**: Works with both ECMAScript Modules and CommonJS
 
-Starting with version 3, `json-diff-ts` now supports both ECMAScript Modules and CommonJS. This makes the library more versatile and compatible with various JavaScript environments. Whether you're working in a modern project that uses ES modules, or a Node.js project that uses CommonJS, you can now use `json-diff-ts` seamlessly.
+This library is particularly valuable for applications where tracking changes in JSON data is crucial, such as state management systems, form handling, or data synchronization.
 
 ## Installation
 
@@ -18,25 +21,25 @@ Starting with version 3, `json-diff-ts` now supports both ECMAScript Modules and
 npm install json-diff-ts
 ```
 
-In TypeScript or ES Modules, you can import the `diff` function like this:
+### Import Options
 
+**TypeScript / ES Modules:**
 ```typescript
 import { diff } from 'json-diff-ts';
 ```
 
-In CommonJS, you can import the diff function like this:
-
+**CommonJS:**
 ```javascript
 const { diff } = require('json-diff-ts');
 ```
 
-## Capabilities
+## Core Features
 
 ### `diff`
 
 Generates a difference set for JSON objects. When comparing arrays, if a specific key is provided, differences are determined by matching elements via this key rather than array indices.
 
-#### Examples using Star Wars data:
+#### Basic Example with Star Wars Data
 
 ```typescript
 import { diff } from 'json-diff-ts';
@@ -62,95 +65,31 @@ const newData = {
 };
 
 const diffs = diff(oldData, newData, { embeddedObjKeys: { characters: 'id' } });
-
-const expectedDiffs = [
-  {
-    type: 'UPDATE',
-    key: 'planet',
-    value: 'Alderaan',
-    oldValue: 'Tatooine'
-  },
-  {
-    type: 'UPDATE',
-    key: 'faction',
-    value: 'Rebel Alliance',
-    oldValue: 'Jedi'
-  },
-  {
-    type: 'UPDATE',
-    key: 'characters',
-    embeddedKey: 'id',
-    changes: [
-      {
-        type: 'UPDATE',
-        key: 'LUK',
-        changes: [
-          {
-            type: 'ADD',
-            key: 'rank',
-            value: 'Commander'
-          }
-        ]
-      },
-      {
-        type: 'ADD',
-        key: 'HAN',
-        value: {
-          id: 'HAN',
-          name: 'Han Solo',
-          force: false
-        }
-      },
-      {
-        type: 'REMOVE',
-        key: 'LEI',
-        value: {
-          id: 'LEI',
-          name: 'Leia Organa',
-          force: true
-        }
-      }
-    ]
-  },
-  {
-    type: 'UPDATE',
-    key: 'weapons',
-    embeddedKey: '$index',
-    changes: [
-      {
-        type: 'ADD',
-        key: '2',
-        value: 'Bowcaster'
-      }
-    ]
-  }
-];
 ```
 
-#### Advanced
+#### Advanced Options
 
-Paths can be utilized to identify keys within nested arrays.
-
-```javascript
-const diffs = diff(oldData, newData, { embeddedObjKeys { 'characters.subarray': 'id' }});
-```
-
-You can also designate the root by using '.' instead of an empty string ('').
+##### Path-based Key Identification
 
 ```javascript
+// Using nested paths
+const diffs = diff(oldData, newData, { embeddedObjKeys: { 'characters.subarray': 'id' } });
+
+// Designating root with '.'
 const diffs = diff(oldData, newData, { embeddedObjKeys: { '.characters.subarray': 'id' } });
 ```
 
-Determine if type changes are treated as a replace (remove, add) or as an update; default is replace.
+##### Type Change Handling
 
 ```javascript
+// Control how type changes are treated
 const diffs = diff(oldData, newData, { treatTypeChangeAsReplace: false });
 ```
 
-You can use a function to dynamically resolve the key of the object.
-The first parameter is the object and the second is to signal if the function should return the key name instead of the value. This is needed to flatten the changeset
+##### Dynamic Key Resolution
 
 ```javascript
+// Use function to resolve object keys
 const diffs = diff(oldData, newData, {
   embeddedObjKeys: {
     characters: (obj, shouldReturnKeyName) => (shouldReturnKeyName ? 'id' : obj.id)
@@ -158,106 +97,104 @@ const diffs = diff(oldData, newData, {
 });
 ```
 
-If you're using the Map type, you can employ regular expressions for path identification.
+##### Regular Expression Paths
 
 ```javascript
-const embeddedObjKeys: EmbeddedObjKeysMapType = new Map();
-
-embeddedObjKeys.set(/^char\w+$/, 'id'); // instead of 'id' you can specify a function
-
+// Use regex for path matching
+const embeddedObjKeys = new Map();
+embeddedObjKeys.set(/^char\w+$/, 'id');
 const diffs = diff(oldObj, newObj, { embeddedObjKeys });
 ```
 
-Compare string arrays by value instead of index
+##### String Array Comparison
 
 ```javascript
+// Compare string arrays by value instead of index
 const diffs = diff(oldObj, newObj, { embeddedObjKeys: { stringArr: '$value' } });
 ```
 
-### `atomizeChangeset`
+### `atomizeChangeset` and `unatomizeChangeset`
 
-Transforms a complex changeset into a list of atomic changes, each describable by a JSONPath.
-
-#### Examples:
+Transform complex changesets into a list of atomic changes (and back), each describable by a JSONPath.
 
 ```javascript
+// Create atomic changes
 const atomicChanges = atomizeChangeset(diffs);
+
 // Restore the changeset from a selection of atomic changes
-const changeset = unatomizeChangeset(flatChanges.slice(0, 3));
-// Alternatively, apply the changes using a JSONPath-capable library
-// ...
+const changeset = unatomizeChangeset(atomicChanges.slice(0, 3));
 ```
 
-**Atomic Changes** will have the following structure:
+**Atomic Changes Structure:**
 
 ```javascript
 [
-  { type: 'UPDATE', key: 'planet', value: 'Alderaan', oldValue: 'Tatooine', path: '$.planet', valueType: 'String' },
-  // ... Additional flat changes here
-  { type: 'ADD', key: 'rank', value: 'Commander', path: "$.characters[?(@.id=='LUK')].rank", valueType: 'String' }
-];
+  { 
+    type: 'UPDATE', 
+    key: 'planet', 
+    value: 'Alderaan', 
+    oldValue: 'Tatooine', 
+    path: '$.planet', 
+    valueType: 'String' 
+  },
+  // More atomic changes...
+  { 
+    type: 'ADD', 
+    key: 'rank', 
+    value: 'Commander', 
+    path: "$.characters[?(@.id=='LUK')].rank", 
+    valueType: 'String' 
+  }
+]
 ```
 
-### `applyChange`
+### `applyChanges` and `revertChanges`
 
-#### Examples:
+Apply or revert changes to JSON objects.
 
 ```javascript
-const oldData = {
-  // ... Initial data here
-};
-
-// Sample diffs array, similar to the one generated in the diff example
-const diffs = [
-  // ... Diff objects here
-];
-
+// Apply changes
 changesets.applyChanges(oldData, diffs);
 
-expect(oldData).to.eql({
-  // ... Updated data here
-});
-```
-
-### `revertChange`
-
-#### Examples:
-
-```javascript
-const newData = {
-  // ... Updated data here
-};
-
-// Sample diffs array
-const diffs = [
-  // ... Diff objects here
-];
-
+// Revert changes
 changesets.revertChanges(newData, diffs);
-
-expect(newData).to.eql({
-  // ... Original data restored here
-});
 ```
 
 ### `jsonPath`
 
-The `json-diff-ts` library uses JSONPath to address specific parts of a JSON document in both the changeset and the application/reversion of changes.
-
-#### Examples:
+Query specific parts of a JSON document.
 
 ```javascript
-
 const jsonPath = changesets.jsonPath;
 
-cost data = {
-  // ... Some JSON data
+const data = {
+  characters: [
+    { id: 'LUK', name: 'Luke Skywalker' }
+  ]
 };
 
 const value = jsonPath.query(data, '$.characters[?(@.id=="LUK")].name');
-
-expect(value).to.eql(['Luke Skywalker']);
+// Returns ['Luke Skywalker']
 ```
+
+## Release Notes
+
+- **v4.2.0:** Improved stability with multiple fixes:
+  - Fixed object handling in atomizeChangeset and unatomizeChangeset
+  - Fixed array handling in applyChangeset and revertChangeset
+  - Fixed handling of null values in applyChangeset
+  - Fixed handling of empty REMOVE operations when diffing from undefined
+- **v4.1.0:** Full support for ES modules while maintaining CommonJS compatibility
+- **v4.0.0:** Changed naming of flattenChangeset and unflattenChanges to atomizeChangeset and unatomizeChangeset; added option to set treatTypeChangeAsReplace
+- **v3.0.1:** Fixed issue with unflattenChanges when a key has periods
+- **v3.0.0:** Added support for both CommonJS and ECMAScript Modules. Replaced lodash-es with lodash to support both module formats
+- **v2.2.0:** Fixed lodash-es dependency, added exclude keys option, added string array comparison by value
+- **v2.1.0:** Fixed JSON Path filters by replacing single equal sign (=) with double equal sign (==). Added support for using '.' as root in paths
+- **v2.0.0:** Upgraded to ECMAScript module format with optimizations and improved documentation. Fixed regex path handling (breaking change: now requires Map instead of Record for regex paths)
+- **v1.2.6:** Enhanced JSON Path handling for period-inclusive segments
+- **v1.2.5:** Added key name resolution support for key functions
+- **v1.2.4:** Documentation updates and dependency upgrades
+- **v1.2.3:** Updated dependencies and TypeScript
 
 ## Contributing
 
@@ -265,26 +202,12 @@ Contributions are welcome! Please follow the provided issue templates and code o
 
 ## Contact
 
-Reach out to the maintainer via LinkedIn or Twitter:
+Reach out to the maintainer:
 
 - LinkedIn: [Christian Glessner](https://www.linkedin.com/in/christian-glessner/)
 - Twitter: [@leitwolf_io](https://twitter.com/leitwolf_io)
 
 Discover more about the company behind this project: [hololux](https://hololux.com)
-
-## Release Notes
-
-- **v4.0.0:** Change naming of flattenChangest and unflattenChanges to atomizeChangeset and unatomizeChangeset; option to set treatTypeChangeAsReplace
-- **v3.0.1:** Fix issue with unflattenChanges when a key has periods
-- **v3.0.0:** Supports CommonJS and ECMAScript Modules. Dependency to lodash-es was replaced with lodash to support both ECMAScript and CommonJS.
-- **v2.2.0:** Fix lodash-es decependency, exclude keys, compare string arrays by value
-- **v2.1.0:** Resolves a problem related to JSON Path filters by replacing the single equal sign (=) with a double equal sign (==). This update maintains compatibility with existing flat changes. Allows to use either '' or '.' as root in the path.
-- **v2.0.0:** json-diff-ts has been upgraded to an ECMAScript module! This major update brings optimizations and enhanced documentation. Additionally, a previously existing issue where all paths were treated as regex has been fixed. In this new version, you'll need to use a Map instead of a Record for regex paths. Please note that this is a breaking change if you were using regex paths in the previous versions.
-- **v1.2.6:** Enhanced JSON Path handling for period-inclusive segments.
-- **v1.2.5:** Patched dependencies; added key name resolution support for key functions.
-- **v1.2.4:** Documentation updates; upgraded TypeScript and Lodash.
-- **v1.2.3:** Dependency updates; switched to TypeScript 4.5.2.
-- **v1.2.2:** Implemented object key resolution functions support.
 
 ## Acknowledgments
 

@@ -557,7 +557,6 @@ const removeKey = (obj: any, key: any, embeddedKey: any) => {
     }
     return obj.splice(index != null ? index : key, 1);
   } else {
-    obj[key] = undefined;
     delete obj[key];
     return;
   }

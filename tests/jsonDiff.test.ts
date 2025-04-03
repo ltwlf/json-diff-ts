@@ -378,6 +378,32 @@ describe('jsonDiff#arrayHandling', () => {
   });
 });
 
+describe('jsonDiff#removeKey', () => {
+  it('should correctly delete properties without undefined assignment (issue #221)', () => {
+    // Test object with a property to be removed
+    const obj = {
+      foo: 'bar',
+      baz: 'qux'
+    };
+    
+    // Create a diff that will remove the 'foo' property
+    const changes = diff(obj, { baz: 'qux' });
+    
+    // Verify the change operation is a REMOVE
+    expect(changes.length).toBe(1);
+    expect(changes[0].type).toBe('REMOVE');
+    expect(changes[0].key).toBe('foo');
+    
+    // Apply the changeset to remove the property
+    applyChangeset(obj, changes);
+    
+    // Check that the property was completely removed without any undefined residue
+    expect(obj).toEqual({ baz: 'qux' });
+    expect(obj.hasOwnProperty('foo')).toBe(false);
+    expect(Object.keys(obj)).toEqual(['baz']);
+  });
+});
+
 describe('jsonDiff#valueKey', () => {
   let oldObj: any;
   let newObj: any;

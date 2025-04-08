@@ -1,4 +1,4 @@
-import { chain, keys, replace, set } from 'lodash';
+import _ from 'lodash';
 import { diff, atomizeChangeset, getTypeOfObj, IAtomicChange, Operation } from './jsonDiff.js';
 
 enum CompareOperation {
@@ -23,20 +23,19 @@ const enrich = (object: any): IComparisonEnrichedNode => {
 
   switch (objectType) {
     case 'Object':
-      return keys(object)
+      return Object.keys(object)
         .map((key: string) => ({ key, value: enrich(object[key]) }))
         .reduce((accumulator, entry) => {
           accumulator.value[entry.key] = entry.value;
           return accumulator;
         }, createContainer({}));
     case 'Array':
-      return chain(object)
+      return (object as any[])
         .map((value) => enrich(value))
         .reduce((accumulator, value) => {
           accumulator.value.push(value);
           return accumulator;
-        }, createContainer([]))
-        .value();
+        }, createContainer([]));
     case 'Function':
       return undefined;
     case 'Date':
@@ -47,25 +46,24 @@ const enrich = (object: any): IComparisonEnrichedNode => {
 };
 
 const applyChangelist = (object: IComparisonEnrichedNode, changelist: IAtomicChange[]): IComparisonEnrichedNode => {
-  chain(changelist)
-    .map((entry) => ({ ...entry, path: replace(entry.path, '$.', '.') }))
+  changelist
+    .map((entry) => ({ ...entry, path: entry.path.replace('$.', '.') }))
     .map((entry) => ({
       ...entry,
-      path: replace(entry.path, /(\[(?<array>\d)\]\.)/g, 'ARRVAL_START$<array>ARRVAL_END')
+      path: entry.path.replace(/(\[(?<array>\d)\]\.)/g, 'ARRVAL_START$<array>ARRVAL_END')
     }))
-    .map((entry) => ({ ...entry, path: replace(entry.path, /(?<dot>\.)/g, '.value$<dot>') }))
-    .map((entry) => ({ ...entry, path: replace(entry.path, /\./, '') }))
-    .map((entry) => ({ ...entry, path: replace(entry.path, /ARRVAL_START/g, '.value[') }))
-    .map((entry) => ({ ...entry, path: replace(entry.path, /ARRVAL_END/g, '].value.') }))
-    .value()
+    .map((entry) => ({ ...entry, path: entry.path.replace(/(?<dot>\.)/g, '.value$<dot>') }))
+    .map((entry) => ({ ...entry, path: entry.path.replace(/\./, '') }))
+    .map((entry) => ({ ...entry, path: entry.path.replace(/ARRVAL_START/g, '.value[') }))
+    .map((entry) => ({ ...entry, path: entry.path.replace(/ARRVAL_END/g, '].value.') }))
     .forEach((entry) => {
       switch (entry.type) {
         case Operation.ADD:
         case Operation.UPDATE:
-          set(object, entry.path, { type: entry.type, value: entry.value, oldValue: entry.oldValue });
+          _.set(object, entry.path, { type: entry.type, value: entry.value, oldValue: entry.oldValue });
           break;
         case Operation.REMOVE:
-          set(object, entry.path, { type: entry.type, value: undefined, oldValue: entry.value });
+          _.set(object, entry.path, { type: entry.type, value: undefined, oldValue: entry.value });
           break;
         default:
           throw new Error();

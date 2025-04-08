@@ -1,5 +1,5 @@
-import { difference, intersection, keyBy } from 'lodash';
-import { splitJSONPath } from './helpers';
+import _ from 'lodash';
+import { splitJSONPath } from './helpers.js';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
 type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
@@ -431,7 +431,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
   const oldObjKeys = Object.keys(oldObj).filter((key) => options.keysToSkip.indexOf(key) === -1);
   const newObjKeys = Object.keys(newObj).filter((key) => options.keysToSkip.indexOf(key) === -1);
 
-  const intersectionKeys = intersection(oldObjKeys, newObjKeys);
+  const intersectionKeys = _.intersection(oldObjKeys, newObjKeys);
   for (k of intersectionKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
@@ -441,7 +441,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
     }
   }
 
-  const addedKeys = difference(newObjKeys, oldObjKeys);
+  const addedKeys = _.difference(newObjKeys, oldObjKeys);
   for (k of addedKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
@@ -452,7 +452,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
     });
   }
 
-  const deletedKeys = difference(oldObjKeys, newObjKeys);
+  const deletedKeys = _.difference(oldObjKeys, newObjKeys);
   for (k of deletedKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
@@ -520,7 +520,7 @@ const convertArrayToObj = (arr: any[], uniqKey: any) => {
       obj[value] = value;
     });
   } else if (uniqKey !== '$index') {
-    obj = keyBy(arr, uniqKey);
+    obj = _.keyBy(arr, uniqKey);
   } else {
     for (let i = 0; i < arr.length; i++) {
       const value = arr[i];

@@ -1,4 +1,4 @@
-import { set } from 'lodash';
+import _ from 'lodash';
 import { diff, atomizeChangeset, getTypeOfObj, IAtomicChange, Operation } from './jsonDiff.js';
 
 enum CompareOperation {
@@ -60,10 +60,10 @@ const applyChangelist = (object: IComparisonEnrichedNode, changelist: IAtomicCha
       switch (entry.type) {
         case Operation.ADD:
         case Operation.UPDATE:
-          set(object, entry.path, { type: entry.type, value: entry.value, oldValue: entry.oldValue });
+          _.set(object, entry.path, { type: entry.type, value: entry.value, oldValue: entry.oldValue });
           break;
         case Operation.REMOVE:
-          set(object, entry.path, { type: entry.type, value: undefined, oldValue: entry.value });
+          _.set(object, entry.path, { type: entry.type, value: undefined, oldValue: entry.value });
           break;
         default:
           throw new Error();

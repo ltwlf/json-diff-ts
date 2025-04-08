@@ -1,4 +1,4 @@
-import { difference, find, intersection, keyBy } from 'lodash';
+import { difference, intersection, keyBy } from 'lodash';
 import { splitJSONPath } from './helpers';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
@@ -607,7 +607,7 @@ const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
  * Note: This function modifies the array in-place but also returns it for
  * consistency with other functions.
  */
-const applyArrayChange = (arr: any, change: any) => {
+const applyArrayChange = (arr: any[], change: any) => {
   for (const subchange of change.changes) {
     if (subchange.value != null || subchange.type === Operation.REMOVE) {
       applyLeafChange(arr, subchange, change.embeddedKey);
@@ -621,7 +621,7 @@ const applyArrayChange = (arr: any, change: any) => {
           element = arr[index];
         }
       } else {
-        element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+        element = arr.find((el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
       }
       if (element) {
         applyChangeset(element, subchange.changes);
@@ -661,7 +661,7 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
  * Note: This function modifies the array in-place but also returns it for
  * consistency with other functions.
  */
-const revertArrayChange = (arr: any, change: any) => {
+const revertArrayChange = (arr: any[], change: any) => {
   for (const subchange of change.changes) {
     if (subchange.value != null || subchange.type === Operation.REMOVE) {
       revertLeafChange(arr, subchange, change.embeddedKey);
@@ -675,7 +675,7 @@ const revertArrayChange = (arr: any, change: any) => {
           element = arr[index];
         }
       } else {
-        element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+        element = arr.find((el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
       }
       if (element) {
         revertChangeset(element, subchange.changes);

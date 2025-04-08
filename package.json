@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsup --format cjs,esm",
     "format": "prettier --write \"src/**/*.ts\"",
-    "lint": "eslint 'src/**/*.ts'",
+    "lint": "eslint src/**/*.ts",
     "test": "jest --config jest.config.mjs",
     "test:watch": "jest --watch --config jest.config.mjs",
     "prepare": "npm run build",

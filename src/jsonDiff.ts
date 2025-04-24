@@ -1,5 +1,5 @@
-import { difference, find, intersection, keyBy } from 'lodash';
-import { splitJSONPath } from './helpers';
+import _ from 'lodash';
+import { splitJSONPath } from './helpers.js';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
 type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
@@ -432,7 +432,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
   const oldObjKeys = Object.keys(oldObj).filter((key) => options.keysToSkip.indexOf(key) === -1);
   const newObjKeys = Object.keys(newObj).filter((key) => options.keysToSkip.indexOf(key) === -1);
 
-  const intersectionKeys = intersection(oldObjKeys, newObjKeys);
+  const intersectionKeys = _.intersection(oldObjKeys, newObjKeys);
   for (k of intersectionKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
@@ -442,7 +442,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
     }
   }
 
-  const addedKeys = difference(newObjKeys, oldObjKeys);
+  const addedKeys = _.difference(newObjKeys, oldObjKeys);
   for (k of addedKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
@@ -453,7 +453,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
     });
   }
 
-  const deletedKeys = difference(oldObjKeys, newObjKeys);
+  const deletedKeys = _.difference(oldObjKeys, newObjKeys);
   for (k of deletedKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
@@ -521,7 +521,7 @@ const convertArrayToObj = (arr: any[], uniqKey: any) => {
       obj[value] = value;
     });
   } else if (uniqKey !== '$index') {
-    obj = keyBy(arr, uniqKey);
+    obj = _.keyBy(arr, uniqKey);
   } else {
     for (let i = 0; i < arr.length; i++) {
       const value = arr[i];
@@ -608,7 +608,7 @@ const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
  * Note: This function modifies the array in-place but also returns it for
  * consistency with other functions.
  */
-const applyArrayChange = (arr: any, change: any) => {
+const applyArrayChange = (arr: any[], change: any) => {
   for (const subchange of change.changes) {
     if (subchange.value != null || subchange.type === Operation.REMOVE) {
       applyLeafChange(arr, subchange, change.embeddedKey);
@@ -622,7 +622,7 @@ const applyArrayChange = (arr: any, change: any) => {
           element = arr[index];
         }
       } else {
-        element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+        element = arr.find((el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
       }
       if (element) {
         applyChangeset(element, subchange.changes);
@@ -695,7 +695,7 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
  * Note: This function modifies the array in-place but also returns it for
  * consistency with other functions.
  */
-const revertArrayChange = (arr: any, change: any) => {
+const revertArrayChange = (arr: any[], change: any) => {
   for (const subchange of change.changes) {
     if (subchange.value != null || subchange.type === Operation.REMOVE) {
       revertLeafChange(arr, subchange, change.embeddedKey);
@@ -709,7 +709,7 @@ const revertArrayChange = (arr: any, change: any) => {
           element = arr[index];
         }
       } else {
-        element = find(arr, (el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+        element = arr.find((el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
       }
       if (element) {
         revertChangeset(element, subchange.changes);

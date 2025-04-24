@@ -6,7 +6,8 @@ import {
   atomizeChangeset,
   IAtomicChange,
   revertChangeset,
-  unatomizeChangeset
+  unatomizeChangeset,
+  Operation
 } from '../src/jsonDiff';
 import * as fixtures from './__fixtures__/jsonDiff.fixture';
 
@@ -163,6 +164,46 @@ describe('jsonDiff#revertChangeset', () => {
     revertChangeset(obj1, changeset);
     
     expect(obj1.test).toBe("foobar");
+  });
+
+  it('should properly revert ADD operation with $root key', () => {
+    // The test case from the issue
+    const obj = { value: '1' };
+    const changeset = [{ key: '$root', type: Operation.ADD, value: { value: '1' } }];
+    
+    // Expected result is an empty object since we're reverting an ADD operation
+    const result = revertChangeset(obj, changeset);
+    expect(result).toEqual({});
+  });
+
+  it('should properly revert UPDATE operation on a property', () => {
+    // The second test case from the issue
+    const obj = { value: '2' };
+    const changeset = [{ key: 'value', type: Operation.UPDATE, value: '2', oldValue: '1' }];
+    
+    // Expected result is { value: '1' } since we're reverting an UPDATE operation
+    const result = revertChangeset(obj, changeset);
+    expect(result).toEqual({ value: '1' });
+  });
+
+  it('should handle complex root updates', () => {
+    // A more complex case
+    const obj = { a: 1, b: 2, c: 3 };
+    const changeset = [{ key: '$root', type: Operation.ADD, value: { a: 1, b: 2, c: 3 } }];
+    
+    // Expected result is an empty object
+    const result = revertChangeset(obj, changeset);
+    expect(result).toEqual({});
+  });
+
+  it('should handle root REMOVE reversion', () => {
+    // Reverting a REMOVE operation should restore the object
+    const obj = {};
+    const changeset = [{ key: '$root', type: Operation.REMOVE, value: { x: 'y', z: 123 } }];
+    
+    // Expected result is the original object that was removed
+    const result = revertChangeset(obj, changeset);
+    expect(result).toEqual({ x: 'y', z: 123 });
   });
 });
 

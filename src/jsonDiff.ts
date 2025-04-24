@@ -641,6 +641,39 @@ const applyBranchChange = (obj: any, change: any) => {
 
 const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
   const { type, key, value, oldValue } = change;
+  
+  // Special handling for $root key
+  if (key === '$root') {
+    switch (type) {
+      case Operation.ADD:
+        // When reverting an ADD of the entire object, clear all properties
+        for (const prop in obj) {
+          if (Object.prototype.hasOwnProperty.call(obj, prop)) {
+            delete obj[prop];
+          }
+        }
+        return obj;
+      case Operation.UPDATE:
+        // Replace the entire object with the old value
+        for (const prop in obj) {
+          if (Object.prototype.hasOwnProperty.call(obj, prop)) {
+            delete obj[prop];
+          }
+        }
+        if (oldValue && typeof oldValue === 'object') {
+          Object.assign(obj, oldValue);
+        }
+        return obj;
+      case Operation.REMOVE:
+        // Restore the removed object
+        if (value && typeof value === 'object') {
+          Object.assign(obj, value);
+        }
+        return obj;
+    }
+  }
+  
+  // Regular property handling
   switch (type) {
     case Operation.ADD:
       return removeKey(obj, key, embeddedKey);

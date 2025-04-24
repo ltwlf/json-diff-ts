@@ -1,5 +1,5 @@
 export function splitJSONPath(path: string): string[] {
-    let parts: string[] = [];
+    const parts: string[] = [];
     let currentPart = '';
     let inSingleQuotes = false;
     let inBrackets = 0;

@@ -60,7 +60,47 @@ describe('jsonDiff#diff', () => {
     oldObj[keyToSkip] = 'This should be ignored';
     newObj['children'][1][keyToSkip] = { text: 'This whole object should be ignored' };
     const diffs = diff(oldObj, newObj, { keysToSkip: [keyToSkip] });
+    // Update the snapshot with npm test -- -u if needed
     expect(diffs).toMatchSnapshot();
+  });
+
+  it('supports nested keys to skip', () => {
+    const original = {
+      property: {
+        name: 'Paucek, Gerlach and Bernier',
+        address: {
+          formattedAddress: '80568 Abernathy Pine Apt. 387',
+          utcOffset: 0,
+          vicinity: '866 Woodside Road Apt. 534',
+        }
+      }
+    };
+    const updated = {
+      property: {
+        name: 'New Address',
+        address: {
+          formattedAddress: 'New 80568 Abernathy Pine Apt. 387',
+          utcOffset: 0,
+          vicinity: 'New 866 Woodside Road Apt. 534',
+        }
+      }
+    };
+    
+    const diffs = diff(original, updated, { keysToSkip: ['property.address'] });
+    expect(diffs).toEqual([
+      {
+        type: 'UPDATE',
+        key: 'property',
+        changes: [
+          {
+            type: 'UPDATE',
+            key: 'name',
+            value: 'New Address',
+            oldValue: 'Paucek, Gerlach and Bernier'
+          }
+        ]
+      }
+    ]);
   });
 
   it.each(fixtures.assortedDiffs)(

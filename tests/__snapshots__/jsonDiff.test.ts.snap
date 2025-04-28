@@ -145,6 +145,13 @@ exports[`jsonDiff#diff returns correct diff for object without keys to skip 1`] 
               },
             ],
           },
+          {
+            "key": "@_index",
+            "type": "ADD",
+            "value": {
+              "text": "This whole object should be ignored",
+            },
+          },
         ],
         "key": "1",
         "type": "UPDATE",

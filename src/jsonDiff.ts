@@ -353,6 +353,41 @@ const getKey = (path: string) => {
 const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Options) => {
   let changes: any[] = [];
 
+  // Check if the current path should be skipped 
+  const currentPath = keyPath.join('.');
+  if (options.keysToSkip?.some(skipPath => {
+    // Exact match
+    if (currentPath === skipPath) {
+      return true;
+    }
+    
+    // The current path is a parent of the skip path
+    if (skipPath.includes('.') && skipPath.startsWith(currentPath + '.')) {
+      return false; // Don't skip, we need to process the parent
+    }
+    
+    // The current path is a child or deeper descendant of the skip path
+    if (skipPath.includes('.')) {
+      // Check if skipPath is a parent of currentPath
+      const skipParts = skipPath.split('.');
+      const currentParts = currentPath.split('.');
+      
+      if (currentParts.length >= skipParts.length) {
+        // Check if all parts of skipPath match the corresponding parts in currentPath
+        for (let i = 0; i < skipParts.length; i++) {
+          if (skipParts[i] !== currentParts[i]) {
+            return false;
+          }
+        }
+        return true; // All parts match, so this is a child or equal path
+      }
+    }
+    
+    return false;
+  })) {
+    return changes; // Skip comparison for this path and its children
+  }
+
   const typeOfOldObj = getTypeOfObj(oldObj);
   const typeOfNewObj = getTypeOfObj(newObj);
 
@@ -429,8 +464,10 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
   }
   let changes: any[] = [];
 
-  const oldObjKeys = Object.keys(oldObj).filter((key) => options.keysToSkip.indexOf(key) === -1);
-  const newObjKeys = Object.keys(newObj).filter((key) => options.keysToSkip.indexOf(key) === -1);
+  // Filter keys directly rather than filtering by keysToSkip at this level
+  // The full path check is now done in the compare function
+  const oldObjKeys = Object.keys(oldObj);
+  const newObjKeys = Object.keys(newObj);
 
   const intersectionKeys = _.intersection(oldObjKeys, newObjKeys);
   for (k of intersectionKeys) {
@@ -446,6 +483,11 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
   for (k of addedKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
+    // Check if the path should be skipped
+    const currentPath = newKeyPath.join('.');
+    if (options.keysToSkip?.some(skipPath => currentPath === skipPath || currentPath.startsWith(skipPath + '.'))) {
+      continue; // Skip adding this key
+    }
     changes.push({
       type: Operation.ADD,
       key: getKey(newPath),
@@ -457,6 +499,11 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
   for (k of deletedKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
+    // Check if the path should be skipped
+    const currentPath = newKeyPath.join('.');
+    if (options.keysToSkip?.some(skipPath => currentPath === skipPath || currentPath.startsWith(skipPath + '.'))) {
+      continue; // Skip removing this key
+    }
     changes.push({
       type: Operation.REMOVE,
       key: getKey(newPath),

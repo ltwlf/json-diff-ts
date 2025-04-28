@@ -86,6 +86,13 @@ const diffs = diff(oldData, newData, { embeddedObjKeys: { '.characters.subarray'
 const diffs = diff(oldData, newData, { treatTypeChangeAsReplace: false });
 ```
 
+##### Skip Nested Paths
+
+```javascript
+// Skip specific nested paths from comparison
+const diffs = diff(oldData, newData, { keysToSkip: ['property.address'] });
+```
+
 ##### Dynamic Key Resolution
 
 ```javascript
@@ -179,6 +186,9 @@ const value = jsonPath.query(data, '$.characters[?(@.id=="LUK")].name');
 
 ## Release Notes
 
+- **v4.3.0:** Enhanced functionality:
+  - Added support for nested keys to skip using dotted path notation in the keysToSkip option
+  - This allows excluding specific nested object paths from comparison (fixes #242)
 - **v4.2.0:** Improved stability with multiple fixes:
   - Fixed object handling in atomizeChangeset and unatomizeChangeset
   - Fixed array handling in applyChangeset and revertChangeset

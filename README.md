@@ -86,6 +86,8 @@ const diffs = diff(oldData, newData, { embeddedObjKeys: { '.characters.subarray'
 const diffs = diff(oldData, newData, { treatTypeChangeAsReplace: false });
 ```
 
+Date objects can now be updated to primitive values without errors when `treatTypeChangeAsReplace` is set to `false`.
+
 ##### Skip Nested Paths
 
 ```javascript
@@ -186,6 +188,7 @@ const value = jsonPath.query(data, '$.characters[?(@.id=="LUK")].name');
 
 ## Release Notes
 
+- **v4.4.0:** Fixed Date-to-string diff when `treatTypeChangeAsReplace` is false
 - **v4.3.0:** Enhanced functionality:
   - Added support for nested keys to skip using dotted path notation in the keysToSkip option
   - This allows excluding specific nested object paths from comparison (fixes #242)

@@ -137,6 +137,18 @@ describe('jsonDiff#diff', () => {
     expect(valueDiff[0].key).toBe('$root');
     expect(valueDiff[0].value).toEqual(value);
   });
+
+  it('handles Date to string updates when treatTypeChangeAsReplace is false (issue #254)', () => {
+    const d = '2025-05-28T06:40:53.284Z';
+    const before = { d: new Date(d) };
+    const after = { d };
+
+    const valueDiff = diff(before, after, { treatTypeChangeAsReplace: false });
+
+    expect(valueDiff).toEqual([
+      { type: 'UPDATE', key: 'd', value: d, oldValue: new Date(d) }
+    ]);
+  });
 });
 
 describe('jsonDiff#applyChangeset', () => {

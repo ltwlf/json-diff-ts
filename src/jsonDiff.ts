@@ -418,13 +418,17 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
 
   switch (typeOfOldObj) {
     case 'Date':
-      changes = changes.concat(
-        comparePrimitives(oldObj.getTime(), newObj.getTime(), path).map((x) => ({
-          ...x,
-          value: new Date(x.value),
-          oldValue: new Date(x.oldValue)
-        }))
-      );
+      if (typeOfNewObj === 'Date') {
+        changes = changes.concat(
+          comparePrimitives(oldObj.getTime(), newObj.getTime(), path).map((x) => ({
+            ...x,
+            value: new Date(x.value),
+            oldValue: new Date(x.oldValue)
+          }))
+        );
+      } else {
+        changes = changes.concat(comparePrimitives(oldObj, newObj, path));
+      }
       break;
     case 'Object': {
       const diffs = compareObject(oldObj, newObj, path, keyPath, false, options);

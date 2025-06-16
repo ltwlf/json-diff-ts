@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import { difference, intersection, keyBy } from 'es-toolkit/compat';
 import { splitJSONPath } from './helpers.js';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
@@ -473,7 +473,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
   const oldObjKeys = Object.keys(oldObj);
   const newObjKeys = Object.keys(newObj);
 
-  const intersectionKeys = _.intersection(oldObjKeys, newObjKeys);
+  const intersectionKeys = intersection(oldObjKeys, newObjKeys);
   for (k of intersectionKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
@@ -483,7 +483,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
     }
   }
 
-  const addedKeys = _.difference(newObjKeys, oldObjKeys);
+  const addedKeys = difference(newObjKeys, oldObjKeys);
   for (k of addedKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
@@ -499,7 +499,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
     });
   }
 
-  const deletedKeys = _.difference(oldObjKeys, newObjKeys);
+  const deletedKeys = difference(oldObjKeys, newObjKeys);
   for (k of deletedKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
@@ -572,7 +572,7 @@ const convertArrayToObj = (arr: any[], uniqKey: any) => {
       obj[value] = value;
     });
   } else if (uniqKey !== '$index') {
-    obj = _.keyBy(arr, uniqKey);
+    obj = keyBy(arr, uniqKey);
   } else {
     for (let i = 0; i < arr.length; i++) {
       const value = arr[i];

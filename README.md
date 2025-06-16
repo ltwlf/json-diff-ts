@@ -188,6 +188,7 @@ const value = jsonPath.query(data, '$.characters[?(@.id=="LUK")].name');
 
 ## Release Notes
 
+- **v4.5.0:** Switched internal utilities from lodash to es-toolkit/compat for a smaller bundle size
 - **v4.4.0:** Fixed Date-to-string diff when `treatTypeChangeAsReplace` is false
 - **v4.3.0:** Enhanced functionality:
   - Added support for nested keys to skip using dotted path notation in the keysToSkip option

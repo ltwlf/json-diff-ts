@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import { isEqual } from 'es-toolkit/compat';
 import {
   applyChangeset,
   diff,
@@ -160,7 +160,7 @@ describe('jsonDiff#applyChangeset', () => {
 
   it('applies changesetWithoutKey to oldObj correctly', () => {
     applyChangeset(oldObj, fixtures.changesetWithoutEmbeddedKey);
-    expect(_.isEqual(oldObj, newObj)).toBe(true);
+    expect(isEqual(oldObj, newObj)).toBe(true);
   });
 
   it('ignores removal of non-existing array elements', () => {
@@ -193,13 +193,13 @@ describe('jsonDiff#applyChangeset', () => {
 describe('jsonDiff#revertChangeset', () => {
   it('reverts changeset on newObj correctly', () => {
     revertChangeset(newObj, fixtures.changeset);
-    expect(_.isEqual(oldObj, newObj)).toBe(true);
+    expect(isEqual(oldObj, newObj)).toBe(true);
   });
 
   it('reverts changesetWithoutKey on newObj correctly', () => {
     revertChangeset(newObj, fixtures.changesetWithoutEmbeddedKey);
     newObj.children.sort((a: any, b: any) => a.name > b.name);
-    expect(_.isEqual(oldObj, newObj)).toBe(true);
+    expect(isEqual(oldObj, newObj)).toBe(true);
   });
 
   it('correctly reverts null values', () => {

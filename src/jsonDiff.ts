@@ -182,7 +182,8 @@ const atomizeChangeset = (
           if (filterStartIdx !== -1) {
             const filterValue = path
               .slice(filterStartIdx + 2, filterEndIdx)
-              .replace(/^'|'$/g, '');
+              // Remove single quotes at the start or end of the filter value
+              .replace(/(^'|'$)/g, '');
             endsWithFilterValue = filterValue === String(obj.key);
           }
         }

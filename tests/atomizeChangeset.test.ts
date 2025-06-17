@@ -19,8 +19,8 @@ describe('atomizeChangeset', () => {
     const actual = atomizeChangeset(diffs);
 
     expect(actual.length).toBe(2);
-    // In the new implementation, keys are always appended to paths
-    expect(actual[0].path).toBe('$[a.b].2');
+    // With embedded keys, paths use filter expressions
+    expect(actual[0].path).toBe("$[a.b][?(@.c=='2')]");
     expect(actual[1].path).toBe("$[a.b][?(@.c=='1')]");
     done();
   });
@@ -33,8 +33,8 @@ describe('atomizeChangeset', () => {
     const actual = atomizeChangeset(diffs);
 
     expect(actual.length).toBe(2);
-    // In the new implementation, keys are always appended to paths
-    expect(actual[0].path).toBe('$.a.20');
+    // With embedded keys containing periods, use filter expressions
+    expect(actual[0].path).toBe("$.a[?(@[c.d]=='20')]");
     expect(actual[1].path).toBe("$.a[?(@[c.d]=='10')]");
     done();
   });

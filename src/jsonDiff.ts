@@ -221,9 +221,6 @@ function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path
         }
       ]
     ];
-  } else if (obj.type === Operation.ADD) {
-    // do nothing
-    return [path];
   } else {
     path = filterExpression(path, embeddedKey, obj.key);
     return [path];

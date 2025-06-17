@@ -188,6 +188,7 @@ const value = jsonPath.query(data, '$.characters[?(@.id=="LUK")].name');
 
 ## Release Notes
 
+- **v4.6.1:** Consistent JSONPath format for array items (fixes issue #269)
 - **v4.6.0:** Fixed filter path regex to avoid polynomial complexity
 - **v4.5.1:** Updated package dependencies
 - **v4.5.0:** Switched internal utilities from lodash to es-toolkit/compat for a smaller bundle size

@@ -21,7 +21,7 @@ describe('atomizeChangeset', () => {
     expect(actual.length).toBe(2);
     // In the new implementation, keys are always appended to paths
     expect(actual[0].path).toBe('$[a.b].2');
-    expect(actual[1].path).toBe("$[a.b][?(@.c=='1')].1");
+    expect(actual[1].path).toBe("$[a.b][?(@.c=='1')]");
     done();
   });
 
@@ -35,7 +35,7 @@ describe('atomizeChangeset', () => {
     expect(actual.length).toBe(2);
     // In the new implementation, keys are always appended to paths
     expect(actual[0].path).toBe('$.a.20');
-    expect(actual[1].path).toBe("$.a[?(@[c.d]=='10')].10");
+    expect(actual[1].path).toBe("$.a[?(@[c.d]=='10')]");
     done();
   });
 

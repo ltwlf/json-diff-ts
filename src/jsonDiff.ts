@@ -174,7 +174,21 @@ const atomizeChangeset = (
          path.includes('items') || path.includes('$.a[?(@[c.d]'));
       
       if (!isSpecialTestCase || valueType === 'Object') {
-        finalPath = append(path, obj.key);
+        // Avoid duplicate filter values at the end of the JSONPath
+        let endsWithFilterValue = false;
+        const filterEndIdx = path.lastIndexOf(')]');
+        if (filterEndIdx !== -1) {
+          const filterStartIdx = path.lastIndexOf('==', filterEndIdx);
+          if (filterStartIdx !== -1) {
+            const filterValue = path
+              .slice(filterStartIdx + 2, filterEndIdx)
+              .replace(/^'|'$/g, '');
+            endsWithFilterValue = filterValue === String(obj.key);
+          }
+        }
+        if (!endsWithFilterValue) {
+          finalPath = append(path, obj.key);
+        }
       }
     }
     

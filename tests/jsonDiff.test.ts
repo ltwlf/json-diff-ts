@@ -19,6 +19,37 @@ beforeEach(() => {
   newObj = fixtures.newObj();
 });
 
+describe('issue #269', () => {
+  it('produces correct paths when adding and removing items by key', () => {
+    const before = {
+      items: [
+        { item_id: 'item1', value: 1 },
+        { item_id: 'item2', value: 2 }
+      ]
+    };
+
+    const after = {
+      items: [
+        { item_id: 'item1', value: 1 },
+        { item_id: 'item3', value: 3 }
+      ]
+    };
+
+    const diffs = diff(before, after, { embeddedObjKeys: { items: 'item_id' } });
+
+    const atomic = atomizeChangeset(diffs);
+
+    const addChange = atomic.find(c => c.type === Operation.ADD);
+    const removeChange = atomic.find(c => c.type === Operation.REMOVE);
+
+    expect(addChange?.path).toBe('$.items.item3');
+    expect(removeChange?.path).toBe("$.items[?(@.item_id=='item2')]");
+
+    const result = applyChangeset(JSON.parse(JSON.stringify(before)), diffs);
+    expect(result).toEqual(after);
+  });
+});
+
 describe('jsonDiff#diff', () => {
   it('returns correct diff for objects with embedded array without specified key', () => {
     const diffs = diff(oldObj, newObj);

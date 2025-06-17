@@ -174,7 +174,11 @@ const atomizeChangeset = (
          path.includes('items') || path.includes('$.a[?(@[c.d]'));
       
       if (!isSpecialTestCase || valueType === 'Object') {
-        finalPath = append(path, obj.key);
+        const match = path.match(/==('?)([^']+)\1\)]$/);
+        const endsWithFilterValue = match && match[2] === String(obj.key);
+        if (!endsWithFilterValue) {
+          finalPath = append(path, obj.key);
+        }
       }
     }
     

@@ -334,6 +334,41 @@ export const assortedDiffs: {
     expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: null, oldValue: [] }]
   },
   {
+    oldVal: {},
+    newVal: null,
+    expectedReplacement: [
+      { type: Operation.REMOVE, key: '$root', value: {} },
+      { type: Operation.ADD, key: '$root', value: null }
+    ],
+    expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: null, oldValue: {} }]
+  },
+  {
+    oldVal: undefined,
+    newVal: null,
+    expectedReplacement: [
+      { type: Operation.ADD, key: '$root', value: null }
+    ],
+    expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: null, oldValue: undefined }]
+  },
+  {
+    oldVal: 1,
+    newVal: null,
+    expectedReplacement: [
+      { type: Operation.REMOVE, key: '$root', value: 1 },
+      { type: Operation.ADD, key: '$root', value: null }
+    ],
+    expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: null, oldValue: 1 }]
+  },
+  {
+    oldVal: [],
+    newVal: null,
+    expectedReplacement: [
+      { type: Operation.REMOVE, key: '$root', value: [] },
+      { type: Operation.ADD, key: '$root', value: null }
+    ],
+    expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: null, oldValue: [] }]
+  },
+  {
     oldVal: [],
     newVal: undefined,
     expectedReplacement: [{ type: Operation.REMOVE, key: '$root', value: [] }],

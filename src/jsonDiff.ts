@@ -428,6 +428,11 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
     return changes;
   }
 
+  if (typeOfNewObj === null) {
+    changes.push({ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj });
+    return changes;
+  }
+
   switch (typeOfOldObj) {
     case 'Date':
       if (typeOfNewObj === 'Date') {

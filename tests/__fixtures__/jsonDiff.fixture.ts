@@ -392,4 +392,10 @@ export const assortedDiffs: {
     ],
     expectedUpdate: [{ type: Operation.UPDATE, key: '$root', value: 1, oldValue: [] }]
   },
+  {
+    oldVal: null,
+    newVal: null,
+    expectedReplacement: [],
+    expectedUpdate: []
+  },
 ];

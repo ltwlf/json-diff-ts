@@ -429,7 +429,9 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
   }
 
   if (typeOfNewObj === null) {
-    changes.push({ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj });
+    if (typeOfOldObj !== null) {
+      changes.push({ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj });
+    }
     return changes;
   }
 

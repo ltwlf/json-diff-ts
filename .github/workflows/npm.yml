@@ -3,48 +3,82 @@ name: Publish
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write  # For creating tags
+  id-token: write  # For npm provenance
+
 jobs:
   build:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         node-version: [18, 20, 22]
-
     steps:
       - uses: actions/checkout@v4
+      
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          
       - run: npm ci
       - run: npm run build --if-present
       - run: npm test -- --coverage
+      
+      - name: Upload build artifacts
+        if: matrix.node-version == 20
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+          retention-days: 7
 
   publish:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
-      - run: npm install
+          cache: 'npm'
+          
+      - run: npm ci
+      - run: npm run build
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+      
       - name: Create tag and determine release type
         id: prep
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "Version: $VERSION"
           if [[ "$VERSION" == *-* ]]; then
-            echo "::set-output name=RELEASE_TYPE::preview"
+            echo "RELEASE_TYPE=preview" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=RELEASE_TYPE::latest"
+            echo "RELEASE_TYPE=latest" >> $GITHUB_OUTPUT
           fi
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create and push tag
           git tag "v$VERSION"
-          git push --tags
+          git push origin "v$VERSION"
+          
       - name: Publish package
         uses: JS-DevTools/npm-publish@v3
         with:
           token: ${{ secrets.NPM_TOKEN }}
           tag: ${{ steps.prep.outputs.RELEASE_TYPE }}
+          provenance: true

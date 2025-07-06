@@ -17,9 +17,9 @@
 
 ### 🚀 **Why Choose json-diff-ts?**
 
-- **🔥 Zero dependencies** - Lightweight bundle size (21KB minified)
+- **🔥 Zero dependencies** - Lightweight bundle size
 - **⚡ High performance** - Optimized algorithms for fast JSON diffing and patching
-- **🎯 94%+ test coverage** - Thoroughly tested with comprehensive test suite
+- **🎯 95%+ test coverage** - Thoroughly tested with comprehensive test suite
 - **📦 Modern ES modules** - Full TypeScript support with tree-shaking
 - **🔧 Flexible API** - Compare, diff, patch, and atomic operations
 - **🌐 Universal** - Works in browsers, Node.js, and edge environments

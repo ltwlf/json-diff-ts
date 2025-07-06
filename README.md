@@ -188,6 +188,8 @@ const value = jsonPath.query(data, '$.characters[?(@.id=="LUK")].name');
 
 ## Release Notes
 
+- **v4.8.0:** Significantly reduced bundle size by completely removing es-toolkit dependency and implementing custom utility functions. This change eliminates external dependencies while maintaining identical functionality and improving performance.
+
 - **v4.7.0:** Optimized bundle size and performance by replacing es-toolkit/compat with es-toolkit for difference, intersection, and keyBy functions
 
 - **v4.6.3:** Fixed null comparison returning update when values are both null (fixes issue #284)

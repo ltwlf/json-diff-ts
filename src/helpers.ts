@@ -35,3 +35,34 @@ export function splitJSONPath(path: string): string[] {
 
     return parts;
 }
+
+export function arrayDifference<T>(first: T[], second: T[]): T[] {
+    const secondSet = new Set(second);
+    return first.filter(item => !secondSet.has(item));
+}
+
+export function arrayIntersection<T>(first: T[], second: T[]): T[] {
+    const secondSet = new Set(second);
+    return first.filter(item => secondSet.has(item));
+}
+
+export function keyBy<T>(arr: T[], getKey: (item: T) => any): Record<string, T> {
+    const result: Record<string, T> = {};
+    for (const item of arr) {
+        result[String(getKey(item))] = item;
+    }
+    return result;
+}
+
+export function setByPath(obj: any, path: string, value: any): void {
+    const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean);
+    let current = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+        const part = parts[i];
+        if (!(part in current)) {
+            current[part] = /^\d+$/.test(parts[i + 1]) ? [] : {};
+        }
+        current = current[part];
+    }
+    current[parts[parts.length - 1]] = value;
+}

@@ -49,8 +49,5 @@
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.34.0"
-  },
-  "dependencies": {
-    "es-toolkit": "^1.39.3"
   }
 }

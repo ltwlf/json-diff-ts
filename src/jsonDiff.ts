@@ -1,4 +1,4 @@
-import { difference, intersection, keyBy } from 'es-toolkit/compat';
+import { difference, intersection, keyBy } from 'es-toolkit';
 import { splitJSONPath } from './helpers.js';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
@@ -591,7 +591,9 @@ const convertArrayToObj = (arr: any[], uniqKey: any) => {
       obj[value] = value;
     });
   } else if (uniqKey !== '$index') {
-    obj = keyBy(arr, uniqKey);
+    // Convert string keys to functions for compatibility with es-toolkit keyBy
+    const keyFunction = typeof uniqKey === 'string' ? (item: any) => item[uniqKey] : uniqKey;
+    obj = keyBy(arr, keyFunction);
   } else {
     for (let i = 0; i < arr.length; i++) {
       const value = arr[i];

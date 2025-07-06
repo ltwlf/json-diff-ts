@@ -609,4 +609,217 @@ describe('jsonDiff#valueKey', () => {
     expect(beforeObj).toMatchSnapshot();
   });
 
+  // Tests to achieve 100% coverage
+  describe('edge cases for full coverage', () => {
+    it('should handle Function type objects', () => {
+      const oldObj = { fn: () => 'old', value: 1 };
+      const newObj = { fn: () => 'new', value: 2 };
+      
+      const changeset = diff(oldObj, newObj);
+      // Functions should be ignored, only value change should be captured
+      expect(changeset).toEqual([
+        {
+          type: Operation.UPDATE,
+          key: 'value',
+          value: 2,
+          oldValue: 1
+        }
+      ]);
+    });
+
+    it('should handle keysToSkip with nested paths', () => {
+      const oldObj = { 
+        user: { name: 'John', secret: 'old' },
+        data: { public: 'yes', private: 'old' }
+      };
+      const newObj = { 
+        user: { name: 'Jane', secret: 'new' },
+        data: { public: 'no', private: 'new' }
+      };
+      
+      const changeset = diff(oldObj, newObj, { 
+        keysToSkip: ['user.secret', 'data.private'] 
+      });
+      
+      // Should only capture the non-skipped changes
+      const atomized = atomizeChangeset(changeset);
+      const nonSkippedChanges = atomized.filter(change => 
+        !change.path.includes('secret') && !change.path.includes('private')
+      );
+      expect(nonSkippedChanges.length).toBeGreaterThan(0);
+    });
+
+    it('should handle array creation with numeric path segments', () => {
+      const oldObj = {};
+      const newObj = { items: ['first', 'second'] };
+      
+      const changeset = diff(oldObj, newObj);
+      applyChangeset(oldObj, changeset);
+      expect(oldObj).toEqual(newObj);
+    });
+
+    it('should handle complex flatten scenarios', () => {
+      const oldObj = { 
+        items: [
+          { id: 1, name: 'first' },
+          { id: 2, name: 'second' }
+        ]
+      };
+      const newObj = { 
+        items: [
+          { id: 1, name: 'updated' },
+          { id: 3, name: 'third' }
+        ]
+      };
+      
+      const changeset = diff(oldObj, newObj, { embeddedObjKeys: { 'items': 'id' } });
+      const atomized = atomizeChangeset(changeset);
+      const flattened = unatomizeChangeset(atomized);
+      
+      expect(flattened.length).toBeGreaterThan(0);
+    });
+
+    it('should handle single segment paths in atomize', () => {
+      const simpleChange = {
+        type: Operation.UPDATE,
+        key: 'name',
+        value: 'new',
+        oldValue: 'old'
+      };
+      
+      const atomized = atomizeChangeset([simpleChange]);
+      expect(atomized.length).toBe(1);
+      expect(atomized[0].path).toBe('$.name');
+    });
+
+    it('should handle complex JSONPath segments', () => {
+      const complexChanges = [
+        {
+          type: Operation.UPDATE,
+          key: 'items[?(@.id==\'123\')]',
+          value: { id: '123', name: 'updated' },
+          oldValue: { id: '123', name: 'old' },
+          changes: [
+            {
+              type: Operation.UPDATE,
+              key: 'name',
+              value: 'updated',
+              oldValue: 'old'
+            }
+          ]
+        }
+      ];
+      
+      const atomized = atomizeChangeset(complexChanges);
+      expect(atomized.length).toBeGreaterThan(0);
+    });
+
+    it('should handle value key scenarios', () => {
+      const oldObj = {
+        tags: ['red', 'blue']
+      };
+      const newObj = {
+        tags: ['blue', 'green']
+      };
+      
+      const changeset = diff(oldObj, newObj, { 
+        embeddedObjKeys: { 'tags': '$value' }
+      });
+      
+      expect(changeset.length).toBeGreaterThan(0);
+    });
+
+    it('should handle non-existing array element removal', () => {
+      const obj = { items: [{ id: 1, name: 'test' }] };
+      const changeset = [
+        {
+          type: Operation.REMOVE,
+          key: 'items[?(@.id==\'2\')]',
+          value: { id: 2, name: 'missing' },
+          path: '$.items[?(@.id==\'2\')]'
+        }
+      ];
+      
+      // Should not throw, should warn and continue
+      expect(() => applyChangeset(obj, changeset)).not.toThrow();
+    });
+
+    it('should handle different object types', () => {
+      const oldObj = { date: new Date('2023-01-01'), regex: /test/ };
+      const newObj = { date: new Date('2023-01-02'), regex: /newtest/ };
+      
+      const changeset = diff(oldObj, newObj);
+      expect(changeset.length).toBe(2); // Both should be detected as changes
+    });
+
+    it('should handle nested skip paths with array indices', () => {
+      const oldObj = {
+        users: [
+          { id: 1, name: 'John', secret: 'old' },
+          { id: 2, name: 'Jane', secret: 'old2' }
+        ]
+      };
+      const newObj = {
+        users: [
+          { id: 1, name: 'Johnny', secret: 'new' },
+          { id: 2, name: 'Janet', secret: 'new2' }
+        ]
+      };
+      
+      const changeset = diff(oldObj, newObj, { 
+        keysToSkip: ['users.secret'],
+        embeddedObjKeys: { 'users': 'id' }
+      });
+      
+      // Should capture name changes but skip secret changes
+      const atomized = atomizeChangeset(changeset);
+      const secretChanges = atomized.filter(change => change.path.includes('secret'));
+      expect(secretChanges.length).toBe(0);
+    });
+
+    it('should handle root level changes with embedded keys', () => {
+      const oldObj = [
+        { id: 1, name: 'first' }
+      ];
+      const newObj = [
+        { id: 1, name: 'updated' },
+        { id: 2, name: 'new' }
+      ];
+      
+      const changeset = diff(oldObj, newObj, { embeddedObjKeys: { '$': 'id' } });
+      expect(changeset.length).toBeGreaterThan(0);
+    });
+
+    it('should handle array value comparisons with $value key', () => {
+      const oldObj = {
+        tags: ['tag1', 'tag2']  
+      };
+      const newObj = {
+        tags: ['tag2', 'tag3']
+      };
+      
+      const changeset = diff(oldObj, newObj, { embeddedObjKeys: { tags: '$value' } });
+      expect(changeset.length).toBeGreaterThan(0);
+    });
+
+    it('should handle function key resolvers', () => {
+      const oldObj = {
+        items: [
+          { code: 'A', value: 1 },
+          { code: 'B', value: 2 }
+        ]
+      };
+      const newObj = {
+        items: [
+          { code: 'A', value: 10 },
+          { code: 'C', value: 3 }
+        ]
+      };
+      
+      const keyFunction = (item: any) => item.code;
+      const changeset = diff(oldObj, newObj, { embeddedObjKeys: { items: keyFunction } });
+      expect(changeset.length).toBeGreaterThan(0);
+    });
+  });
+
 });

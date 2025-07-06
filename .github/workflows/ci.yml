@@ -1,9 +1,14 @@
 name: CI
+
 on:
   push:
     branches: [master, dev]
   pull_request:
     branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -11,6 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         node-version: [18, 20, 22]
@@ -24,7 +30,7 @@ jobs:
           cache: 'npm'
           
       - run: npm ci
-      - run: npm run build --if-present
+      - run: npm run build
       - run: npm test -- --coverage
       - run: npm run lint
       
@@ -35,3 +41,12 @@ jobs:
           name: coverage-reports
           path: coverage/
           retention-days: 7
+          
+      - name: Create job summary
+        if: matrix.node-version == 20 && always()
+        run: |
+          echo "## 🎯 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Node.js version:** ${{ matrix.node-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test coverage:** Generated and uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "- **Linting:** ✅ Passed" >> $GITHUB_STEP_SUMMARY

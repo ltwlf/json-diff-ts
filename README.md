@@ -44,24 +44,28 @@ Generates a difference set for JSON objects. When comparing arrays, if a specifi
 ```typescript
 import { diff } from 'json-diff-ts';
 
+// State during A New Hope - Desert planet, small rebel cell
 const oldData = {
-  planet: 'Tatooine',
-  faction: 'Jedi',
+  location: 'Tatooine',
+  mission: 'Rescue Princess',
+  status: 'In Progress',
   characters: [
-    { id: 'LUK', name: 'Luke Skywalker', force: true },
-    { id: 'LEI', name: 'Leia Organa', force: true }
+    { id: 'LUKE_SKYWALKER', name: 'Luke Skywalker', role: 'Farm Boy', forceTraining: false },
+    { id: 'LEIA_ORGANA', name: 'Princess Leia', role: 'Prisoner', forceTraining: false }
   ],
-  weapons: ['Lightsaber', 'Blaster']
+  equipment: ['Lightsaber', 'Blaster']
 };
 
+// State after successful rescue - Base established, characters evolved
 const newData = {
-  planet: 'Alderaan',
-  faction: 'Rebel Alliance',
+  location: 'Yavin Base',
+  mission: 'Destroy Death Star',
+  status: 'Complete',
   characters: [
-    { id: 'LUK', name: 'Luke Skywalker', force: true, rank: 'Commander' },
-    { id: 'HAN', name: 'Han Solo', force: false }
+    { id: 'LUKE_SKYWALKER', name: 'Luke Skywalker', role: 'Pilot', forceTraining: true, rank: 'Commander' },
+    { id: 'HAN_SOLO', name: 'Han Solo', role: 'Smuggler', forceTraining: false, ship: 'Millennium Falcon' }
   ],
-  weapons: ['Lightsaber', 'Blaster', 'Bowcaster']
+  equipment: ['Lightsaber', 'Blaster', 'Bowcaster', 'X-wing Fighter']
 };
 
 const diffs = diff(oldData, newData, { embeddedObjKeys: { characters: 'id' } });
@@ -72,16 +76,20 @@ const diffs = diff(oldData, newData, { embeddedObjKeys: { characters: 'id' } });
 ##### Path-based Key Identification
 
 ```javascript
-// Using nested paths
-const diffs = diff(oldData, newData, { embeddedObjKeys: { 'characters.subarray': 'id' } });
+import { diff } from 'json-diff-ts';
 
-// Designating root with '.'
-const diffs = diff(oldData, newData, { embeddedObjKeys: { '.characters.subarray': 'id' } });
+// Using nested paths for sub-arrays
+const diffs = diff(oldData, newData, { embeddedObjKeys: { 'characters.equipment': 'id' } });
+
+// Designating root with '.' - useful for complex nested structures
+const diffs = diff(oldData, newData, { embeddedObjKeys: { '.characters.allies': 'id' } });
 ```
 
 ##### Type Change Handling
 
 ```javascript
+import { diff } from 'json-diff-ts';
+
 // Control how type changes are treated
 const diffs = diff(oldData, newData, { treatTypeChangeAsReplace: false });
 ```
@@ -91,14 +99,18 @@ Date objects can now be updated to primitive values without errors when `treatTy
 ##### Skip Nested Paths
 
 ```javascript
-// Skip specific nested paths from comparison
-const diffs = diff(oldData, newData, { keysToSkip: ['property.address'] });
+import { diff } from 'json-diff-ts';
+
+// Skip specific nested paths from comparison - useful for ignoring metadata
+const diffs = diff(oldData, newData, { keysToSkip: ['characters.metadata'] });
 ```
 
 ##### Dynamic Key Resolution
 
 ```javascript
-// Use function to resolve object keys
+import { diff } from 'json-diff-ts';
+
+// Use function to resolve object keys dynamically
 const diffs = diff(oldData, newData, {
   embeddedObjKeys: {
     characters: (obj, shouldReturnKeyName) => (shouldReturnKeyName ? 'id' : obj.id)
@@ -109,17 +121,21 @@ const diffs = diff(oldData, newData, {
 ##### Regular Expression Paths
 
 ```javascript
-// Use regex for path matching
+import { diff } from 'json-diff-ts';
+
+// Use regex for path matching - powerful for dynamic property names
 const embeddedObjKeys = new Map();
-embeddedObjKeys.set(/^char\w+$/, 'id');
-const diffs = diff(oldObj, newObj, { embeddedObjKeys });
+embeddedObjKeys.set(/^characters/, 'id');  // Match any property starting with 'characters'
+const diffs = diff(oldData, newData, { embeddedObjKeys });
 ```
 
 ##### String Array Comparison
 
 ```javascript
-// Compare string arrays by value instead of index
-const diffs = diff(oldObj, newObj, { embeddedObjKeys: { stringArr: '$value' } });
+import { diff } from 'json-diff-ts';
+
+// Compare string arrays by value instead of index - useful for tags, categories
+const diffs = diff(oldData, newData, { embeddedObjKeys: { equipment: '$value' } });
 ```
 
 ### `atomizeChangeset` and `unatomizeChangeset`
@@ -127,6 +143,8 @@ const diffs = diff(oldObj, newObj, { embeddedObjKeys: { stringArr: '$value' } })
 Transform complex changesets into a list of atomic changes (and back), each describable by a JSONPath.
 
 ```javascript
+import { atomizeChangeset, unatomizeChangeset } from 'json-diff-ts';
+
 // Create atomic changes
 const atomicChanges = atomizeChangeset(diffs);
 
@@ -140,50 +158,90 @@ const changeset = unatomizeChangeset(atomicChanges.slice(0, 3));
 [
   { 
     type: 'UPDATE', 
-    key: 'planet', 
-    value: 'Alderaan', 
+    key: 'location', 
+    value: 'Yavin Base', 
     oldValue: 'Tatooine', 
-    path: '$.planet', 
+    path: '$.location', 
     valueType: 'String' 
   },
-  // More atomic changes...
+  { 
+    type: 'UPDATE', 
+    key: 'mission', 
+    value: 'Destroy Death Star', 
+    oldValue: 'Rescue Princess', 
+    path: '$.mission', 
+    valueType: 'String' 
+  },
   { 
     type: 'ADD', 
     key: 'rank', 
     value: 'Commander', 
-    path: "$.characters[?(@.id=='LUK')].rank", 
+    path: "$.characters[?(@.id=='LUKE_SKYWALKER')].rank", 
     valueType: 'String' 
+  },
+  { 
+    type: 'ADD', 
+    key: 'HAN_SOLO', 
+    value: { id: 'HAN_SOLO', name: 'Han Solo', role: 'Smuggler', forceTraining: false, ship: 'Millennium Falcon' }, 
+    path: "$.characters[?(@.id=='HAN_SOLO')]", 
+    valueType: 'Object' 
   }
 ]
 ```
 
-### `applyChanges` and `revertChanges`
+### `applyChangeset` and `revertChangeset`
 
 Apply or revert changes to JSON objects.
 
 ```javascript
-// Apply changes
-changesets.applyChanges(oldData, diffs);
+import { applyChangeset, revertChangeset } from 'json-diff-ts';
 
-// Revert changes
-changesets.revertChanges(newData, diffs);
+// Apply changes
+applyChangeset(oldData, diffs);
+
+// Revert changes  
+revertChangeset(newData, diffs);
 ```
 
-### `jsonPath`
+## API Reference
 
-Query specific parts of a JSON document.
+### Core Functions
 
-```javascript
-const jsonPath = changesets.jsonPath;
+| Function | Description | Parameters |
+|----------|-------------|------------|
+| `diff(oldObj, newObj, options?)` | Generate differences between two objects | `oldObj`: Original object<br>`newObj`: Updated object<br>`options`: Optional configuration |
+| `applyChangeset(obj, changeset)` | Apply changes to an object | `obj`: Object to modify<br>`changeset`: Changes to apply |
+| `revertChangeset(obj, changeset)` | Revert changes from an object | `obj`: Object to modify<br>`changeset`: Changes to revert |
+| `atomizeChangeset(changeset)` | Convert changeset to atomic changes | `changeset`: Nested changeset |
+| `unatomizeChangeset(atomicChanges)` | Convert atomic changes back to nested changeset | `atomicChanges`: Array of atomic changes |
 
-const data = {
-  characters: [
-    { id: 'LUK', name: 'Luke Skywalker' }
-  ]
-};
+### Comparison Functions
 
-const value = jsonPath.query(data, '$.characters[?(@.id=="LUK")].name');
-// Returns ['Luke Skywalker']
+| Function | Description | Parameters |
+|----------|-------------|------------|
+| `compare(oldObj, newObj)` | Create enriched comparison object | `oldObj`: Original object<br>`newObj`: Updated object |
+| `enrich(obj)` | Create enriched representation of object | `obj`: Object to enrich |
+| `createValue(value)` | Create value node for comparison | `value`: Any value |
+| `createContainer(value)` | Create container node for comparison | `value`: Object or Array |
+
+### Options Interface
+
+```typescript
+interface Options {
+  embeddedObjKeys?: Record<string, string | Function> | Map<string | RegExp, string | Function>;
+  keysToSkip?: string[];
+  treatTypeChangeAsReplace?: boolean;
+}
+```
+
+### Change Types
+
+```typescript
+enum Operation {
+  REMOVE = 'REMOVE',
+  ADD = 'ADD', 
+  UPDATE = 'UPDATE'
+}
 ```
 
 ## Release Notes

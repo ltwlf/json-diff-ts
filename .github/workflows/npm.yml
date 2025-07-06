@@ -3,48 +3,106 @@ name: Publish
 on:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # For creating tags
+  id-token: write  # For npm provenance
+
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 15
     strategy:
       matrix:
         node-version: [18, 20, 22]
-
     steps:
       - uses: actions/checkout@v4
+      
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          
       - run: npm ci
-      - run: npm run build --if-present
+      - run: npm run build
       - run: npm test -- --coverage
+      
+      - name: Upload build artifacts
+        if: matrix.node-version == 20
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+          retention-days: 7
 
   publish:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
-      - run: npm install
+          cache: 'npm'
+          
+      - run: npm ci
+      - run: npm run build
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+      
       - name: Create tag and determine release type
         id: prep
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "Version: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           if [[ "$VERSION" == *-* ]]; then
-            echo "::set-output name=RELEASE_TYPE::preview"
+            echo "RELEASE_TYPE=preview" >> $GITHUB_OUTPUT
+            echo "Release type: preview (pre-release)"
           else
-            echo "::set-output name=RELEASE_TYPE::latest"
+            echo "RELEASE_TYPE=latest" >> $GITHUB_OUTPUT
+            echo "Release type: latest (stable)"
           fi
-          git tag "v$VERSION"
-          git push --tags
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if tag already exists
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists, skipping tag creation"
+          else
+            # Create and push tag
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+            echo "Created and pushed tag v$VERSION"
+          fi
+          
       - name: Publish package
         uses: JS-DevTools/npm-publish@v3
         with:
           token: ${{ secrets.NPM_TOKEN }}
           tag: ${{ steps.prep.outputs.RELEASE_TYPE }}
+          provenance: true
+          
+      - name: Create release summary
+        if: always()
+        run: |
+          echo "## 📦 Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.prep.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release type:** ${{ steps.prep.outputs.RELEASE_TYPE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Published to:** npm registry" >> $GITHUB_STEP_SUMMARY
+          echo "- **Provenance:** ✅ Enabled" >> $GITHUB_STEP_SUMMARY

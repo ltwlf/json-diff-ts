@@ -1,7 +1,7 @@
 {
   "name": "json-diff-ts",
-  "version": "4.7.0",
-  "description": "A JSON diff tool for JavaScript written in TypeScript.",
+  "version": "4.8.0",
+  "description": "Modern TypeScript JSON diff library - Zero dependencies, high performance, ESM + CommonJS support. Calculate and apply differences between JSON objects with advanced features like key-based array diffing, JSONPath support, and atomic changesets.",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -26,11 +26,29 @@
     "url": "git+https://github.com/ltwlf/json-diff-ts.git"
   },
   "keywords": [
-    "JavaScript",
-    "Diff",
-    "JSON",
-    "TypeScript",
-    "Difference"
+    "json",
+    "diff",
+    "difference",
+    "typescript",
+    "javascript",
+    "compare",
+    "patch",
+    "delta",
+    "object-diff",
+    "json-diff",
+    "json-patch",
+    "state-management",
+    "data-sync",
+    "merge",
+    "changeset",
+    "array-diff",
+    "deep-diff",
+    "object-compare",
+    "jsonpath",
+    "modern",
+    "esm",
+    "zero-dependencies",
+    "performance"
   ],
   "author": "Christian Glessner",
   "license": "MIT",
@@ -49,8 +67,5 @@
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.34.0"
-  },
-  "dependencies": {
-    "es-toolkit": "^1.39.3"
   }
 }

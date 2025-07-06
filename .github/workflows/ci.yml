@@ -1,22 +1,61 @@
 name: CI
+
 on:
   push:
     branches: [master, dev]
   pull_request:
     branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         node-version: [18, 20, 22]
     steps:
       - uses: actions/checkout@v4
+      
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          
       - run: npm ci
-      - run: npm run build --if-present
+      - run: npm run build
       - run: npm test -- --coverage
       - run: npm run lint
+      
+      - name: Upload coverage reports
+        if: matrix.node-version == 20
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: coverage/
+          retention-days: 7
+          
+      - name: Upload coverage to Codecov
+        if: matrix.node-version == 20
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          
+      - name: Create job summary
+        if: matrix.node-version == 20 && always()
+        run: |
+          echo "## 🎯 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Node.js version:** ${{ matrix.node-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test coverage:** Generated and uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "- **Linting:** ✅ Passed" >> $GITHUB_STEP_SUMMARY

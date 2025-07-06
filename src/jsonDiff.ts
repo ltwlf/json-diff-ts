@@ -1,5 +1,4 @@
-import { difference, intersection, keyBy } from 'es-toolkit';
-import { splitJSONPath } from './helpers.js';
+import { arrayDifference as difference, arrayIntersection as intersection, keyBy, splitJSONPath } from './helpers.js';
 
 type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
 type EmbeddedObjKeysType = Record<string, string | FunctionKey>;

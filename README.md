@@ -116,6 +116,14 @@ const newData = {
 };
 
 const diffs = diff(oldData, newData, { embeddedObjKeys: { characters: 'id' } });
+console.log(diffs);
+// First operations:
+// [
+//   { type: 'UPDATE', key: 'location', value: 'Yavin Base', oldValue: 'Tatooine' },
+//   { type: 'UPDATE', key: 'mission', value: 'Destroy Death Star', oldValue: 'Rescue Princess' },
+//   { type: 'UPDATE', key: 'status', value: 'Complete', oldValue: 'In Progress' },
+//   ...
+// ]
 ```
 
 #### Advanced Options
@@ -244,10 +252,14 @@ Apply or revert changes to JSON objects.
 import { applyChangeset, revertChangeset } from 'json-diff-ts';
 
 // Apply changes
-applyChangeset(oldData, diffs);
+const updated = applyChangeset(oldData, diffs);
+console.log(updated);
+// { location: 'Yavin Base', mission: 'Destroy Death Star', status: 'Complete', ... }
 
-// Revert changes  
-revertChangeset(newData, diffs);
+// Revert changes
+const reverted = revertChangeset(newData, diffs);
+console.log(reverted);
+// { location: 'Tatooine', mission: 'Rescue Princess', status: 'In Progress', ... }
 ```
 
 ## API Reference
@@ -281,6 +293,12 @@ interface Options {
 }
 ```
 
+| Option | Type | Description |
+| ------ | ---- | ----------- |
+| `embeddedObjKeys` | `Record<string, string | Function>` or `Map<string | RegExp, string | Function>` | Map paths of arrays to a key or resolver function used to match elements when diffing. Use a `Map` for regex paths. |
+| `keysToSkip` | `string[]` | Dotted paths to exclude from comparison, e.g. `"meta.info"`. |
+| `treatTypeChangeAsReplace` | `boolean` | When `true` (default), a type change results in a REMOVE/ADD pair. Set to `false` to treat it as an UPDATE. |
+
 ### Change Types
 
 ```typescript
@@ -293,6 +311,7 @@ enum Operation {
 
 ## Release Notes
 
+- **v4.8.1:** Improved documentation with working examples and detailed options.
 - **v4.8.0:** Significantly reduced bundle size by completely removing es-toolkit dependency and implementing custom utility functions. This change eliminates external dependencies while maintaining identical functionality and improving performance.
 
 - **v4.7.0:** Optimized bundle size and performance by replacing es-toolkit/compat with es-toolkit for difference, intersection, and keyBy functions

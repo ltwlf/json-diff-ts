@@ -42,6 +42,15 @@ jobs:
           path: coverage/
           retention-days: 7
           
+      - name: Upload coverage to Codecov
+        if: matrix.node-version == 20
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          
       - name: Create job summary
         if: matrix.node-version == 20 && always()
         run: |

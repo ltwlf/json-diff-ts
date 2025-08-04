@@ -185,8 +185,24 @@ describe('jsonDiff#applyChangeset', () => {
 
     const changeset = diff(obj1, obj2);
     const result = applyChangeset(obj1, changeset);
-    
+
     expect(result.test).toBe("foobar");
+  });
+
+  it('handles array modifications with null and undefined', () => {
+    const base = { xyz: [1, 2, 3] };
+
+    const resultNull = applyChangeset(
+      JSON.parse(JSON.stringify(base)),
+      diff(base, { xyz: [null, 2, 3] })
+    );
+    expect(resultNull).toEqual({ xyz: [null, 2, 3] });
+
+    const resultUndefined = applyChangeset(
+      JSON.parse(JSON.stringify(base)),
+      diff(base, { xyz: [1, undefined, 3] })
+    );
+    expect(resultUndefined).toEqual({ xyz: [1, 3] });
   });
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "json-diff-ts",
-  "version": "4.8.1",
+  "version": "4.8.2",
   "description": "Modern TypeScript JSON diff library - Zero dependencies, high performance, ESM + CommonJS support. Calculate and apply differences between JSON objects with advanced features like key-based array diffing, JSONPath support, and atomic changesets.",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

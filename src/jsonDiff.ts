@@ -618,7 +618,7 @@ const comparePrimitives = (oldObj: any, newObj: any, path: any) => {
 const removeKey = (obj: any, key: any, embeddedKey: any) => {
   if (Array.isArray(obj)) {
     if (embeddedKey === '$index') {
-      obj.splice(key);
+      obj.splice(Number(key), 1);
       return;
     }
     const index = indexOfItemInArray(obj, embeddedKey, key);
@@ -648,9 +648,12 @@ const indexOfItemInArray = (arr: any[], key: any, value: any) => {
 };
 
 const modifyKeyValue = (obj: any, key: any, value: any) => (obj[key] = value);
-
-const addKeyValue = (obj: any, key: any, value: any) => {
+const addKeyValue = (obj: any, key: any, value: any, embeddedKey?: any) => {
   if (Array.isArray(obj)) {
+    if (embeddedKey === '$index') {
+      obj.splice(Number(key), 0, value);
+      return obj.length;
+    }
     return obj.push(value);
   } else {
     return obj ? (obj[key] = value) : null;
@@ -661,7 +664,7 @@ const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
   const { type, key, value } = change;
   switch (type) {
     case Operation.ADD:
-      return addKeyValue(obj, key, value);
+      return addKeyValue(obj, key, value, embeddedKey);
     case Operation.UPDATE:
       return modifyKeyValue(obj, key, value);
     case Operation.REMOVE:
@@ -680,8 +683,24 @@ const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
  * consistency with other functions.
  */
 const applyArrayChange = (arr: any[], change: any) => {
-  for (const subchange of change.changes) {
-    if (subchange.value != null || subchange.type === Operation.REMOVE) {
+  let changes = change.changes;
+  if (change.embeddedKey === '$index') {
+    changes = [...changes].sort((a, b) => {
+      if (a.type === Operation.REMOVE && b.type === Operation.REMOVE) {
+        return Number(b.key) - Number(a.key);
+      }
+      if (a.type === Operation.REMOVE) return -1;
+      if (b.type === Operation.REMOVE) return 1;
+      return Number(a.key) - Number(b.key);
+    });
+  }
+
+  for (const subchange of changes) {
+    if (
+      (subchange.value !== null && subchange.value !== undefined) ||
+      subchange.type === Operation.REMOVE ||
+      (subchange.value === null && subchange.type === Operation.ADD)
+    ) {
       applyLeafChange(arr, subchange, change.embeddedKey);
     } else {
       let element;

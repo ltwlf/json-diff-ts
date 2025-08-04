@@ -311,6 +311,7 @@ enum Operation {
 
 ## Release Notes
 
+- **v4.8.2:** Fixed array handling in `applyChangeset` for null, undefined, and deleted elements (fixes issue #316)
 - **v4.8.1:** Improved documentation with working examples and detailed options.
 - **v4.8.0:** Significantly reduced bundle size by completely removing es-toolkit dependency and implementing custom utility functions. This change eliminates external dependencies while maintaining identical functionality and improving performance.
 

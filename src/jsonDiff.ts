@@ -554,7 +554,7 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   // This preserves array structure and handles undefined as an explicit value rather than removal
   if (uniqKey === '$index') {
     diffs.forEach((diff) => {
-      if (diff.type === Operation.REMOVE && indexedNewObj.hasOwnProperty(diff.key) && indexedNewObj[diff.key] === undefined) {
+      if (diff.type === Operation.REMOVE && Object.prototype.hasOwnProperty.call(indexedNewObj, diff.key) && indexedNewObj[diff.key] === undefined) {
         diff.type = Operation.UPDATE;
         diff.oldValue = diff.value; // diff.value currently contains the old value being removed
         diff.value = undefined;

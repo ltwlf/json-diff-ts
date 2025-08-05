@@ -561,7 +561,7 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   const indexedNewObj = convertArrayToObj(newObj, uniqKey);
   const diffs = compareObject(indexedOldObj, indexedNewObj, path, keyPath, true, options);
 
-  let moveDiffs: IChange[] = [];
+  const moveDiffs: IChange[] = [];
   if (left != null) {
     const getId = (item: any) =>
       uniqKey === '$value'

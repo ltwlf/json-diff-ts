@@ -85,8 +85,12 @@ const applyChangeset = (obj: any, changeset: Changeset) => {
     changeset.forEach((change) => {
       const { type, key, value, embeddedKey } = change;
 
-      // Handle null values as leaf changes when the operation is ADD
-      if ((value !== null && value !== undefined) || type === Operation.REMOVE || (value === null && type === Operation.ADD)) {
+      // Handle null and undefined values as leaf changes when the operation is ADD or UPDATE
+      // But prioritize nested changes - if there are nested changes, always treat as branch change
+      if (change.changes) {
+        // Apply the change to the branch
+        applyBranchChange(obj[key], change);
+      } else if ((value !== null && value !== undefined) || type === Operation.REMOVE || (value === null && type === Operation.ADD) || (value === undefined && (type === Operation.ADD || type === Operation.UPDATE))) {
         // Apply the change to the object
         applyLeafChange(obj, change, embeddedKey);
       } else {
@@ -545,6 +549,19 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
   const indexedNewObj = convertArrayToObj(newObj, uniqKey);
   const diffs = compareObject(indexedOldObj, indexedNewObj, path, keyPath, true, options);
+  
+  // For index-based arrays, convert REMOVE operations to UPDATE operations when the new value is undefined
+  // This preserves array structure and handles undefined as an explicit value rather than removal
+  if (uniqKey === '$index') {
+    diffs.forEach((diff) => {
+      if (diff.type === Operation.REMOVE && indexedNewObj.hasOwnProperty(diff.key) && indexedNewObj[diff.key] === undefined) {
+        diff.type = Operation.UPDATE;
+        diff.oldValue = diff.value; // diff.value currently contains the old value being removed
+        diff.value = undefined;
+      }
+    });
+  }
+  
   if (diffs.length) {
     return [
       {
@@ -699,7 +716,8 @@ const applyArrayChange = (arr: any[], change: any) => {
     if (
       (subchange.value !== null && subchange.value !== undefined) ||
       subchange.type === Operation.REMOVE ||
-      (subchange.value === null && subchange.type === Operation.ADD)
+      (subchange.value === null && (subchange.type === Operation.ADD || subchange.type === Operation.UPDATE)) ||
+      (subchange.value === undefined && (subchange.type === Operation.ADD || subchange.type === Operation.UPDATE))
     ) {
       applyLeafChange(arr, subchange, change.embeddedKey);
     } else {

@@ -202,7 +202,10 @@ describe('jsonDiff#applyChangeset', () => {
       JSON.parse(JSON.stringify(base)),
       diff(base, { xyz: [1, undefined, 3] })
     );
-    expect(resultUndefined).toEqual({ xyz: [1, 3] });
+    expect(resultUndefined).toEqual({ xyz: [1, undefined, 3] });
+    // Verify that the undefined value is actually preserved in the array
+    expect(resultUndefined.xyz.length).toBe(3);
+    expect(resultUndefined.xyz[1]).toBeUndefined();
   });
 });
 

@@ -392,6 +392,8 @@ enum Operation {
 - **v4.0.0:** Changed naming of flattenChangeset and unflattenChanges to atomizeChangeset and unatomizeChangeset; added option to set treatTypeChangeAsReplace
 - **v3.0.1:** Fixed issue with unflattenChanges when a key has periods
 - **v3.0.0:** Added support for both CommonJS and ECMAScript Modules. Replaced lodash-es with lodash to support both module formats
+- **v5.0.0-alpha.1:** Added MOVE operation for array reordering detection with embeddedObjKeys. New `detectArrayMoves` option enables tracking of element position changes within arrays when using key-based identification. Fully backward compatible.
+- **v4.8.2:** Latest stable release  
 - **v2.2.0:** Fixed lodash-es dependency, added exclude keys option, added string array comparison by value
 - **v2.1.0:** Fixed JSON Path filters by replacing single equal sign (=) with double equal sign (==). Added support for using '.' as root in paths
 - **v2.0.0:** Upgraded to ECMAScript module format with optimizations and improved documentation. Fixed regex path handling (breaking change: now requires Map instead of Record for regex paths)

@@ -149,6 +149,43 @@ describe('jsonDiff#diff', () => {
       { type: 'UPDATE', key: 'd', value: d, oldValue: new Date(d) }
     ]);
   });
+
+  it('detects MOVE operations for array sort', () => {
+    const before = { items: [{ id: 2 }, { id: 1 }, { id: 3 }] };
+    const after = { items: [{ id: 1 }, { id: 2 }, { id: 3 }] };
+    const changeset = diff(before, after, { embeddedObjKeys: { items: 'id' } });
+    expect(changeset[0].changes).toEqual(
+      expect.arrayContaining([
+        { type: Operation.MOVE, key: '1', from: 1, to: 0 },
+        { type: Operation.MOVE, key: '2', from: 0, to: 1 }
+      ])
+    );
+
+    applyChangeset(before, changeset);
+    expect(before).toEqual(after);
+
+    revertChangeset(before, changeset);
+    expect(before).toEqual({ items: [{ id: 2 }, { id: 1 }, { id: 3 }] });
+  });
+
+  it('detects MOVE operations for array shift', () => {
+    const before = { items: [{ id: 1 }, { id: 2 }, { id: 3 }] };
+    const after = { items: [{ id: 3 }, { id: 1 }, { id: 2 }] };
+    const changeset = diff(before, after, { embeddedObjKeys: { items: 'id' } });
+    expect(changeset[0].changes).toEqual(
+      expect.arrayContaining([
+        { type: Operation.MOVE, key: '3', from: 2, to: 0 },
+        { type: Operation.MOVE, key: '1', from: 0, to: 1 },
+        { type: Operation.MOVE, key: '2', from: 1, to: 2 }
+      ])
+    );
+
+    applyChangeset(before, changeset);
+    expect(before).toEqual(after);
+
+    revertChangeset(before, changeset);
+    expect(before).toEqual({ items: [{ id: 1 }, { id: 2 }, { id: 3 }] });
+  });
 });
 
 describe('jsonDiff#applyChangeset', () => {

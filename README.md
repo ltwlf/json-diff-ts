@@ -295,7 +295,7 @@ interface Options {
 
 | Option | Type | Description |
 | ------ | ---- | ----------- |
-| `embeddedObjKeys` | `Record<string, string | Function>` or `Map<string | RegExp, string | Function>` | Map paths of arrays to a key or resolver function used to match elements when diffing. Use a `Map` for regex paths. |
+| `embeddedObjKeys` | `Record<string, string | Function>` or `Map<string | RegExp, string | Function>` | Map paths of arrays to a key or resolver function used to match elements when diffing. When provided, reorders are reported as `MOVE` operations. Use a `Map` for regex paths. |
 | `keysToSkip` | `string[]` | Dotted paths to exclude from comparison, e.g. `"meta.info"`. |
 | `treatTypeChangeAsReplace` | `boolean` | When `true` (default), a type change results in a REMOVE/ADD pair. Set to `false` to treat it as an UPDATE. |
 
@@ -304,10 +304,15 @@ interface Options {
 ```typescript
 enum Operation {
   REMOVE = 'REMOVE',
-  ADD = 'ADD', 
-  UPDATE = 'UPDATE'
+  ADD = 'ADD',
+  UPDATE = 'UPDATE',
+  // Reorder an existing array element identified by a unique key
+  MOVE = 'MOVE'
 }
 ```
+
+`MOVE` changes include `from` and `to` properties that describe the original and new indexes of the element. Move detection is
+enabled automatically when a corresponding path is specified in `embeddedObjKeys`.
 
 ## Release Notes
 

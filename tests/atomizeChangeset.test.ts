@@ -1,4 +1,4 @@
-import { diff, atomizeChangeset, applyChangeset, unatomizeChangeset } from '../src/jsonDiff';
+import { diff, atomizeChangeset, applyChangeset, unatomizeChangeset, Operation } from '../src/jsonDiff';
 
 describe('atomizeChangeset', () => {
   test('when JSON path segements contain periods', (done) => {
@@ -76,5 +76,22 @@ describe('atomizeChangeset', () => {
     // The unatomized diffs should yield the same result as the original diffs
     expect(JSON.stringify(dataWithOriginalDiffs)).toEqual(JSON.stringify(dataWithUnatomizedDiffs));
     done();
+  });
+
+  test('atomize and unatomize MOVE operations', () => {
+    const before = { items: [{ id: 1 }, { id: 2 }, { id: 3 }] };
+    const after = { items: [{ id: 2 }, { id: 1 }, { id: 3 }] };
+    const changeset = diff(before, after, { embeddedObjKeys: { items: 'id' } });
+    const atomized = atomizeChangeset(changeset);
+    expect(atomized).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: Operation.MOVE, key: '1', from: 0, to: 1 }),
+        expect.objectContaining({ type: Operation.MOVE, key: '2', from: 1, to: 0 })
+      ])
+    );
+
+    const rebuilt = unatomizeChangeset(atomized);
+    applyChangeset(before, rebuilt);
+    expect(before).toEqual(after);
   });
 });

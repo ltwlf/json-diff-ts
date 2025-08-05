@@ -6,7 +6,12 @@ type EmbeddedObjKeysMapType = Map<string | RegExp, string | FunctionKey>;
 enum Operation {
   REMOVE = 'REMOVE',
   ADD = 'ADD',
-  UPDATE = 'UPDATE'
+  UPDATE = 'UPDATE',
+  /**
+   * Represents reordering of existing array elements identified by a unique key.
+   * The element specified by `key` should be moved from index `from` to index `to`.
+   */
+  MOVE = 'MOVE'
 }
 
 interface IChange {
@@ -15,6 +20,8 @@ interface IChange {
   embeddedKey?: string | FunctionKey;
   value?: any;
   oldValue?: any;
+  from?: number;
+  to?: number;
   changes?: IChange[];
 }
 type Changeset = IChange[];
@@ -26,6 +33,8 @@ interface IAtomicChange {
   valueType: string | null;
   value?: any;
   oldValue?: any;
+  from?: number;
+  to?: number;
 }
 
 interface Options {
@@ -261,6 +270,8 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
       ptr.type = change.type;
       ptr.value = change.value;
       ptr.oldValue = change.oldValue;
+      ptr.from = change.from;
+      ptr.to = change.to;
       changesArr.push(ptr);
     } else {
       for (let i = 1; i < segments.length; i++) {
@@ -291,7 +302,9 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
                 type: change.type,
                 key: arrKey!,
                 value: change.value,
-                oldValue: change.oldValue
+                oldValue: change.oldValue,
+                from: change.from,
+                to: change.to
               } as IChange
             ];
           } else {
@@ -317,6 +330,8 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
             ptr.type = change.type;
             ptr.value = change.value;
             ptr.oldValue = change.oldValue;
+            ptr.from = change.from;
+            ptr.to = change.to;
           } else {
             // branch
             ptr.key = segment;
@@ -545,13 +560,48 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
   const indexedNewObj = convertArrayToObj(newObj, uniqKey);
   const diffs = compareObject(indexedOldObj, indexedNewObj, path, keyPath, true, options);
-  if (diffs.length) {
+
+  let moveDiffs: IChange[] = [];
+  if (left != null) {
+    const getId = (item: any) =>
+      uniqKey === '$value'
+        ? item
+        : typeof uniqKey === 'function'
+        ? uniqKey(item)
+        : item[uniqKey];
+
+    const oldIndexMap = new Map<string, number>();
+    const newIndexMap = new Map<string, number>();
+    oldObj.forEach((item: any, idx: number) => {
+      const key = getId(item);
+      if (key != null) oldIndexMap.set(String(key), idx);
+    });
+    newObj.forEach((item: any, idx: number) => {
+      const key = getId(item);
+      if (key != null) newIndexMap.set(String(key), idx);
+    });
+
+    const commonKeys = intersection(
+      Array.from(oldIndexMap.keys()),
+      Array.from(newIndexMap.keys())
+    );
+    for (const key of commonKeys) {
+      const oldIndex = oldIndexMap.get(key)!;
+      const newIndex = newIndexMap.get(key)!;
+      if (oldIndex !== newIndex) {
+        moveDiffs.push({ type: Operation.MOVE, key, from: oldIndex, to: newIndex });
+      }
+    }
+  }
+
+  const allDiffs = [...moveDiffs, ...diffs];
+  if (allDiffs.length) {
     return [
       {
         type: Operation.UPDATE,
         key: getKey(path),
         embeddedKey: typeof uniqKey === 'function' && uniqKey.length === 2 ? uniqKey(newObj[0], true) : uniqKey,
-        changes: diffs
+        changes: allDiffs
       }
     ];
   } else {
@@ -694,8 +744,10 @@ const applyArrayChange = (arr: any[], change: any) => {
       return Number(a.key) - Number(b.key);
     });
   }
+  const moveChanges = changes.filter((c: any) => c.type === Operation.MOVE);
+  const otherChanges = changes.filter((c: any) => c.type !== Operation.MOVE);
 
-  for (const subchange of changes) {
+  for (const subchange of otherChanges) {
     if (
       (subchange.value !== null && subchange.value !== undefined) ||
       subchange.type === Operation.REMOVE ||
@@ -719,6 +771,15 @@ const applyArrayChange = (arr: any[], change: any) => {
       }
     }
   }
+
+  for (const subchange of moveChanges) {
+    const index = indexOfItemInArray(arr, change.embeddedKey, subchange.key);
+    if (index !== -1) {
+      const [element] = arr.splice(index, 1);
+      arr.splice(subchange.to, 0, element);
+    }
+  }
+
   return arr;
 };
 
@@ -786,7 +847,19 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
  * consistency with other functions.
  */
 const revertArrayChange = (arr: any[], change: any) => {
-  for (const subchange of change.changes) {
+  const moveChanges = change.changes.filter((c: any) => c.type === Operation.MOVE);
+  const otherChanges = change.changes.filter((c: any) => c.type !== Operation.MOVE);
+
+  // Revert move operations in reverse order
+  for (const subchange of [...moveChanges].reverse()) {
+    const index = indexOfItemInArray(arr, change.embeddedKey, subchange.key);
+    if (index !== -1) {
+      const [element] = arr.splice(index, 1);
+      arr.splice(subchange.from, 0, element);
+    }
+  }
+
+  for (const subchange of otherChanges) {
     if (subchange.value != null || subchange.type === Operation.REMOVE) {
       revertLeafChange(arr, subchange, change.embeddedKey);
     } else {

@@ -202,7 +202,41 @@ describe('jsonDiff#applyChangeset', () => {
       JSON.parse(JSON.stringify(base)),
       diff(base, { xyz: [1, undefined, 3] })
     );
-    expect(resultUndefined).toEqual({ xyz: [1, 3] });
+    expect(resultUndefined).toEqual({ xyz: [1, undefined, 3] });
+  });
+
+  it('preserves undefined values in arrays (issue #316)', () => {
+    // Test case 1: undefined at beginning of array
+    const base1 = { xyz: [1, 2, 3] };
+    const target1: { xyz: (number | undefined)[] } = { xyz: [undefined, 2, 3] };
+    const result1 = applyChangeset(JSON.parse(JSON.stringify(base1)), diff(base1, target1));
+    expect(result1.xyz.length).toBe(3);
+    expect(result1.xyz[0]).toBeUndefined();
+    expect(result1.xyz[1]).toBe(2);
+    expect(result1.xyz[2]).toBe(3);
+
+    // Test case 2: undefined in middle of array
+    const base2 = { xyz: [1, 2, 3] };
+    const target2: { xyz: (number | undefined)[] } = { xyz: [1, undefined, 3] };
+    const result2 = applyChangeset(JSON.parse(JSON.stringify(base2)), diff(base2, target2));
+    expect(result2.xyz.length).toBe(3);
+    expect(result2.xyz[0]).toBe(1);
+    expect(result2.xyz[1]).toBeUndefined();
+    expect(result2.xyz[2]).toBe(3);
+
+    // Test case 3: array with only undefined
+    const base3 = { xyz: [1] };
+    const target3: { xyz: (number | undefined)[] } = { xyz: [undefined] };
+    const result3 = applyChangeset(JSON.parse(JSON.stringify(base3)), diff(base3, target3));
+    expect(result3.xyz.length).toBe(1);
+    expect(result3.xyz[0]).toBeUndefined();
+
+    // Test case 4: object property set to undefined should still be removed (not array context)
+    const base4 = { test: 'value' };
+    const target4: { test?: string } = { test: undefined };
+    const result4 = applyChangeset(JSON.parse(JSON.stringify(base4)), diff(base4, target4));
+    expect(result4).toEqual({});
+    expect(result4.hasOwnProperty('test')).toBe(false);
   });
 });
 

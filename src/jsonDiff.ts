@@ -415,7 +415,10 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
 
     // Special case: In array contexts, undefined should be treated as a value, not as absence of value
     // Check if we're in an array element context by examining the path
-    const isArrayElement = isArrayElementPath(path);
+    const lastPathSegment = path[path.length - 1];
+    const isArrayElement = path.length > 0 && 
+      (typeof lastPathSegment === 'number' || 
+       (typeof lastPathSegment === 'string' && /^\d+$/.test(lastPathSegment)));
     
     // As undefined is not serialized into JSON, it should not count as an added value.
     // However, for array elements, we want to preserve undefined as a value

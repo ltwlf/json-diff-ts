@@ -872,4 +872,285 @@ describe('jsonDiff#valueKey', () => {
     });
   });
 
+  describe('keysToSkip functionality', () => {
+    it('should skip specified nested paths during comparison', () => {
+      const oldObj = {
+        a: { b: { c: 1 } },
+        x: { y: { z: 2 } }
+      };
+      const newObj = {
+        a: { b: { c: 999 } }, // Changed but should be skipped
+        x: { y: { z: 3 } }    // Changed and should be included
+      };
+      
+      const changeset = diff(oldObj, newObj, { keysToSkip: ['a.b.c'] });
+      
+      // Should only contain changes for x.y.z, not a.b.c
+      expect(changeset).toEqual([
+        {
+          key: 'x',
+          type: 'UPDATE',
+          changes: [
+            {
+              key: 'y',
+              type: 'UPDATE',
+              changes: [
+                {
+                  key: 'z',
+                  type: 'UPDATE',
+                  value: 3,
+                  oldValue: 2
+                }
+              ]
+            }
+          ]
+        }
+      ]);
+    });
+
+    it('should skip paths when adding new nested properties', () => {
+      const oldObj = { a: 1 };
+      const newObj = { 
+        a: 1, 
+        skip: { nested: { value: 'should be skipped' } },
+        keep: { nested: { value: 'should be included' } }
+      };
+      
+      const changeset = diff(oldObj, newObj, { keysToSkip: ['skip.nested'] });
+      
+      // Should add both 'skip' and 'keep' properties, but the 'skip' object should be added as-is
+      // since keysToSkip only affects comparison, not addition of entire new branches
+      expect(changeset.length).toBe(2);
+      expect(changeset.some(change => change.key === 'skip' && change.type === 'ADD')).toBe(true);
+      expect(changeset.some(change => change.key === 'keep' && change.type === 'ADD')).toBe(true);
+    });
+  });
+
+  describe('embeddedObjKeys with Map and RegExp', () => {
+    it('should handle Map-based embeddedObjKeys with RegExp patterns', () => {
+      const oldObj = {
+        users: [
+          { id: 1, name: 'John' },
+          { id: 2, name: 'Jane' }
+        ],
+        products: [
+          { id: 1, title: 'Product A' },
+          { id: 2, title: 'Product B' }
+        ]
+      };
+      
+      const newObj = {
+        users: [
+          { id: 1, name: 'John Updated' },
+          { id: 3, name: 'Bob' }
+        ],
+        products: [
+          { id: 1, title: 'Product A Updated' },
+          { id: 3, title: 'Product C' }
+        ]
+      };
+      
+      const embeddedObjKeys: EmbeddedObjKeysMapType = new Map();
+      embeddedObjKeys.set(/^users$/, 'id');
+      embeddedObjKeys.set(/^products$/, 'id');
+      
+      const changeset = diff(oldObj, newObj, { embeddedObjKeys });
+      expect(changeset.length).toBeGreaterThan(0);
+      
+      // Verify the changes are properly structured for key-based array diffing
+      const usersChange = changeset.find(c => c.key === 'users');
+      expect(usersChange).toBeDefined();
+      expect(usersChange?.embeddedKey).toBe('id');
+    });
+
+    it('should handle Map-based embeddedObjKeys with exact string matches', () => {
+      const oldObj = {
+        items: [{ id: 1, value: 'a' }]
+      };
+      
+      const newObj = {
+        items: [{ id: 1, value: 'b' }]
+      };
+      
+      const embeddedObjKeys: EmbeddedObjKeysMapType = new Map();
+      embeddedObjKeys.set('items', 'id');
+      
+      const changeset = diff(oldObj, newObj, { embeddedObjKeys });
+      expect(changeset.length).toBeGreaterThan(0);
+      
+      const itemsChange = changeset.find(c => c.key === 'items');
+      expect(itemsChange?.embeddedKey).toBe('id');
+    });
+  });
+
+  describe('$index and $value embedded key scenarios', () => {
+    it('should handle $index embedded key in applyChangeset', () => {
+      const oldArray = ['a', 'b', 'c'];
+      const changeset = [
+        {
+          key: 'testArray',
+          type: Operation.UPDATE,
+          embeddedKey: '$index',
+          changes: [
+            {
+              key: '1',
+              type: Operation.UPDATE,
+              value: 'updated',
+              oldValue: 'b'
+            }
+          ]
+        }
+      ];
+      
+      const obj = { testArray: [...oldArray] };
+      const result = applyChangeset(obj, changeset);
+      
+      expect(result.testArray[1]).toBe('updated');
+    });
+
+    it('should handle $value embedded key in applyChangeset', () => {
+      const oldArray = ['apple', 'banana', 'cherry'];
+      const changeset = [
+        {
+          key: 'fruits',
+          type: Operation.UPDATE,
+          embeddedKey: '$value',
+          changes: [
+            {
+              key: 'blueberry',
+              type: Operation.ADD,
+              value: 'blueberry'
+            },
+            {
+              key: 'banana',
+              type: Operation.REMOVE,
+              value: 'banana'
+            }
+          ]
+        }
+      ];
+      
+      const obj = { fruits: [...oldArray] };
+      const result = applyChangeset(obj, changeset);
+      
+      // banana should be removed and blueberry added
+      expect(result.fruits).toContain('blueberry');
+      expect(result.fruits).not.toContain('banana');
+    });
+
+    it('should handle $index embedded key in revertChangeset', () => {
+      const modifiedArray = ['a', 'updated', 'c'];
+      const changeset = [
+        {
+          key: 'testArray',
+          type: Operation.UPDATE,
+          embeddedKey: '$index',
+          changes: [
+            {
+              key: '1',
+              type: Operation.UPDATE,
+              value: 'updated',
+              oldValue: 'b'
+            }
+          ]
+        }
+      ];
+      
+      const obj = { testArray: [...modifiedArray] };
+      const result = revertChangeset(obj, changeset);
+      
+      expect(result.testArray[1]).toBe('b');
+    });
+
+    it('should handle $value embedded key in revertChangeset', () => {
+      const modifiedArray = ['apple', 'blueberry', 'cherry'];
+      const changeset = [
+        {
+          key: 'fruits',
+          type: Operation.UPDATE,
+          embeddedKey: '$value',
+          changes: [
+            {
+              key: 'blueberry',
+              type: Operation.ADD,
+              value: 'blueberry'
+            },
+            {
+              key: 'banana',
+              type: Operation.REMOVE,
+              value: 'banana'
+            }
+          ]
+        }
+      ];
+      
+      const obj = { fruits: [...modifiedArray] };
+      const result = revertChangeset(obj, changeset);
+      
+      // blueberry should be removed and banana added back
+      expect(result.fruits).toContain('banana');
+      expect(result.fruits).not.toContain('blueberry');
+    });
+  });
+
+  describe('revertChangeset edge cases', () => {
+    it('should handle UPDATE operation on objects', () => {
+      const obj = { a: { x: 1, y: 2 }, b: 2 };
+      const changeset = [
+        {
+          key: 'a',
+          type: Operation.UPDATE,
+          value: { x: 10, y: 20 },
+          oldValue: { x: 1, y: 2 }
+        }
+      ];
+      
+      const result = revertChangeset(obj, changeset);
+      expect(result.a).toEqual({ x: 1, y: 2 });
+    });
+
+    it('should handle REMOVE operation on objects', () => {
+      const obj = { a: 1, b: 2 };
+      const changeset = [
+        {
+          key: 'removedProp',
+          type: Operation.REMOVE,
+          value: { x: 1, y: 2 }
+        }
+      ];
+      
+      const result = revertChangeset(obj, changeset);
+      expect(result.removedProp).toEqual({ x: 1, y: 2 });
+    });
+
+    it('should handle UPDATE operation with non-object oldValue', () => {
+      const obj = { a: 'new value' };
+      const changeset = [
+        {
+          key: 'a',
+          type: Operation.UPDATE,
+          value: 'new value',
+          oldValue: 'old value'
+        }
+      ];
+      
+      const result = revertChangeset(obj, changeset);
+      expect(result.a).toBe('old value');
+    });
+
+    it('should handle REMOVE operation with non-object value', () => {
+      const obj = { a: 1 };
+      const changeset = [
+        {
+          key: 'removedProp',
+          type: Operation.REMOVE,
+          value: 'simple value'
+        }
+      ];
+      
+      const result = revertChangeset(obj, changeset);
+      expect(result.removedProp).toBe('simple value');
+    });
+  });
+
 });

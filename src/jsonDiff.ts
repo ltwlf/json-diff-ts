@@ -418,7 +418,7 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
     const lastPathSegment = path[path.length - 1];
     const isArrayElement = path.length > 0 && 
       (typeof lastPathSegment === 'number' || 
-       (typeof lastPathSegment === 'string' && /^\d+$/.test(lastPathSegment)));
+       (typeof lastPathSegment === 'string' && isStringArrayIndex(lastPathSegment)));
     
     // As undefined is not serialized into JSON, it should not count as an added value.
     // However, for array elements, we want to preserve undefined as a value

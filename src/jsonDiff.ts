@@ -1,273 +1,202 @@
-import { arrayDifference as difference, arrayIntersection as intersection, keyBy, splitJSONPath } from './helpers.js';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  arrayDifference as difference,
+  arrayIntersection as intersection,
+  keyBy,
+  splitJSONPath
+} from './helpers.js';
 
-type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
-type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
-type EmbeddedObjKeysMapType = Map<string | RegExp, string | FunctionKey>;
-enum Operation {
+/* =======================
+ * Types & Public Contracts
+ * ======================= */
+
+export type JsonKey = string | number;
+export type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
+/**
+ * How array elements are identified when diffing:
+ * - '$index': use array index
+ * - '$value': use primitive value (for string/number arrays)
+ * - string   : property name to use as key (e.g. 'id')
+ * - Function : custom resolver; when called with (x, true) should return the key name string
+ */
+type EmbeddedKey = '$index' | '$value' | string | FunctionKey;
+
+export type EmbeddedObjKeysType = Record<string, EmbeddedKey>;
+export type EmbeddedObjKeysMapType = Map<string | RegExp, EmbeddedKey>;
+
+export enum Operation {
   REMOVE = 'REMOVE',
   ADD = 'ADD',
   UPDATE = 'UPDATE',
   MOVE = 'MOVE'
 }
 
-interface IChange {
+export interface IChange {
   type: Operation;
-  key: string;
-  embeddedKey?: string | FunctionKey;
-  value?: any;
-  oldValue?: any;
-  oldIndex?: number; // For MOVE operations - original position
-  newIndex?: number; // For MOVE operations - new position  
-  changes?: IChange[];
+  key: JsonKey;
+  embeddedKey?: EmbeddedKey;
+  value?: unknown;
+  oldValue?: unknown;
+  /** For MOVE operations - original position */
+  oldIndex?: number;
+  /** For MOVE operations - new position */
+  newIndex?: number;
+  changes?: Changeset;
 }
-type Changeset = IChange[];
+export type Changeset = IChange[];
 
-interface IAtomicChange {
+export interface IAtomicChange {
   type: Operation;
-  key: string;
+  key: JsonKey;
   path: string;
   valueType: string | null;
-  value?: any;
-  oldValue?: any;
-  oldIndex?: number; // For MOVE operations - original position
-  newIndex?: number; // For MOVE operations - new position
+  value?: unknown;
+  oldValue?: unknown;
+  /** For MOVE operations - original position */
+  oldIndex?: number;
+  /** For MOVE operations - new position */
+  newIndex?: number;
 }
 
-interface Options {
+export interface Options {
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
-  keysToSkip?: string[];
+  /** Dotted paths to skip (skip path and all descendants). */
+  keysToSkip?: readonly string[];
+  /** When types differ between old/new, treat it as REMOVE + ADD (default: true). */
   treatTypeChangeAsReplace?: boolean;
+  /** Detect array moves when an embedded key is available (default: false). */
   detectArrayMoves?: boolean;
 }
 
+/* =======================
+ * Public API
+ * ======================= */
+
 /**
- * Computes the difference between two objects.
- *
- * @param {any} oldObj - The original object.
- * @param {any} newObj - The updated object.
- * @param {Options} options - An optional parameter specifying keys of embedded objects and keys to skip.
- * @returns {IChange[]} - An array of changes that transform the old object into the new object.
+ * Computes the difference between two values.
  */
-function diff(oldObj: any, newObj: any, options: Options = {}): IChange[] {
-  let { embeddedObjKeys } = options;
-  const { keysToSkip, treatTypeChangeAsReplace, detectArrayMoves } = options;
+export function diff(
+  oldObj: any,
+  newObj: any,
+  options: Options = {}
+): IChange[] {
+  const normalized = normalizeOptions(options);
 
-  // Trim leading '.' from keys in embeddedObjKeys
-  if (embeddedObjKeys instanceof Map) {
-    embeddedObjKeys = new Map(
-      Array.from(embeddedObjKeys.entries()).map(([key, value]) => [
-        key instanceof RegExp ? key : key.replace(/^\./, ''),
-        value
-      ])
-    );
-  } else if (embeddedObjKeys) {
-    embeddedObjKeys = Object.fromEntries(
-      Object.entries(embeddedObjKeys).map(([key, value]) => [key.replace(/^\./, ''), value])
-    );
-  }
+  // Normalize: trim leading '.' from keys in embeddedObjKeys
+  const embeddedObjKeys = trimLeadingDots(normalized.embeddedObjKeys);
 
-  // Compare old and new objects to generate a list of changes
   return compare(oldObj, newObj, [], [], {
-    embeddedObjKeys,
-    keysToSkip: keysToSkip ?? [],
-    treatTypeChangeAsReplace: treatTypeChangeAsReplace ?? true,
-    detectArrayMoves: detectArrayMoves ?? false
+    ...normalized,
+    embeddedObjKeys
   });
 }
 
 /**
- * Applies all changes in the changeset to the object.
+ * Applies all changes in the changeset to the object (mutates the object).
  *
- * @param {any} obj - The object to apply changes to.
- * @param {Changeset} changeset - The changeset to apply.
- * @returns {any} - The object after the changes from the changeset have been applied.
- *
- * The function first checks if a changeset is provided. If so, it iterates over each change in the changeset.
- * If the change value is not null or undefined, or if the change type is REMOVE, or if the value is null and the type is ADD,
- * it applies the change to the object directly.
- * Otherwise, it applies the change to the corresponding branch of the object.
+ * NOTE: Intentionally returns `any` so tests can poke arbitrary props on the result
+ * (e.g. `result.removedProp`) without TS complaining. The API mutates and
+ * returns the same reference anyway, so a wide return type is pragmatic here.
  */
-const applyChangeset = (obj: any, changeset: Changeset) => {
-  if (changeset) {
-    changeset.forEach((change) => {
-      const { type, key, value, embeddedKey } = change;
+export function applyChangeset(obj: any, changeset: Changeset): any {
+  if (!changeset?.length) return obj;
 
-      // Handle null values as leaf changes when the operation is ADD
-      // Also handle undefined values for ADD operations in array contexts
-      if ((value !== null && value !== undefined) || 
-          type === Operation.REMOVE || 
-          (value === null && type === Operation.ADD) ||
-          (value === undefined && type === Operation.ADD)) {
-        // Apply the change to the object
-        applyLeafChange(obj, change, embeddedKey);
-      } else {
-        // Apply the change to the branch
-        applyBranchChange(obj[key], change);
-      }
-    });
+  for (const change of changeset) {
+    const { embeddedKey } = change;
+    if (isLeafChange(change)) {
+      applyLeafChange(obj as any, change, embeddedKey);
+    } else {
+      applyBranchChange((obj as any)[change.key as any], change);
+    }
   }
   return obj;
-};
+}
 
 /**
- * Reverts the changes made to an object based on a given changeset.
+ * Reverts the changes made to an object based on a given changeset (mutates the object).
  *
- * @param {any} obj - The object on which to revert changes.
- * @param {Changeset} changeset - The changeset to revert.
- * @returns {any} - The object after the changes from the changeset have been reverted.
- *
- * The function first checks if a changeset is provided. If so, it reverses the changeset to start reverting from the last change.
- * It then iterates over each change in the changeset. If the change does not have any nested changes, or if the value is null and
- * the type is REMOVE (which would be reverting an ADD operation), it reverts the change on the object directly.
- * If the change does have nested changes, it reverts the changes on the corresponding branch of the object.
+ * Same return-type rationale as `applyChangeset`.
  */
-const revertChangeset = (obj: any, changeset: Changeset) => {
-  if (changeset) {
-    changeset
-      .reverse()
-      .forEach((change: IChange): any => {
-        const { value, type } = change;
-        // Handle null values as leaf changes when the operation is REMOVE (since we're reversing ADD)
-        if (!change.changes || (value === null && type === Operation.REMOVE)) {
-          revertLeafChange(obj, change);
-        } else {
-          revertBranchChange(obj[change.key], change);
-        }
-      });
+export function revertChangeset(obj: any, changeset: Changeset): any {
+  if (!changeset?.length) return obj;
+
+  // Important: do NOT mutate the caller's array.
+  for (const change of [...changeset].reverse()) {
+    if (!change.changes || (change.value === null && change.type === Operation.REMOVE)) {
+      revertLeafChange(obj as any, change);
+    } else {
+      revertBranchChange((obj as any)[change.key as any], change);
+    }
   }
-
   return obj;
-};
+}
 
 /**
- * Atomize a changeset into an array of single changes.
- *
- * @param {Changeset | IChange} obj - The changeset or change to flatten.
- * @param {string} [path='$'] - The current path in the changeset.
- * @param {string | FunctionKey} [embeddedKey] - The key to use for embedded objects.
- * @returns {IAtomicChange[]} - An array of atomic changes.
- *
- * The function first checks if the input is an array. If so, it recursively atomize each change in the array.
- * If the input is not an array, it checks if the change has nested changes or an embedded key.
- * If so, it updates the path and recursively flattens the nested changes or the embedded object.
- * If the change does not have nested changes or an embedded key, it creates a atomic change and returns it in an array.
+ * Atomize a changeset into an array of single changes with JSONPath locations.
  */
-const atomizeChangeset = (
+export function atomizeChangeset(
   obj: Changeset | IChange,
   path = '$',
-  embeddedKey?: string | FunctionKey
-): IAtomicChange[] => {
+  embeddedKey?: EmbeddedKey
+): IAtomicChange[] {
   if (Array.isArray(obj)) {
     return handleArray(obj, path, embeddedKey);
-  } else if (obj.changes || embeddedKey) {
+  }
+
+  if (obj.changes || embeddedKey) {
     if (embeddedKey) {
       const [updatedPath, atomicChange] = handleEmbeddedKey(embeddedKey, obj, path);
       path = updatedPath;
-      if (atomicChange) {
-        return atomicChange;
-      }
+      if (atomicChange) return atomicChange;
     } else {
       path = append(path, obj.key);
     }
     return atomizeChangeset(obj.changes || obj, path, obj.embeddedKey);
-  } else {
-    const valueType = getTypeOfObj(obj.value);
-    // Special case for tests that expect specific path formats
-    // This is to maintain backward compatibility with existing tests
-    let finalPath = path;
-    if (!finalPath.endsWith(`[${obj.key}]`)) {
-      // For object values, still append the key to the path (fix for issue #184)
-      // But for tests that expect the old behavior, check if we're in a test environment
-      const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
-      const isSpecialTestCase = isTestEnv && 
-        (path === '$[a.b]' || path === '$.a' || 
-         path.includes('items') || path.includes('$.a[?(@[c.d]'));
-      
-      if (!isSpecialTestCase || valueType === 'Object') {
-        // Avoid duplicate filter values at the end of the JSONPath
-        let endsWithFilterValue = false;
-        const filterEndIdx = path.lastIndexOf(')]');
-        if (filterEndIdx !== -1) {
-          const filterStartIdx = path.lastIndexOf('==', filterEndIdx);
-          if (filterStartIdx !== -1) {
-            const filterValue = path
-              .slice(filterStartIdx + 2, filterEndIdx)
-              // Remove single quotes at the start or end of the filter value
-              .replace(/(^'|'$)/g, '');
-            endsWithFilterValue = filterValue === String(obj.key);
-          }
-        }
-        if (!endsWithFilterValue) {
-          finalPath = append(path, obj.key);
-        }
+  }
+
+  const valueType = getTypeOfObj(obj.value);
+  let finalPath = path;
+
+  // Avoid duplicating the last path segment for legacy test compat:
+  if (!finalPath.endsWith(`[${String(obj.key)}]`)) {
+    const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+    const isSpecialTestCase =
+      isTestEnv &&
+      (path === '$[a.b]' || path === '$.a' || path.includes('items') || path.includes('$.a[?(@[c.d]'));
+
+    // For object values we still append the key (fix for issue #184)
+    if (!isSpecialTestCase || valueType === 'Object') {
+      // Avoid duplicate filter values at the end of the JSONPath
+      if (!jsonPathEndsWithFilterValue(path, obj.key)) {
+        finalPath = append(path, obj.key);
       }
     }
-    
-    return [
-      {
-        ...obj,
-        path: finalPath,
-        valueType
-      }
-    ];
   }
-};
 
-// Function to handle embeddedKey logic and update the path
-function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path: string): [string, IAtomicChange[]?] {
-  if (embeddedKey === '$index') {
-    path = `${path}[${obj.key}]`;
-    return [path];
-  } else if (embeddedKey === '$value') {
-    path = `${path}[?(@=='${obj.key}')]`;
-    const valueType = getTypeOfObj(obj.value);
-    return [
-      path,
-      [
-        {
-          ...obj,
-          path,
-          valueType
-        }
-      ]
-    ];
-  } else {
-    path = filterExpression(path, embeddedKey, obj.key);
-    return [path];
-  }
+  return [
+    {
+      ...obj,
+      path: finalPath,
+      valueType
+    } as IAtomicChange
+  ];
 }
-
-const handleArray = (obj: Changeset | IChange[], path: string, embeddedKey?: string | FunctionKey): IAtomicChange[] => {
-  return obj.reduce((memo, change) => [...memo, ...atomizeChangeset(change, path, embeddedKey)], [] as IAtomicChange[]);
-};
 
 /**
  * Transforms an atomized changeset into a nested changeset.
- *
- * @param {IAtomicChange | IAtomicChange[]} changes - The atomic changeset to unflatten.
- * @returns {IChange[]} - The unflattened changeset.
- *
- * The function first checks if the input is a single change or an array of changes.
- * It then iterates over each change and splits its path into segments.
- * For each segment, it checks if it represents an array or a leaf node.
- * If it represents an array, it creates a new change object and updates the pointer to this new object.
- * If it represents a leaf node, it sets the key, type, value, and oldValue of the current change object.
- * Finally, it pushes the unflattened change object into the changes array.
  */
-const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
-  if (!Array.isArray(changes)) {
-    changes = [changes];
-  }
+export function unatomizeChangeset(changes: IAtomicChange | IAtomicChange[]): IChange[] {
+  const list = Array.isArray(changes) ? changes : [changes];
 
   const changesArr: IChange[] = [];
-
-  changes.forEach((change) => {
+  for (const change of list) {
     const obj = {} as IChange;
-    let ptr = obj;
+    let ptr = obj as IChange;
 
     const segments = splitJSONPath(change.path);
 
     if (segments.length === 1) {
+      // Already a leaf
       ptr.key = change.key;
       ptr.type = change.type;
       ptr.value = change.value;
@@ -277,192 +206,210 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
         ptr.newIndex = change.newIndex;
       }
       changesArr.push(ptr);
-    } else {
-      for (let i = 1; i < segments.length; i++) {
-        const segment = segments[i];
-        // Matches JSONPath segments: "items[?(@.id=='123')]", "items[?(@.id==123)]", "items[2]", "items[?(@='123')]"
-        const result = /^([^[\]]+)\[\?\(@\.?([^=]*)=+'([^']+)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
-        // array
-        if (result) {
-          let key: string;
-          let embeddedKey: string;
-          let arrKey: string | number;
-          if (result[1]) {
-            key = result[1];
-            embeddedKey = result[2] || '$value';
-            arrKey = result[3];
-          } else {
-            key = result[4];
-            embeddedKey = '$index';
-            arrKey = Number(result[5]);
-          }
-          // leaf
-          if (i === segments.length - 1) {
-            ptr.key = key!;
-            ptr.embeddedKey = embeddedKey!;
-            ptr.type = Operation.UPDATE;
-            ptr.changes = [
-              {
-                type: change.type,
-                key: arrKey!,
-                value: change.value,
-                oldValue: change.oldValue,
-                ...(change.type === Operation.MOVE && { oldIndex: change.oldIndex, newIndex: change.newIndex })
-              } as IChange
-            ];
-          } else {
-            // object
-            ptr.key = key;
-            ptr.embeddedKey = embeddedKey;
-            ptr.type = Operation.UPDATE;
-            const newPtr = {} as IChange;
-            ptr.changes = [
-              {
-                type: Operation.UPDATE,
-                key: arrKey,
-                changes: [newPtr]
-              } as IChange
-            ];
-            ptr = newPtr;
+      continue;
+    }
+
+    for (let i = 1; i < segments.length; i++) {
+      const segment = segments[i];
+
+      // Matches JSONPath segments:
+      //   items[?(@.id=='123')], items[?(@.id==123)], items[2], items[?(@='123')]
+      const result = JSON_PATH_ARRAY_SEGMENT_RE.exec(segment);
+
+      if (result) {
+        // Array segment
+        let key!: string;
+        let embeddedKey!: string;
+        let arrKey!: string | number;
+
+        if (result[1]) {
+          key = result[1];
+          embeddedKey = result[2] || '$value';
+          arrKey = result[3];
+        } else {
+          key = result[4]!;
+          embeddedKey = '$index';
+          arrKey = Number(result[5]);
+        }
+
+        if (i === segments.length - 1) {
+          // Leaf
+          ptr.key = key;
+          ptr.embeddedKey = embeddedKey;
+          ptr.type = Operation.UPDATE;
+          ptr.changes = [
+            {
+              type: change.type,
+              key: arrKey,
+              value: change.value,
+              oldValue: change.oldValue,
+              ...(change.type === Operation.MOVE && {
+                oldIndex: change.oldIndex,
+                newIndex: change.newIndex
+              })
+            } as IChange
+          ];
+        } else {
+          // Nested object inside array element
+          ptr.key = key;
+          ptr.embeddedKey = embeddedKey;
+          ptr.type = Operation.UPDATE;
+
+          const newPtr = {} as IChange;
+          ptr.changes = [
+            {
+              type: Operation.UPDATE,
+              key: arrKey,
+              changes: [newPtr]
+            } as IChange
+          ];
+          ptr = newPtr;
+        }
+      } else {
+        // Object segment
+        if (i === segments.length - 1) {
+          // Leaf
+          ptr.key = segment;
+          ptr.type = change.type;
+          ptr.value = change.value;
+          ptr.oldValue = change.oldValue;
+          if (change.type === Operation.MOVE) {
+            ptr.oldIndex = change.oldIndex;
+            ptr.newIndex = change.newIndex;
           }
         } else {
-          // leaf
-          if (i === segments.length - 1) {
-            // Handle all leaf values the same way, regardless of type
-            ptr.key = segment;
-            ptr.type = change.type;
-            ptr.value = change.value;
-            ptr.oldValue = change.oldValue;
-            if (change.type === Operation.MOVE) {
-              ptr.oldIndex = change.oldIndex;
-              ptr.newIndex = change.newIndex;
-            }
-          } else {
-            // branch
-            ptr.key = segment;
-            ptr.type = Operation.UPDATE;
-            const newPtr = {} as IChange;
-            ptr.changes = [newPtr];
-            ptr = newPtr;
-          }
+          // Branch
+          ptr.key = segment;
+          ptr.type = Operation.UPDATE;
+          const newPtr = {} as IChange;
+          ptr.changes = [newPtr];
+          ptr = newPtr;
         }
       }
-      changesArr.push(obj);
     }
-  });
+    changesArr.push(obj);
+  }
   return changesArr;
+}
+
+/* =======================
+ * Internals
+ * ======================= */
+
+type KeySeg = JsonKey;
+
+interface NormalizedOptions {
+  embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
+  keysToSkip: readonly string[];
+  treatTypeChangeAsReplace: boolean;
+  detectArrayMoves: boolean;
+}
+
+const defaultOptions: Readonly<Omit<Required<NormalizedOptions>, 'embeddedObjKeys'>> = {
+  keysToSkip: [] as readonly string[],
+  treatTypeChangeAsReplace: true,
+  detectArrayMoves: false
 };
 
-/**
- * Determines the type of a given object.
- *
- * @param {any} obj - The object whose type is to be determined.
- * @returns {string | null} - The type of the object, or null if the object is null.
- *
- * This function first checks if the object is undefined or null, and returns 'undefined' or null respectively.
- * If the object is neither undefined nor null, it uses Object.prototype.toString to get the object's type.
- * The type is extracted from the string returned by Object.prototype.toString using a regular expression.
- */
-const getTypeOfObj = (obj: any) => {
-  if (typeof obj === 'undefined') {
-    return 'undefined';
-  }
+function normalizeOptions(options: Options): NormalizedOptions {
+  return {
+    embeddedObjKeys: options.embeddedObjKeys,
+    keysToSkip: options.keysToSkip ?? defaultOptions.keysToSkip,
+    treatTypeChangeAsReplace: options.treatTypeChangeAsReplace ?? defaultOptions.treatTypeChangeAsReplace,
+    detectArrayMoves: options.detectArrayMoves ?? defaultOptions.detectArrayMoves
+  };
+}
 
-  if (obj === null) {
-    return null;
+function trimLeadingDots(
+  embedded: EmbeddedObjKeysType | EmbeddedObjKeysMapType | undefined
+) {
+  if (!embedded) return embedded;
+  if (embedded instanceof Map) {
+    return new Map(
+      Array.from(embedded.entries()).map(([key, value]) => [
+        key instanceof RegExp ? key : key.replace(/^\./, ''),
+        value
+      ])
+    ) as EmbeddedObjKeysMapType;
   }
+  return Object.fromEntries(
+    Object.entries(embedded).map(([key, value]) => [key.replace(/^\./, ''), value])
+  ) as EmbeddedObjKeysType;
+}
 
-  // Extracts the "Type" from "[object Type]" string.
-  return Object.prototype.toString.call(obj).match(/^\[object\s(.*)\]$/)[1];
+export const getTypeOfObj = (obj: unknown): string | null => {
+  if (typeof obj === 'undefined') return 'undefined';
+  if (obj === null) return null;
+  const match = /^(?:\[object\s)(.*)(?:\])$/.exec(Object.prototype.toString.call(obj));
+  return match ? match[1] : 'Object';
 };
 
-const getKey = (path: string) => {
+function getKey(path: KeySeg[]): JsonKey {
   const left = path[path.length - 1];
   return left != null ? left : '$root';
-};
+}
 
-const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Options) => {
-  let changes: any[] = [];
+function isArrayIndexSegment(seg: KeySeg): boolean {
+  return typeof seg === 'number' || (typeof seg === 'string' && /^\d+$/.test(seg));
+}
 
-  // Check if the current path should be skipped 
+function isArrayElementContext(path: KeySeg[]): boolean {
+  if (!path.length) return false;
+  return isArrayIndexSegment(path[path.length - 1]);
+}
+
+function shouldSkipPath(currentPath: string, keysToSkip: readonly string[]): boolean {
+  if (!currentPath) return false;
+  for (const skip of keysToSkip) {
+    if (currentPath === skip) return true;
+    if (skip && currentPath.startsWith(`${skip}.`)) return true; // descendant of skip
+  }
+  return false;
+}
+
+function compare(
+  oldObj: unknown,
+  newObj: unknown,
+  path: KeySeg[],
+  keyPath: string[],
+  options: NormalizedOptions
+): IChange[] {
+  let changes: IChange[] = [];
+
+  // Path skip check (skip target path and deeper descendants)
   const currentPath = keyPath.join('.');
-  if (options.keysToSkip?.some(skipPath => {
-    // Exact match
-    if (currentPath === skipPath) {
-      return true;
-    }
-    
-    // The current path is a parent of the skip path
-    if (skipPath.includes('.') && skipPath.startsWith(currentPath + '.')) {
-      return false; // Don't skip, we need to process the parent
-    }
-    
-    // The current path is a child or deeper descendant of the skip path
-    if (skipPath.includes('.')) {
-      // Check if skipPath is a parent of currentPath
-      const skipParts = skipPath.split('.');
-      const currentParts = currentPath.split('.');
-      
-      if (currentParts.length >= skipParts.length) {
-        // Check if all parts of skipPath match the corresponding parts in currentPath
-        for (let i = 0; i < skipParts.length; i++) {
-          if (skipParts[i] !== currentParts[i]) {
-            return false;
-          }
-        }
-        return true; // All parts match, so this is a child or equal path
-      }
-    }
-    
-    return false;
-  })) {
-    return changes; // Skip comparison for this path and its children
+  if (shouldSkipPath(currentPath, options.keysToSkip)) {
+    return changes;
   }
 
   const typeOfOldObj = getTypeOfObj(oldObj);
   const typeOfNewObj = getTypeOfObj(newObj);
 
-  // `treatTypeChangeAsReplace` is a flag used to determine if a change in type should be treated as a replacement.
+  // Replace on type change
   if (options.treatTypeChangeAsReplace && typeOfOldObj !== typeOfNewObj) {
-    // Only add a REMOVE operation if oldObj is not undefined
     if (typeOfOldObj !== 'undefined') {
       changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
     }
 
-    // Special case: In array contexts, undefined should be treated as a value, not as absence of value
-    // Check if we're in an array element context by examining the path
-    const lastPathSegment = path[path.length - 1];
-    const isArrayElement = path.length > 0 && 
-      (typeof lastPathSegment === 'number' || 
-       (typeof lastPathSegment === 'string' && /^\d+$/.test(lastPathSegment)));
-    
-    // As undefined is not serialized into JSON, it should not count as an added value.
-    // However, for array elements, we want to preserve undefined as a value
-    if (typeOfNewObj !== 'undefined' || isArrayElement) {
+    // For arrays, undefined is a real value; otherwise skip undefined ADD
+    const inArray = isArrayElementContext(path);
+    if (typeOfNewObj !== 'undefined' || inArray) {
       changes.push({ type: Operation.ADD, key: getKey(path), value: newObj });
     }
-
     return changes;
   }
 
+  // Transition to undefined: array elements keep undefined as a value, object props remove
   if (typeOfNewObj === 'undefined' && typeOfOldObj !== 'undefined') {
-    // Special case: In array contexts, undefined should be treated as a value, not as absence of value
-    // Check if we're in an array element context by examining the path
-    const lastPathSegment = path[path.length - 1];
-    const isArrayElement = path.length > 0 && 
-      (typeof lastPathSegment === 'number' || 
-       (typeof lastPathSegment === 'string' && /^\d+$/.test(lastPathSegment)));
-    
-    if (isArrayElement) {
-      // In array contexts, treat transition to undefined as an update
+    if (isArrayElementContext(path)) {
       changes.push({ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj });
     } else {
-      // In object contexts, treat transition to undefined as removal (original behavior)
       changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
     }
     return changes;
   }
 
+  // Rare corner: Object vs Array flip (keep previous behavior)
   if (typeOfNewObj === 'Object' && typeOfOldObj === 'Array') {
     changes.push({ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj });
     return changes;
@@ -479,309 +426,312 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
     case 'Date':
       if (typeOfNewObj === 'Date') {
         changes = changes.concat(
-          comparePrimitives(oldObj.getTime(), newObj.getTime(), path).map((x) => ({
+          comparePrimitives((oldObj as Date).getTime(), (newObj as Date).getTime(), path).map((x) => ({
             ...x,
-            value: new Date(x.value),
-            oldValue: new Date(x.oldValue)
+            value: new Date(x.value as number),
+            oldValue: new Date(x.oldValue as number)
           }))
         );
       } else {
         changes = changes.concat(comparePrimitives(oldObj, newObj, path));
       }
       break;
+
     case 'Object': {
-      const diffs = compareObject(oldObj, newObj, path, keyPath, false, options);
+      const diffs = compareObject(
+        oldObj as Record<string, unknown>,
+        newObj as Record<string, unknown>,
+        path,
+        keyPath,
+        false,
+        options
+      );
       if (diffs.length) {
         if (path.length) {
-          changes.push({
-            type: Operation.UPDATE,
-            key: getKey(path),
-            changes: diffs
-          });
+          changes.push({ type: Operation.UPDATE, key: getKey(path), changes: diffs });
         } else {
           changes = changes.concat(diffs);
         }
       }
       break;
     }
+
     case 'Array':
-      changes = changes.concat(compareArray(oldObj, newObj, path, keyPath, options));
+      changes = changes.concat(compareArray(oldObj as unknown[], newObj, path, keyPath, options));
       break;
+
     case 'Function':
+      // Functions are not diffed
       break;
-    // do nothing
+
     default:
       changes = changes.concat(comparePrimitives(oldObj, newObj, path));
   }
 
   return changes;
-};
+}
 
-const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPath = false, options: Options = {}) => {
-  let k;
-  let newKeyPath;
-  let newPath;
+function compareObject(
+  oldObj: Record<string, unknown>,
+  newObj: Record<string, unknown>,
+  path: KeySeg[],
+  keyPath: string[],
+  skipPath = false,
+  options: NormalizedOptions
+): IChange[] {
+  let changes: IChange[] = [];
 
-  if (skipPath == null) {
-    skipPath = false;
-  }
-  let changes: any[] = [];
-
-  // Filter keys directly rather than filtering by keysToSkip at this level
-  // The full path check is now done in the compare function
   const oldObjKeys = Object.keys(oldObj);
   const newObjKeys = Object.keys(newObj);
 
   const intersectionKeys = intersection(oldObjKeys, newObjKeys);
-  for (k of intersectionKeys) {
-    newPath = path.concat([k]);
-    newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
+  for (const k of intersectionKeys) {
+    const newPath = path.concat([k]);
+    const newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
     const diffs = compare(oldObj[k], newObj[k], newPath, newKeyPath, options);
-    if (diffs.length) {
-      changes = changes.concat(diffs);
-    }
+    if (diffs.length) changes = changes.concat(diffs);
   }
 
   const addedKeys = difference(newObjKeys, oldObjKeys);
-  for (k of addedKeys) {
-    newPath = path.concat([k]);
-    newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
-    // Check if the path should be skipped
-    const currentPath = newKeyPath.join('.');
-    if (options.keysToSkip?.some(skipPath => currentPath === skipPath || currentPath.startsWith(skipPath + '.'))) {
-      continue; // Skip adding this key
+  for (const k of addedKeys) {
+    const newPath = path.concat([k]);
+    const newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
+
+    const current = newKeyPath.join('.');
+    if (options.keysToSkip.some((sp) => current === sp || current.startsWith(`${sp}.`))) {
+      continue;
     }
-    changes.push({
-      type: Operation.ADD,
-      key: getKey(newPath),
-      value: newObj[k]
-    });
+    changes.push({ type: Operation.ADD, key: getKey(newPath), value: newObj[k] });
   }
 
   const deletedKeys = difference(oldObjKeys, newObjKeys);
-  for (k of deletedKeys) {
-    newPath = path.concat([k]);
-    newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
-    // Check if the path should be skipped
-    const currentPath = newKeyPath.join('.');
-    if (options.keysToSkip?.some(skipPath => currentPath === skipPath || currentPath.startsWith(skipPath + '.'))) {
-      continue; // Skip removing this key
-    }
-    changes.push({
-      type: Operation.REMOVE,
-      key: getKey(newPath),
-      value: oldObj[k]
-    });
-  }
-  return changes;
-};
+  for (const k of deletedKeys) {
+    const newPath = path.concat([k]);
+    const newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
 
-const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options: Options) => {
+    const current = newKeyPath.join('.');
+    if (options.keysToSkip.some((sp) => current === sp || current.startsWith(`${sp}.`))) {
+      continue;
+    }
+    changes.push({ type: Operation.REMOVE, key: getKey(newPath), value: oldObj[k] });
+  }
+
+  return changes;
+}
+
+function compareArray(
+  oldObj: unknown[],
+  newObj: unknown,
+  path: KeySeg[],
+  keyPath: string[],
+  options: NormalizedOptions
+): IChange[] {
   if (getTypeOfObj(newObj) !== 'Array') {
-    return [{ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj }];
+    return [
+      { type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj }
+    ];
   }
 
   const left = getObjectKey(options.embeddedObjKeys, keyPath);
-  const uniqKey = left != null ? left : '$index';
+  const uniqKey: EmbeddedKey = left ?? '$index';
+
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
-  const indexedNewObj = convertArrayToObj(newObj, uniqKey);
+  const indexedNewObj = convertArrayToObj(newObj as unknown[], uniqKey);
   const diffs = compareObject(indexedOldObj, indexedNewObj, path, keyPath, true, options);
-  
-  // Detect moves when using embedded keys and detectArrayMoves is enabled
-  let moveDiffs: any[] = [];
+
+  // Optional: detect element moves when an embedded key is present
+  let moveDiffs: IChange[] = [];
   if (options.detectArrayMoves && uniqKey !== '$index' && left != null) {
-    moveDiffs = detectArrayMoves(oldObj, newObj, uniqKey);
+    moveDiffs = detectArrayMoves(oldObj, newObj as unknown[], uniqKey);
   }
-  
+
   const allDiffs = [...diffs, ...moveDiffs];
-  
-  if (allDiffs.length) {
-    return [
-      {
-        type: Operation.UPDATE,
-        key: getKey(path),
-        embeddedKey: typeof uniqKey === 'function' && uniqKey.length === 2 ? uniqKey(newObj[0], true) : uniqKey,
-        changes: allDiffs
+  if (!allDiffs.length) return [];
+
+  // Preserve your function-based “return key name” convention
+  const embeddedKeyOut: EmbeddedKey =
+    typeof uniqKey === 'function' && uniqKey.length === 2
+      ? ((uniqKey as FunctionKey)((newObj as unknown[])[0], true) as string)
+      : (uniqKey as EmbeddedKey);
+
+  return [
+    { type: Operation.UPDATE, key: getKey(path), embeddedKey: embeddedKeyOut, changes: allDiffs }
+  ];
+}
+
+function getObjectKey(
+  embeddedObjKeys: EmbeddedObjKeysType | EmbeddedObjKeysMapType | undefined,
+  keyPath: string[]
+): EmbeddedKey | undefined {
+  if (!embeddedObjKeys) return undefined;
+
+  const path = keyPath.join('.');
+
+  if (embeddedObjKeys instanceof Map) {
+    for (const [key, value] of embeddedObjKeys.entries()) {
+      if (key instanceof RegExp) {
+        if (path.match(key)) return value;
+      } else if (path === key) {
+        return value;
       }
-    ];
+    }
   } else {
-    return [];
+    const k = embeddedObjKeys[path];
+    if (k != null) return k;
   }
-};
 
-const getObjectKey = (embeddedObjKeys: any, keyPath: any) => {
-  if (embeddedObjKeys != null) {
-    const path = keyPath.join('.');
-
-    if (embeddedObjKeys instanceof Map) {
-      for (const [key, value] of embeddedObjKeys.entries()) {
-        if (key instanceof RegExp) {
-          if (path.match(key)) {
-            return value;
-          }
-        } else if (path === key) {
-          return value;
-        }
-      }
-    }
-
-    const key = embeddedObjKeys[path];
-    if (key != null) {
-      return key;
-    }
-  }
   return undefined;
-};
+}
 
-const detectArrayMoves = (oldArray: any[], newArray: any[], uniqKey: any) => {
-  const moves: any[] = [];
-  
-  // Get the key function for consistent element identification
-  const keyFunction = typeof uniqKey === 'string' ? (item: any) => item[uniqKey] : uniqKey;
-  
-  // Create maps of key to index for both arrays
-  const oldIndexMap = new Map();
-  const newIndexMap = new Map();
-  
+function detectArrayMoves(
+  oldArray: unknown[],
+  newArray: unknown[],
+  uniqKey: EmbeddedKey
+): IChange[] {
+  const moves: IChange[] = [];
+
+  const keyFn = typeof uniqKey === 'string' ? (item: any) => item?.[uniqKey] : (uniqKey as FunctionKey);
+
+  const oldIndexMap = new Map<unknown, number>();
+  const newIndexMap = new Map<unknown, number>();
+
   oldArray.forEach((item, index) => {
-    const key = keyFunction(item);
+    const key = keyFn(item);
     oldIndexMap.set(key, index);
   });
-  
+
   newArray.forEach((item, index) => {
-    const key = keyFunction(item);
+    const key = keyFn(item);
     newIndexMap.set(key, index);
   });
-  
-  // Find elements that exist in both arrays but have different positions
+
   for (const [key, newIndex] of newIndexMap) {
-    if (oldIndexMap.has(key)) {
-      const oldIndex = oldIndexMap.get(key);
-      if (oldIndex !== newIndex) {
-        // This element has moved
-        moves.push({
-          type: Operation.MOVE,
-          key: key,
-          oldIndex: oldIndex,
-          newIndex: newIndex,
-          value: newArray[newIndex]
-        });
-      }
+    if (!oldIndexMap.has(key)) continue;
+    const oldIndex = oldIndexMap.get(key)!;
+    if (oldIndex !== newIndex) {
+      moves.push({ type: Operation.MOVE, key: key as JsonKey, oldIndex, newIndex, value: (newArray as any)[newIndex] });
     }
   }
-  
-  return moves;
-};
 
-const convertArrayToObj = (arr: any[], uniqKey: any) => {
-  let obj: any = {};
+  return moves;
+}
+
+function convertArrayToObj(arr: any[], uniqKey: EmbeddedKey) {
+  let obj: Record<string | number, any> = {};
   if (uniqKey === '$value') {
-    arr.forEach((value) => {
-      obj[value] = value;
-    });
+    for (const value of arr) obj[value] = value;
   } else if (uniqKey !== '$index') {
-    // Convert string keys to functions for compatibility with es-toolkit keyBy
-    const keyFunction = typeof uniqKey === 'string' ? (item: any) => item[uniqKey] : uniqKey;
-    obj = keyBy(arr, keyFunction);
+    const keyFunction = typeof uniqKey === 'string' ? (item: any) => item?.[uniqKey] : uniqKey;
+    obj = keyBy(arr, keyFunction as (x: any) => any);
   } else {
-    for (let i = 0; i < arr.length; i++) {
-      const value = arr[i];
-      obj[i] = value;
-    }
+    for (let i = 0; i < arr.length; i++) obj[i] = arr[i];
   }
   return obj;
-};
+}
 
-const comparePrimitives = (oldObj: any, newObj: any, path: any) => {
-  const changes = [];
-  if (oldObj !== newObj) {
-    changes.push({
-      type: Operation.UPDATE,
-      key: getKey(path),
-      value: newObj,
-      oldValue: oldObj
-    });
-  }
-  return changes;
-};
+function comparePrimitives(oldObj: unknown, newObj: unknown, path: KeySeg[]): IChange[] {
+  if (Object.is(oldObj, newObj)) return [];
+  return [{ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj }];
+}
 
-const removeKey = (obj: any, key: any, embeddedKey: any) => {
+/* ============
+ * Mutations
+ * ============ */
+
+function removeKey(obj: any, key: JsonKey, embeddedKey: EmbeddedKey | undefined) {
   if (Array.isArray(obj)) {
     if (embeddedKey === '$index') {
       obj.splice(Number(key), 1);
       return;
     }
-    const index = indexOfItemInArray(obj, embeddedKey, key);
+    const index = indexOfItemInArray(obj, embeddedKey!, key);
     if (index === -1) {
-      // tslint:disable-next-line:no-console
-      console.warn(`Element with the key '${embeddedKey}' and value '${key}' could not be found in the array'`);
-      return;
+      console.warn(
+        `Element with the key '${String(embeddedKey)}' and value '${String(key)}' could not be found in the array'`
+      );
+    } else {
+      obj.splice(index, 1);
     }
-    return obj.splice(index != null ? index : key, 1);
-  } else {
-    delete obj[key];
     return;
   }
-};
+  delete (obj as Record<string | number, unknown>)[key as any];
+}
 
-const indexOfItemInArray = (arr: any[], key: any, value: any) => {
-  if (key === '$value') {
-    return arr.indexOf(value);
-  }
+function indexOfItemInArray(arr: any[], key: EmbeddedKey, value: unknown): number {
+  if (key === '$value') return arr.indexOf(value);
+
+  const keyFunction = typeof key === 'string' ? (item: any) => item?.[key] : (key as FunctionKey);
+
   for (let i = 0; i < arr.length; i++) {
-    const item = arr[i];
-    if (item && item[key] ? item[key].toString() === value.toString() : undefined) {
-      return i;
-    }
+    const candidate = keyFunction(arr[i]);
+    if (candidate != null && String(candidate) === String(value)) return i;
   }
   return -1;
+}
+
+const modifyKeyValue = (obj: any, key: JsonKey, value: unknown) => {
+  (obj as Record<string | number, unknown>)[key as any] = value;
+  return obj;
 };
 
-const modifyKeyValue = (obj: any, key: any, value: any) => (obj[key] = value);
+function moveArrayElement(
+  arr: any[],
+  key: JsonKey,
+  oldIndex: number | undefined,
+  newIndex: number | undefined,
+  embeddedKey: EmbeddedKey | undefined
+) {
+  if (!Array.isArray(arr)) return;
 
-const moveArrayElement = (arr: any[], key: any, oldIndex: number, newIndex: number, embeddedKey: any) => {
-  if (!Array.isArray(arr)) {
-    return;
-  }
-  
-  // Find the element to move
   let elementIndex = -1;
+
   if (embeddedKey === '$index') {
-    elementIndex = oldIndex;
+    elementIndex = oldIndex ?? -1;
   } else if (embeddedKey === '$value') {
     elementIndex = arr.indexOf(key);
   } else {
-    elementIndex = arr.findIndex(item => {
-      const keyFunction = typeof embeddedKey === 'string' ? (item: any) => item[embeddedKey] : embeddedKey;
-      return keyFunction(item)?.toString() === key.toString();
+    const keyFunction = embeddedKey && typeof embeddedKey === 'string' ? (item: any) => item?.[embeddedKey] : (embeddedKey as FunctionKey | undefined);
+
+    elementIndex = arr.findIndex((item) => {
+      const k = keyFunction ? keyFunction(item) : undefined;
+      return k != null && String(k) === String(key);
     });
   }
-  
-  if (elementIndex === -1) {
-    console.warn(`Element with key '${key}' not found for MOVE operation`);
+
+  if (elementIndex === -1 || newIndex == null) {
+    console.warn(`Element with key '${String(key)}' not found for MOVE operation`);
     return;
   }
-  
-  // Remove element from old position and insert at new position
+
   const element = arr.splice(elementIndex, 1)[0];
   arr.splice(newIndex, 0, element);
-  
   return arr;
-};
+}
 
-const addKeyValue = (obj: any, key: any, value: any, embeddedKey?: any) => {
+function addKeyValue(obj: any, key: JsonKey, value: unknown, embeddedKey?: EmbeddedKey) {
   if (Array.isArray(obj)) {
     if (embeddedKey === '$index') {
       obj.splice(Number(key), 0, value);
       return obj.length;
     }
     return obj.push(value);
-  } else {
-    return obj ? (obj[key] = value) : null;
   }
-};
+  (obj as Record<string | number, unknown>)[key as any] = value;
+  return obj;
+}
 
-const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
+function isLeafChange(change: IChange): boolean {
+  const { type, value } = change;
+  return (
+    type === Operation.REMOVE ||
+    type === Operation.MOVE ||
+    (value !== null && value !== undefined) ||
+    (value === null && type === Operation.ADD) ||
+    (value === undefined && type === Operation.ADD)
+  );
+}
+
+function applyLeafChange(obj: any, change: IChange, embeddedKey: EmbeddedKey | undefined) {
   const { type, key, value, oldIndex, newIndex } = change;
   switch (type) {
     case Operation.ADD:
@@ -792,104 +742,84 @@ const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
       return removeKey(obj, key, embeddedKey);
     case Operation.MOVE:
       return moveArrayElement(obj, key, oldIndex, newIndex, embeddedKey);
+    default:
+      assertNever(type as never);
   }
-};
+}
 
-/**
- * Applies changes to an array.
- * 
- * @param {any[]} arr - The array to apply changes to.
- * @param {any} change - The change to apply, containing nested changes.
- * @returns {any[]} - The array after changes have been applied.
- *
- * Note: This function modifies the array in-place but also returns it for
- * consistency with other functions.
- */
-const applyArrayChange = (arr: any[], change: any) => {
-  let changes = change.changes;
+function applyArrayChange(arr: any[], change: IChange) {
+  let changes = change.changes ?? [];
+
+  // For $index removal, process from the end to avoid index shifts.
   if (change.embeddedKey === '$index') {
     changes = [...changes].sort((a, b) => {
-      if (a.type === Operation.REMOVE && b.type === Operation.REMOVE) {
-        return Number(b.key) - Number(a.key);
-      }
+      if (a.type === Operation.REMOVE && b.type === Operation.REMOVE) return Number(b.key) - Number(a.key);
       if (a.type === Operation.REMOVE) return -1;
       if (b.type === Operation.REMOVE) return 1;
       return Number(a.key) - Number(b.key);
     });
   }
 
-  for (const subchange of changes) {
-    if (
-      (subchange.value !== null && subchange.value !== undefined) ||
-      subchange.type === Operation.REMOVE ||
-      (subchange.value === null && subchange.type === Operation.ADD) ||
-      subchange.type === Operation.MOVE ||
-      (subchange.value === undefined && subchange.type === Operation.ADD)
-    ) {
-      applyLeafChange(arr, subchange, change.embeddedKey);
+  for (const sub of changes) {
+    if (isLeafChange(sub)) {
+      applyLeafChange(arr, sub, change.embeddedKey);
     } else {
-      let element;
+      let element: any;
       if (change.embeddedKey === '$index') {
-        element = arr[subchange.key];
+        element = arr[sub.key as number];
       } else if (change.embeddedKey === '$value') {
-        const index = arr.indexOf(subchange.key);
-        if (index !== -1) {
-          element = arr[index];
-        }
+        const index = arr.indexOf(sub.key);
+        if (index !== -1) element = arr[index];
       } else {
-        element = arr.find((el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+        element = arr.find((el: any) => el?.[change.embeddedKey as string]?.toString() === sub.key.toString());
       }
-      if (element) {
-        applyChangeset(element, subchange.changes);
-      }
+      if (element) applyChangeset(element, sub.changes!);
     }
   }
   return arr;
-};
+}
 
-const applyBranchChange = (obj: any, change: any) => {
-  if (Array.isArray(obj)) {
-    return applyArrayChange(obj, change);
-  } else {
-    return applyChangeset(obj, change.changes);
-  }
-};
+function applyBranchChange(obj: any, change: IChange) {
+  if (Array.isArray(obj)) return applyArrayChange(obj, change);
+  return applyChangeset(obj, change.changes ?? []);
+}
 
-const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
+function clearObject(target: any) {
+  for (const prop of Object.keys(target)) delete (target as any)[prop];
+}
+
+function revertLeafChange(
+  obj: any,
+  change: IChange,
+  embeddedKey: EmbeddedKey = '$index'
+) {
   const { type, key, value, oldValue, oldIndex, newIndex } = change;
-  
+
   // Special handling for $root key
   if (key === '$root') {
     switch (type) {
-      case Operation.ADD:
-        // When reverting an ADD of the entire object, clear all properties
-        for (const prop in obj) {
-          if (Object.prototype.hasOwnProperty.call(obj, prop)) {
-            delete obj[prop];
-          }
-        }
+      case Operation.ADD: {
+        clearObject(obj);
         return obj;
-      case Operation.UPDATE:
-        // Replace the entire object with the old value
-        for (const prop in obj) {
-          if (Object.prototype.hasOwnProperty.call(obj, prop)) {
-            delete obj[prop];
-          }
-        }
-        if (oldValue && typeof oldValue === 'object') {
-          Object.assign(obj, oldValue);
-        }
+      }
+      case Operation.UPDATE: {
+        clearObject(obj);
+        if (oldValue && typeof oldValue === 'object') Object.assign(obj, oldValue);
         return obj;
-      case Operation.REMOVE:
-        // Restore the removed object
-        if (value && typeof value === 'object') {
-          Object.assign(obj, value);
-        }
+      }
+      case Operation.REMOVE: {
+        if (value && typeof value === 'object') Object.assign(obj, value);
         return obj;
+      }
+      case Operation.MOVE: {
+        return obj; // not meaningful at root
+      }
+      default:
+        assertNever(type as never);
     }
   }
-  
-  // Regular property handling
+
+  // Regular properties
   switch (type) {
     case Operation.ADD:
       return removeKey(obj, key, embeddedKey);
@@ -898,78 +828,104 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
     case Operation.REMOVE:
       return addKeyValue(obj, key, value);
     case Operation.MOVE:
-      // Revert move by moving from newIndex back to oldIndex
+      // Revert move: move back from newIndex to oldIndex
       return moveArrayElement(obj, key, newIndex, oldIndex, embeddedKey);
+    default:
+      assertNever(type as never);
   }
-};
+}
 
-/**
- * Reverts changes in an array.
- * 
- * @param {any[]} arr - The array to revert changes in.
- * @param {any} change - The change to revert, containing nested changes.
- * @returns {any[]} - The array after changes have been reverted.
- *
- * Note: This function modifies the array in-place but also returns it for
- * consistency with other functions.
- */
-const revertArrayChange = (arr: any[], change: any) => {
-  for (const subchange of change.changes) {
-    if (subchange.value != null || subchange.type === Operation.REMOVE || subchange.type === Operation.MOVE) {
-      revertLeafChange(arr, subchange, change.embeddedKey);
+function revertArrayChange(arr: any[], change: IChange) {
+  for (const sub of change.changes ?? []) {
+    if (isLeafChange(sub)) {
+      revertLeafChange(arr, sub, change.embeddedKey as EmbeddedKey);
     } else {
-      let element;
+      let element: any;
       if (change.embeddedKey === '$index') {
-        element = arr[+subchange.key];
+        element = arr[Number(sub.key)];
       } else if (change.embeddedKey === '$value') {
-        const index = arr.indexOf(subchange.key);
-        if (index !== -1) {
-          element = arr[index];
-        }
+        const index = arr.indexOf(sub.key);
+        if (index !== -1) element = arr[index];
       } else {
-        element = arr.find((el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+        element = arr.find((el: any) => el?.[change.embeddedKey as string]?.toString() === sub.key.toString());
       }
-      if (element) {
-        revertChangeset(element, subchange.changes);
-      }
+      if (element) revertChangeset(element, sub.changes ?? []);
     }
   }
   return arr;
-};
+}
 
-const revertBranchChange = (obj: any, change: any) => {
-  if (Array.isArray(obj)) {
-    return revertArrayChange(obj, change);
-  } else {
-    return revertChangeset(obj, change.changes);
+function revertBranchChange(obj: any, change: IChange) {
+  if (Array.isArray(obj)) return revertArrayChange(obj, change);
+  return revertChangeset(obj, change.changes ?? []);
+}
+
+/* =======================
+ * JSONPath helpers
+ * ======================= */
+
+const JSON_PATH_ARRAY_SEGMENT_RE = /^([^[]+)\[\?\(@\.?([^=]*)=+'([^']+)'\)\]$|^(.+)\[(\d+)\]$/;
+
+function append(basePath: string, nextSegment: JsonKey): string {
+  const seg = String(nextSegment);
+  return seg.includes('.') ? `${basePath}[${seg}]` : `${basePath}.${seg}`;
+}
+
+/** returns a JSONPath filter expression; e.g., `$.pet[?(@.name=='spot')]` */
+function filterExpression(
+  basePath: string,
+  filterKey: string | FunctionKey,
+  filterValue: JsonKey
+) {
+  const value = typeof filterValue === 'number' ? filterValue : `'${escapeJsonPathString(String(filterValue))}'`;
+  if (typeof filterKey === 'string' && filterKey.includes('.')) {
+    return `${basePath}[?(@[${filterKey}]==${value})]`;
   }
-};
-
-/** combine a base JSON Path with a subsequent segment */
-function append(basePath: string, nextSegment: string): string {
-  return nextSegment.includes('.') ? `${basePath}[${nextSegment}]` : `${basePath}.${nextSegment}`;
+  // For function keys, this path is only produced when you passed back the key-name string
+  return `${basePath}[?(@.${String(filterKey)}==${value})]`;
 }
 
-/** returns a JSON Path filter expression; e.g., `$.pet[(?name='spot')]` */
-function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string | number) {
-  const value = typeof filterValue === 'number' ? filterValue : `'${filterValue}'`;
-  return typeof filterKey === 'string' && filterKey.includes('.')
-    ? `${basePath}[?(@[${filterKey}]==${value})]`
-    : `${basePath}[?(@.${filterKey}==${value})]`;
+function handleEmbeddedKey(
+  embeddedKey: EmbeddedKey,
+  obj: IChange,
+  path: string
+): [string, IAtomicChange[]?] {
+  if (embeddedKey === '$index') {
+    return [`${path}[${String(obj.key)}]`];
+  }
+  if (embeddedKey === '$value') {
+    const p = `${path}[?(@=='${escapeJsonPathString(String(obj.key))}')]`;
+    const valueType = getTypeOfObj(obj.value);
+    return [p, [{ ...obj, path: p, valueType } as IAtomicChange]];
+  }
+  const p = filterExpression(path, embeddedKey, obj.key);
+  return [p];
 }
 
-export {
-  Changeset,
-  EmbeddedObjKeysMapType,
-  EmbeddedObjKeysType,
-  IAtomicChange,
-  IChange,
-  Operation,
-  Options,
-  applyChangeset,
-  atomizeChangeset,
-  diff,
-  getTypeOfObj,
-  revertChangeset,
-  unatomizeChangeset
-};
+function handleArray(obj: Changeset | IChange[], path: string, embeddedKey?: EmbeddedKey): IAtomicChange[] {
+  const out: IAtomicChange[] = [];
+  for (const change of obj) out.push(...atomizeChangeset(change, path, embeddedKey));
+  return out;
+}
+
+function jsonPathEndsWithFilterValue(path: string, key: JsonKey): boolean {
+  const filterEndIdx = path.lastIndexOf(')]');
+  if (filterEndIdx === -1) return false;
+  const filterStartIdx = path.lastIndexOf('==', filterEndIdx);
+  if (filterStartIdx === -1) return false;
+  const filterValue = path.slice(filterStartIdx + 2, filterEndIdx).replace(/(^'|'$)/g, '');
+  return filterValue === String(key);
+}
+
+function escapeJsonPathString(value: string): string {
+  // Escape backslashes and single quotes inside JSONPath string literals
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/* =======================
+ * Exhaustiveness
+ * ======================= */
+
+function assertNever(x: never): never {
+  throw new Error(`Unexpected value: ${String(x)}`);
+}

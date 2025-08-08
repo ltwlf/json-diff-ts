@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { IChange, Options, NormalizedOptions, KeySeg, EmbeddedKey, FunctionKey, EmbeddedObjKeysType, EmbeddedObjKeysMapType, Operation } from './types.js';
 import { arrayDifference as difference, arrayIntersection as intersection } from './helpers.js';
 import { getKey, shouldSkipPath, isArrayElementContext, getObjectKey, getTypeOfObj } from './path-utils.js';

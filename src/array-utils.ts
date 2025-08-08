@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { JsonKey, EmbeddedKey, FunctionKey, IChange, Operation } from './types.js';
 import { keyBy } from './helpers.js';
 
@@ -89,7 +88,7 @@ export function moveArrayElement(
   }
 
   if (elementIndex === -1 || newIndex == null) {
-    console.warn(`Element with key '${String(key)}' not found for MOVE operation`);
+    // Element not found for MOVE operation - fail silently
     return;
   }
 
@@ -121,12 +120,10 @@ export function removeKey(obj: any, key: JsonKey, embeddedKey: EmbeddedKey | und
     }
     const index = indexOfItemInArray(obj, embeddedKey!, key);
     if (index === -1) {
-      console.warn(
-        `Element with the key '${String(embeddedKey)}' and value '${String(key)}' could not be found in the array'`
-      );
-    } else {
-      obj.splice(index, 1);
+      // Element not found in array - fail silently
+      return;
     }
+    obj.splice(index, 1);
     return;
   }
   delete (obj as Record<string | number, unknown>)[key as any];

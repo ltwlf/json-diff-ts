@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Changeset, IChange, IAtomicChange, EmbeddedKey, Operation } from './types.js';
 import { splitJSONPath } from './helpers.js';
 import { append, handleEmbeddedKey, getTypeOfObj, jsonPathEndsWithFilterValue, JSON_PATH_ARRAY_SEGMENT_RE } from './path-utils.js';

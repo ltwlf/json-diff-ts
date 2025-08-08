@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Changeset, IChange, Operation, EmbeddedKey } from './types.js';
 import { addKeyValue, removeKey, moveArrayElement, modifyKeyValue } from './array-utils.js';
 import { assertNever } from './path-utils.js';

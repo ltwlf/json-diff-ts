@@ -6,7 +6,7 @@ import { assertNever } from './path-utils.js';
  * Type Guards
  * ======================= */
 
-function isRecord(obj: any): obj is Record<string | number, unknown> {
+function isRecord(obj: unknown): obj is Record<string | number, unknown> {
   return obj !== null && typeof obj === 'object' && !Array.isArray(obj);
 }
 

@@ -11,8 +11,8 @@ import { detectArrayMoves, convertArrayToObj } from './array-utils.js';
  * Computes the difference between two values.
  */
 export function diff(
-  oldObj: any,
-  newObj: any,
+  oldObj: unknown,
+  newObj: unknown,
   options: Options = {}
 ): IChange[] {
   const normalized = normalizeOptions(options);
@@ -63,16 +63,10 @@ export function trimLeadingDots(
 }
 
 /* =======================
- * Type Change Handling
+ * Core Comparison Functions
  * ======================= */
 
-function handleTypeChange(
-  oldObj: unknown, 
-  newObj: unknown, 
-  path: KeySeg[], 
-  typeOfOldObj: string, 
-  typeOfNewObj: string
-): IChange[] {
+function handleTypeChange(oldObj: unknown, newObj: unknown, path: KeySeg[], typeOfOldObj: string, typeOfNewObj: string): IChange[] {
   const changes: IChange[] = [];
   
   if (typeOfOldObj !== 'undefined') {
@@ -88,21 +82,45 @@ function handleTypeChange(
   return changes;
 }
 
-function handleUndefinedTransition(
-  oldObj: unknown,
-  newObj: unknown, 
-  path: KeySeg[]
-): IChange[] {
-  if (isArrayElementContext(path)) {
-    return [{ type: 'UPDATE' as Operation, key: getKey(path), value: newObj, oldValue: oldObj }];
-  } else {
-    return [{ type: 'REMOVE' as Operation, key: getKey(path), value: oldObj }];
-  }
+function handleUndefinedTransition(oldObj: unknown, newObj: unknown, path: KeySeg[]): IChange[] {
+  return isArrayElementContext(path)
+    ? [{ type: 'UPDATE' as Operation, key: getKey(path), value: newObj, oldValue: oldObj }]
+    : [{ type: 'REMOVE' as Operation, key: getKey(path), value: oldObj }];
 }
 
-/* =======================
- * Core Comparison Functions
- * ======================= */
+function handleDateComparison(oldObj: unknown, newObj: unknown, path: KeySeg[], typeOfNewObj: string): IChange[] {
+  if (typeOfNewObj === 'Date') {
+    return comparePrimitives((oldObj as Date).getTime(), (newObj as Date).getTime(), path).map((x) => ({
+      ...x,
+      value: new Date(x.value as number),
+      oldValue: new Date(x.oldValue as number)
+    }));
+  }
+  return comparePrimitives(oldObj, newObj, path);
+}
+
+function handleObjectComparison(
+  oldObj: unknown,
+  newObj: unknown,
+  path: KeySeg[],
+  keyPath: string[],
+  options: NormalizedOptions
+): IChange[] {
+  const diffs = compareObject(
+    oldObj as Record<string, unknown>,
+    newObj as Record<string, unknown>,
+    path,
+    keyPath,
+    false,
+    options
+  );
+  
+  if (!diffs.length) return [];
+  
+  return path.length
+    ? [{ type: 'UPDATE' as Operation, key: getKey(path), changes: diffs }]
+    : diffs;
+}
 
 export function compare(
   oldObj: unknown,
@@ -111,12 +129,10 @@ export function compare(
   keyPath: string[],
   options: NormalizedOptions
 ): IChange[] {
-  let changes: IChange[] = [];
-
   // Path skip check (skip target path and deeper descendants)
   const currentPath = keyPath.join('.');
   if (shouldSkipPath(currentPath, options.keysToSkip)) {
-    return changes;
+    return [];
   }
 
   const typeOfOldObj = getTypeOfObj(oldObj);
@@ -134,64 +150,33 @@ export function compare(
 
   // Rare corner: Object vs Array flip (keep previous behavior)
   if (typeOfNewObj === 'Object' && typeOfOldObj === 'Array') {
-    changes.push({ type: 'UPDATE' as Operation, key: getKey(path), value: newObj, oldValue: oldObj });
-    return changes;
+    return [{ type: 'UPDATE' as Operation, key: getKey(path), value: newObj, oldValue: oldObj }];
   }
 
   if (typeOfNewObj === null) {
     if (typeOfOldObj !== null) {
-      changes.push({ type: 'UPDATE' as Operation, key: getKey(path), value: newObj, oldValue: oldObj });
+      return [{ type: 'UPDATE' as Operation, key: getKey(path), value: newObj, oldValue: oldObj }];
     }
-    return changes;
+    return [];
   }
 
   switch (typeOfOldObj) {
     case 'Date':
-      if (typeOfNewObj === 'Date') {
-        changes = changes.concat(
-          comparePrimitives((oldObj as Date).getTime(), (newObj as Date).getTime(), path).map((x) => ({
-            ...x,
-            value: new Date(x.value as number),
-            oldValue: new Date(x.oldValue as number)
-          }))
-        );
-      } else {
-        changes = changes.concat(comparePrimitives(oldObj, newObj, path));
-      }
-      break;
+      return handleDateComparison(oldObj, newObj, path, typeOfNewObj);
 
-    case 'Object': {
-      const diffs = compareObject(
-        oldObj as Record<string, unknown>,
-        newObj as Record<string, unknown>,
-        path,
-        keyPath,
-        false,
-        options
-      );
-      if (diffs.length) {
-        if (path.length) {
-          changes.push({ type: 'UPDATE' as Operation, key: getKey(path), changes: diffs });
-        } else {
-          changes = changes.concat(diffs);
-        }
-      }
-      break;
-    }
+    case 'Object':
+      return handleObjectComparison(oldObj, newObj, path, keyPath, options);
 
     case 'Array':
-      changes = changes.concat(compareArray(oldObj as unknown[], newObj, path, keyPath, options));
-      break;
+      return compareArray(oldObj as unknown[], newObj, path, keyPath, options);
 
     case 'Function':
       // Functions are not diffed
-      break;
+      return [];
 
     default:
-      changes = changes.concat(comparePrimitives(oldObj, newObj, path));
+      return comparePrimitives(oldObj, newObj, path);
   }
-
-  return changes;
 }
 
 export function compareObject(

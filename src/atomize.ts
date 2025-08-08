@@ -85,7 +85,13 @@ function createLeafChange(change: IAtomicChange): IChange {
   return leaf;
 }
 
-function parseArraySegment(segment: string) {
+interface ParsedArraySegment {
+  key: string;
+  embeddedKey: string;
+  arrKey: string | number;
+}
+
+function parseArraySegment(segment: string): ParsedArraySegment | null {
   const result = JSON_PATH_ARRAY_SEGMENT_RE.exec(segment);
   if (!result) return null;
   
@@ -107,14 +113,90 @@ function parseArraySegment(segment: string) {
 /* =======================
  * Unatomization Functions
  * ======================= */
+function processArraySegmentLeaf(ptr: IChange, parsed: ParsedArraySegment, change: IAtomicChange): void {
+  ptr.key = parsed.key;
+  ptr.embeddedKey = parsed.embeddedKey;
+  ptr.type = 'UPDATE' as Operation;
+  ptr.changes = [
+    {
+      type: change.type,
+      key: parsed.arrKey,
+      value: change.value,
+      oldValue: change.oldValue,
+      ...(change.type === 'MOVE' as Operation && {
+        oldIndex: change.oldIndex,
+        newIndex: change.newIndex
+      })
+    } as IChange
+  ];
+}
+
+function processArraySegmentBranch(ptr: IChange, parsed: ParsedArraySegment): IChange {
+  ptr.key = parsed.key;
+  ptr.embeddedKey = parsed.embeddedKey;
+  ptr.type = 'UPDATE' as Operation;
+
+  const newPtr = {} as IChange;
+  ptr.changes = [
+    {
+      type: 'UPDATE' as Operation,
+      key: parsed.arrKey,
+      changes: [newPtr]
+    } as IChange
+  ];
+  return newPtr;
+}
+
+function processObjectSegmentLeaf(ptr: IChange, segment: string, change: IAtomicChange): void {
+  ptr.key = segment;
+  ptr.type = change.type;
+  ptr.value = change.value;
+  ptr.oldValue = change.oldValue;
+  if (change.type === 'MOVE' as Operation) {
+    ptr.oldIndex = change.oldIndex;
+    ptr.newIndex = change.newIndex;
+  }
+}
+
+function processObjectSegmentBranch(ptr: IChange, segment: string): IChange {
+  ptr.key = segment;
+  ptr.type = 'UPDATE' as Operation;
+  const newPtr = {} as IChange;
+  ptr.changes = [newPtr];
+  return newPtr;
+}
+
+function processChangeSegments(change: IAtomicChange, segments: string[]): IChange {
+  const obj = {} as IChange;
+  let ptr = obj as IChange;
+
+  for (let i = 1; i < segments.length; i++) {
+    const segment = segments[i];
+    const parsed = parseArraySegment(segment);
+    const isLastSegment = i === segments.length - 1;
+
+    if (parsed) {
+      if (isLastSegment) {
+        processArraySegmentLeaf(ptr, parsed, change);
+      } else {
+        ptr = processArraySegmentBranch(ptr, parsed);
+      }
+    } else {
+      if (isLastSegment) {
+        processObjectSegmentLeaf(ptr, segment, change);
+      } else {
+        ptr = processObjectSegmentBranch(ptr, segment);
+      }
+    }
+  }
+  return obj;
+}
+
 export function unatomizeChangeset(changes: IAtomicChange | IAtomicChange[]): IChange[] {
   const list = Array.isArray(changes) ? changes : [changes];
 
   const changesArr: IChange[] = [];
   for (const change of list) {
-    const obj = {} as IChange;
-    let ptr = obj as IChange;
-
     const segments = splitJSONPath(change.path);
 
     if (segments.length === 1) {
@@ -123,71 +205,8 @@ export function unatomizeChangeset(changes: IAtomicChange | IAtomicChange[]): IC
       continue;
     }
 
-    for (let i = 1; i < segments.length; i++) {
-      const segment = segments[i];
-
-      const parsed = parseArraySegment(segment);
-
-      if (parsed) {
-        // Array segment
-        const { key, embeddedKey, arrKey } = parsed;
-
-        if (i === segments.length - 1) {
-          // Leaf
-          ptr.key = key;
-          ptr.embeddedKey = embeddedKey;
-          ptr.type = 'UPDATE' as Operation;
-          ptr.changes = [
-            {
-              type: change.type,
-              key: arrKey,
-              value: change.value,
-              oldValue: change.oldValue,
-              ...(change.type === 'MOVE' as Operation && {
-                oldIndex: change.oldIndex,
-                newIndex: change.newIndex
-              })
-            } as IChange
-          ];
-        } else {
-          // Nested object inside array element
-          ptr.key = key;
-          ptr.embeddedKey = embeddedKey;
-          ptr.type = 'UPDATE' as Operation;
-
-          const newPtr = {} as IChange;
-          ptr.changes = [
-            {
-              type: 'UPDATE' as Operation,
-              key: arrKey,
-              changes: [newPtr]
-            } as IChange
-          ];
-          ptr = newPtr;
-        }
-      } else {
-        // Object segment
-        if (i === segments.length - 1) {
-          // Leaf
-          ptr.key = segment;
-          ptr.type = change.type;
-          ptr.value = change.value;
-          ptr.oldValue = change.oldValue;
-          if (change.type === 'MOVE' as Operation) {
-            ptr.oldIndex = change.oldIndex;
-            ptr.newIndex = change.newIndex;
-          }
-        } else {
-          // Branch
-          ptr.key = segment;
-          ptr.type = 'UPDATE' as Operation;
-          const newPtr = {} as IChange;
-          ptr.changes = [newPtr];
-          ptr = newPtr;
-        }
-      }
-    }
-    changesArr.push(obj);
+    const processedChange = processChangeSegments(change, segments);
+    changesArr.push(processedChange);
   }
   return changesArr;
 }

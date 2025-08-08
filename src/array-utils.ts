@@ -43,7 +43,7 @@ export function convertArrayToObj(arr: any[], uniqKey: EmbeddedKey) {
   if (uniqKey === '$value') {
     for (const value of arr) obj[value] = value;
   } else if (uniqKey !== '$index') {
-    const keyFunction = typeof uniqKey === 'string' ? (item: any) => item?.[uniqKey] : uniqKey;
+    const keyFunction = typeof uniqKey === 'string' ? (item: unknown) => (item as Record<string, unknown>)?.[uniqKey] : uniqKey;
     obj = keyBy(arr, keyFunction);
   } else {
     for (let i = 0; i < arr.length; i++) obj[i] = arr[i];
@@ -54,13 +54,37 @@ export function convertArrayToObj(arr: any[], uniqKey: EmbeddedKey) {
 export function indexOfItemInArray(arr: any[], key: EmbeddedKey, value: unknown): number {
   if (key === '$value') return arr.indexOf(value);
 
-  const keyFunction = typeof key === 'string' ? (item: any) => item?.[key] : (key as FunctionKey);
+  const keyFunction = typeof key === 'string' ? (item: unknown) => (item as Record<string, unknown>)?.[key] : (key as FunctionKey);
 
   for (let i = 0; i < arr.length; i++) {
     const candidate = keyFunction(arr[i]);
     if (candidate != null && String(candidate) === String(value)) return i;
   }
   return -1;
+}
+
+function findElementIndex(
+  arr: any[], 
+  key: JsonKey, 
+  oldIndex: number | undefined, 
+  embeddedKey: EmbeddedKey | undefined
+): number {
+  if (embeddedKey === '$index') {
+    return oldIndex ?? -1;
+  }
+  
+  if (embeddedKey === '$value') {
+    return arr.indexOf(key);
+  }
+  
+  const keyFunction = embeddedKey && typeof embeddedKey === 'string' 
+    ? (item: unknown) => (item as Record<string, unknown>)?.[embeddedKey]
+    : (embeddedKey as FunctionKey | undefined);
+
+  return arr.findIndex((item) => {
+    const k = keyFunction ? keyFunction(item) : undefined;
+    return k != null && String(k) === String(key);
+  });
 }
 
 export function moveArrayElement(
@@ -72,21 +96,8 @@ export function moveArrayElement(
 ) {
   if (!Array.isArray(arr)) return;
 
-  let elementIndex = -1;
-
-  if (embeddedKey === '$index') {
-    elementIndex = oldIndex ?? -1;
-  } else if (embeddedKey === '$value') {
-    elementIndex = arr.indexOf(key);
-  } else {
-    const keyFunction = embeddedKey && typeof embeddedKey === 'string' ? (item: any) => item?.[embeddedKey] : (embeddedKey as FunctionKey | undefined);
-
-    elementIndex = arr.findIndex((item) => {
-      const k = keyFunction ? keyFunction(item) : undefined;
-      return k != null && String(k) === String(key);
-    });
-  }
-
+  const elementIndex = findElementIndex(arr, key, oldIndex, embeddedKey);
+  
   if (elementIndex === -1 || newIndex == null) {
     // Element not found for MOVE operation - fail silently
     return;

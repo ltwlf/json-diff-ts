@@ -93,7 +93,11 @@ const applyChangeset = (obj: any, changeset: Changeset) => {
       const { type, key, value, embeddedKey } = change;
 
       // Handle null values as leaf changes when the operation is ADD
-      if ((value !== null && value !== undefined) || type === Operation.REMOVE || (value === null && type === Operation.ADD)) {
+      // Also handle undefined values for ADD operations in array contexts
+      if ((value !== null && value !== undefined) || 
+          type === Operation.REMOVE || 
+          (value === null && type === Operation.ADD) ||
+          (value === undefined && type === Operation.ADD)) {
         // Apply the change to the object
         applyLeafChange(obj, change, embeddedKey);
       } else {
@@ -425,8 +429,16 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
       changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
     }
 
+    // Special case: In array contexts, undefined should be treated as a value, not as absence of value
+    // Check if we're in an array element context by examining the path
+    const lastPathSegment = path[path.length - 1];
+    const isArrayElement = path.length > 0 && 
+      (typeof lastPathSegment === 'number' || 
+       (typeof lastPathSegment === 'string' && /^\d+$/.test(lastPathSegment)));
+    
     // As undefined is not serialized into JSON, it should not count as an added value.
-    if (typeOfNewObj !== 'undefined') {
+    // However, for array elements, we want to preserve undefined as a value
+    if (typeOfNewObj !== 'undefined' || isArrayElement) {
       changes.push({ type: Operation.ADD, key: getKey(path), value: newObj });
     }
 
@@ -434,7 +446,20 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
   }
 
   if (typeOfNewObj === 'undefined' && typeOfOldObj !== 'undefined') {
-    changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
+    // Special case: In array contexts, undefined should be treated as a value, not as absence of value
+    // Check if we're in an array element context by examining the path
+    const lastPathSegment = path[path.length - 1];
+    const isArrayElement = path.length > 0 && 
+      (typeof lastPathSegment === 'number' || 
+       (typeof lastPathSegment === 'string' && /^\d+$/.test(lastPathSegment)));
+    
+    if (isArrayElement) {
+      // In array contexts, treat transition to undefined as an update
+      changes.push({ type: Operation.UPDATE, key: getKey(path), value: newObj, oldValue: oldObj });
+    } else {
+      // In object contexts, treat transition to undefined as removal (original behavior)
+      changes.push({ type: Operation.REMOVE, key: getKey(path), value: oldObj });
+    }
     return changes;
   }
 
@@ -798,7 +823,8 @@ const applyArrayChange = (arr: any[], change: any) => {
       (subchange.value !== null && subchange.value !== undefined) ||
       subchange.type === Operation.REMOVE ||
       (subchange.value === null && subchange.type === Operation.ADD) ||
-      subchange.type === Operation.MOVE
+      subchange.type === Operation.MOVE ||
+      (subchange.value === undefined && subchange.type === Operation.ADD)
     ) {
       applyLeafChange(arr, subchange, change.embeddedKey);
     } else {

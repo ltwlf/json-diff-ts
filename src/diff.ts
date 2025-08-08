@@ -63,6 +63,44 @@ export function trimLeadingDots(
 }
 
 /* =======================
+ * Type Change Handling
+ * ======================= */
+
+function handleTypeChange(
+  oldObj: unknown, 
+  newObj: unknown, 
+  path: KeySeg[], 
+  typeOfOldObj: string, 
+  typeOfNewObj: string
+): IChange[] {
+  const changes: IChange[] = [];
+  
+  if (typeOfOldObj !== 'undefined') {
+    changes.push({ type: 'REMOVE' as Operation, key: getKey(path), value: oldObj });
+  }
+
+  // For arrays, undefined is a real value; otherwise skip undefined ADD
+  const inArray = isArrayElementContext(path);
+  if (typeOfNewObj !== 'undefined' || inArray) {
+    changes.push({ type: 'ADD' as Operation, key: getKey(path), value: newObj });
+  }
+  
+  return changes;
+}
+
+function handleUndefinedTransition(
+  oldObj: unknown,
+  newObj: unknown, 
+  path: KeySeg[]
+): IChange[] {
+  if (isArrayElementContext(path)) {
+    return [{ type: 'UPDATE' as Operation, key: getKey(path), value: newObj, oldValue: oldObj }];
+  } else {
+    return [{ type: 'REMOVE' as Operation, key: getKey(path), value: oldObj }];
+  }
+}
+
+/* =======================
  * Core Comparison Functions
  * ======================= */
 
@@ -86,26 +124,12 @@ export function compare(
 
   // Replace on type change
   if (options.treatTypeChangeAsReplace && typeOfOldObj !== typeOfNewObj) {
-    if (typeOfOldObj !== 'undefined') {
-      changes.push({ type: 'REMOVE' as Operation, key: getKey(path), value: oldObj });
-    }
-
-    // For arrays, undefined is a real value; otherwise skip undefined ADD
-    const inArray = isArrayElementContext(path);
-    if (typeOfNewObj !== 'undefined' || inArray) {
-      changes.push({ type: 'ADD' as Operation, key: getKey(path), value: newObj });
-    }
-    return changes;
+    return handleTypeChange(oldObj, newObj, path, typeOfOldObj, typeOfNewObj);
   }
 
   // Transition to undefined: array elements keep undefined as a value, object props remove
   if (typeOfNewObj === 'undefined' && typeOfOldObj !== 'undefined') {
-    if (isArrayElementContext(path)) {
-      changes.push({ type: 'UPDATE' as Operation, key: getKey(path), value: newObj, oldValue: oldObj });
-    } else {
-      changes.push({ type: 'REMOVE' as Operation, key: getKey(path), value: oldObj });
-    }
-    return changes;
+    return handleUndefinedTransition(oldObj, newObj, path);
   }
 
   // Rare corner: Object vs Array flip (keep previous behavior)

@@ -31,7 +31,7 @@ export function detectArrayMoves(
     if (!oldIndexMap.has(key)) continue;
     const oldIndex = oldIndexMap.get(key)!;
     if (oldIndex !== newIndex) {
-      moves.push({ type: 'MOVE' as Operation, key: key as JsonKey, oldIndex, newIndex, value: (newArray as any)[newIndex] });
+      moves.push({ type: 'MOVE' as Operation, key: key as JsonKey, oldIndex, newIndex, value: newArray[newIndex] });
     }
   }
 
@@ -44,7 +44,7 @@ export function convertArrayToObj(arr: any[], uniqKey: EmbeddedKey) {
     for (const value of arr) obj[value] = value;
   } else if (uniqKey !== '$index') {
     const keyFunction = typeof uniqKey === 'string' ? (item: any) => item?.[uniqKey] : uniqKey;
-    obj = keyBy(arr, keyFunction as (x: any) => any);
+    obj = keyBy(arr, keyFunction);
   } else {
     for (let i = 0; i < arr.length; i++) obj[i] = arr[i];
   }
@@ -107,7 +107,8 @@ export function addKeyValue(obj: any, key: JsonKey, value: unknown, embeddedKey?
       return obj.length;
     }
   } else {
-    (obj as Record<string | number, unknown>)[key as any] = value;
+    const objRecord = obj as Record<string | number, unknown>;
+    objRecord[key as string | number] = value;
     return obj;
   }
 }
@@ -126,10 +127,12 @@ export function removeKey(obj: any, key: JsonKey, embeddedKey: EmbeddedKey | und
     obj.splice(index, 1);
     return;
   }
-  delete (obj as Record<string | number, unknown>)[key as any];
+  const objRecord = obj as Record<string | number, unknown>;
+  delete objRecord[key as string | number];
 }
 
 export const modifyKeyValue = (obj: any, key: JsonKey, value: unknown) => {
-  (obj as Record<string | number, unknown>)[key as any] = value;
+  const objRecord = obj as Record<string | number, unknown>;
+  objRecord[key as string | number] = value;
   return obj;
 };

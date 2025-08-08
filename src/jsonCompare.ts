@@ -29,13 +29,15 @@ const enrich = (object: any): IComparisonEnrichedNode => {
           accumulator.value[entry.key] = entry.value;
           return accumulator;
         }, createContainer({}));
-    case 'Array':
-      return (object as any[])
+    case 'Array': {
+      const array = object as unknown[];
+      return array
         .map((value) => enrich(value))
         .reduce((accumulator, value) => {
           accumulator.value.push(value);
           return accumulator;
         }, createContainer([]));
+    }
     case 'Function':
       return undefined;
     case 'Date':

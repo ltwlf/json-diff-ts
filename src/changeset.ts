@@ -1,4 +1,4 @@
-import type { Changeset, IChange, Operation, EmbeddedKey } from './types.js';
+import type { Changeset, IChange, Operation, EmbeddedKey, JsonKey } from './types.js';
 import { addKeyValue, removeKey, moveArrayElement, modifyKeyValue } from './array-utils.js';
 import { assertNever } from './path-utils.js';
 
@@ -19,9 +19,10 @@ export function applyChangeset(obj: any, changeset: Changeset): any {
   for (const change of changeset) {
     const { embeddedKey } = change;
     if (isLeafChange(change)) {
-      applyLeafChange(obj as any, change, embeddedKey);
+      applyLeafChange(obj, change, embeddedKey);
     } else {
-      applyBranchChange((obj as any)[change.key as any], change);
+      const objRecord = obj as Record<string | number, unknown>;
+      applyBranchChange(objRecord[change.key as string | number], change);
     }
   }
   return obj;
@@ -38,12 +39,28 @@ export function revertChangeset(obj: any, changeset: Changeset): any {
   // Important: do NOT mutate the caller's array.
   for (const change of [...changeset].reverse()) {
     if (!change.changes || (change.value === null && change.type === 'REMOVE' as Operation)) {
-      revertLeafChange(obj as any, change);
+      revertLeafChange(obj, change);
     } else {
-      revertBranchChange((obj as any)[change.key as any], change);
+      const objRecord = obj as Record<string | number, unknown>;
+      revertBranchChange(objRecord[change.key as string | number], change);
     }
   }
   return obj;
+}
+
+/* =======================
+ * Utility Functions
+ * ======================= */
+
+export function findArrayElement(arr: any[], key: JsonKey, embeddedKey?: EmbeddedKey): any {
+  if (embeddedKey === '$index') {
+    return arr[key as number];
+  } else if (embeddedKey === '$value') {
+    const index = arr.indexOf(key);
+    return index !== -1 ? arr[index] : undefined;
+  } else {
+    return arr.find((el: any) => el?.[embeddedKey as string]?.toString() === key.toString());
+  }
 }
 
 /* =======================
@@ -61,20 +78,24 @@ export function isLeafChange(change: IChange): boolean {
   );
 }
 
+// Operation handlers for apply operations
+const applyOperationHandlers = {
+  'ADD': (obj: any, change: IChange, embeddedKey?: EmbeddedKey) => 
+    addKeyValue(obj, change.key, change.value, embeddedKey),
+  'UPDATE': (obj: any, change: IChange) => 
+    modifyKeyValue(obj, change.key, change.value),
+  'REMOVE': (obj: any, change: IChange, embeddedKey?: EmbeddedKey) => 
+    removeKey(obj, change.key, embeddedKey),
+  'MOVE': (obj: any, change: IChange, embeddedKey?: EmbeddedKey) => 
+    moveArrayElement(obj, change.key, change.oldIndex, change.newIndex, embeddedKey)
+} as const;
+
 export function applyLeafChange(obj: any, change: IChange, embeddedKey: EmbeddedKey | undefined) {
-  const { type, key, value, oldIndex, newIndex } = change;
-  switch (type) {
-    case 'ADD' as Operation:
-      return addKeyValue(obj, key, value, embeddedKey);
-    case 'UPDATE' as Operation:
-      return modifyKeyValue(obj, key, value);
-    case 'REMOVE' as Operation:
-      return removeKey(obj, key, embeddedKey);
-    case 'MOVE' as Operation:
-      return moveArrayElement(obj, key, oldIndex, newIndex, embeddedKey);
-    default:
-      assertNever(type as never);
+  const handler = applyOperationHandlers[change.type as keyof typeof applyOperationHandlers];
+  if (!handler) {
+    assertNever(change.type as never);
   }
+  return handler(obj, change, embeddedKey);
 }
 
 export function applyArrayChange(arr: any[], change: IChange) {
@@ -94,15 +115,7 @@ export function applyArrayChange(arr: any[], change: IChange) {
     if (isLeafChange(sub)) {
       applyLeafChange(arr, sub, change.embeddedKey);
     } else {
-      let element: any;
-      if (change.embeddedKey === '$index') {
-        element = arr[sub.key as number];
-      } else if (change.embeddedKey === '$value') {
-        const index = arr.indexOf(sub.key);
-        if (index !== -1) element = arr[index];
-      } else {
-        element = arr.find((el: any) => el?.[change.embeddedKey as string]?.toString() === sub.key.toString());
-      }
+      const element = findArrayElement(arr, sub.key, change.embeddedKey);
       if (element) applyChangeset(element, sub.changes!);
     }
   }
@@ -115,54 +128,60 @@ export function applyBranchChange(obj: any, change: IChange) {
 }
 
 export function clearObject(target: any) {
-  for (const prop of Object.keys(target)) delete (target as any)[prop];
+  const targetRecord = target as Record<string, unknown>;
+  for (const prop of Object.keys(target)) delete targetRecord[prop];
 }
+
+// Root operation handlers for revert operations
+const revertRootOperationHandlers = {
+  'ADD': (obj: any) => {
+    clearObject(obj);
+    return obj;
+  },
+  'UPDATE': (obj: any, change: IChange) => {
+    clearObject(obj);
+    if (change.oldValue && typeof change.oldValue === 'object') Object.assign(obj, change.oldValue);
+    return obj;
+  },
+  'REMOVE': (obj: any, change: IChange) => {
+    if (change.value && typeof change.value === 'object') Object.assign(obj, change.value);
+    return obj;
+  },
+  'MOVE': (obj: any) => obj // not meaningful at root
+} as const;
+
+// Regular operation handlers for revert operations  
+const revertOperationHandlers = {
+  'ADD': (obj: any, change: IChange, embeddedKey?: EmbeddedKey) => 
+    removeKey(obj, change.key, embeddedKey),
+  'UPDATE': (obj: any, change: IChange) => 
+    modifyKeyValue(obj, change.key, change.oldValue),
+  'REMOVE': (obj: any, change: IChange, embeddedKey?: EmbeddedKey) => 
+    addKeyValue(obj, change.key, change.value, embeddedKey),
+  'MOVE': (obj: any, change: IChange, embeddedKey?: EmbeddedKey) => 
+    moveArrayElement(obj, change.key, change.newIndex, change.oldIndex, embeddedKey)
+} as const;
 
 export function revertLeafChange(
   obj: any,
   change: IChange,
   embeddedKey: EmbeddedKey = '$index'
 ) {
-  const { type, key, value, oldValue, oldIndex, newIndex } = change;
-
   // Special handling for $root key
-  if (key === '$root') {
-    switch (type) {
-      case 'ADD' as Operation: {
-        clearObject(obj);
-        return obj;
-      }
-      case 'UPDATE' as Operation: {
-        clearObject(obj);
-        if (oldValue && typeof oldValue === 'object') Object.assign(obj, oldValue);
-        return obj;
-      }
-      case 'REMOVE' as Operation: {
-        if (value && typeof value === 'object') Object.assign(obj, value);
-        return obj;
-      }
-      case 'MOVE' as Operation: {
-        return obj; // not meaningful at root
-      }
-      default:
-        assertNever(type as never);
+  if (change.key === '$root') {
+    const handler = revertRootOperationHandlers[change.type as keyof typeof revertRootOperationHandlers];
+    if (!handler) {
+      assertNever(change.type as never);
     }
+    return handler(obj, change);
   }
 
   // Regular properties
-  switch (type) {
-    case 'ADD' as Operation:
-      return removeKey(obj, key, embeddedKey);
-    case 'UPDATE' as Operation:
-      return modifyKeyValue(obj, key, oldValue);
-    case 'REMOVE' as Operation:
-      return addKeyValue(obj, key, value);
-    case 'MOVE' as Operation:
-      // Revert move: move back from newIndex to oldIndex
-      return moveArrayElement(obj, key, newIndex, oldIndex, embeddedKey);
-    default:
-      assertNever(type as never);
+  const handler = revertOperationHandlers[change.type as keyof typeof revertOperationHandlers];
+  if (!handler) {
+    assertNever(change.type as never);
   }
+  return handler(obj, change, embeddedKey);
 }
 
 export function revertArrayChange(arr: any[], change: IChange) {
@@ -170,15 +189,7 @@ export function revertArrayChange(arr: any[], change: IChange) {
     if (isLeafChange(sub)) {
       revertLeafChange(arr, sub, change.embeddedKey as EmbeddedKey);
     } else {
-      let element: any;
-      if (change.embeddedKey === '$index') {
-        element = arr[Number(sub.key)];
-      } else if (change.embeddedKey === '$value') {
-        const index = arr.indexOf(sub.key);
-        if (index !== -1) element = arr[index];
-      } else {
-        element = arr.find((el: any) => el?.[change.embeddedKey as string]?.toString() === sub.key.toString());
-      }
+      const element = findArrayElement(arr, sub.key, change.embeddedKey);
       if (element) revertChangeset(element, sub.changes ?? []);
     }
   }

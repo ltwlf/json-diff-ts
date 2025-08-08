@@ -32,7 +32,7 @@ export function applyChangeset(obj: any, changeset: Changeset): any {
       if (!isRecord(obj)) {
         throw new TypeError('Expected obj to be a non-null object when applying branch change');
       }
-      applyBranchChange(obj[change.key as string | number], change);
+      applyBranchChange(obj[change.key], change);
     }
   }
   return obj;
@@ -54,7 +54,7 @@ export function revertChangeset(obj: any, changeset: Changeset): any {
       if (!isRecord(obj)) {
         throw new TypeError('Expected obj to be a non-null object when reverting branch change');
       }
-      revertBranchChange(obj[change.key as string | number], change);
+      revertBranchChange(obj[change.key], change);
     }
   }
   return obj;

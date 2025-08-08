@@ -32,24 +32,9 @@ export function atomizeChangeset(
   const valueType = getTypeOfObj(obj.value);
   let finalPath = path;
 
-function isSpecialTestPath(path: string): boolean {
-  return path === '$[a.b]' || 
-         path === '$.a' || 
-         path.includes('items') || 
-         path.includes('$.a[?(@[c.d]');
-}
-
-function shouldAppendKey(path: string, key: JsonKey, valueType: string): boolean {
+function shouldAppendKey(path: string, key: JsonKey): boolean {
   // Check if path already ends with the key
   if (path.endsWith(`[${String(key)}]`)) {
-    return false;
-  }
-
-  const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
-  const isSpecialTestCase = isTestEnv && isSpecialTestPath(path);
-
-  // For object values we still append the key (fix for issue #184)
-  if (isSpecialTestCase && valueType !== 'Object') {
     return false;
   }
 
@@ -57,7 +42,7 @@ function shouldAppendKey(path: string, key: JsonKey, valueType: string): boolean
   return !jsonPathEndsWithFilterValue(path, key);
 }
 
-  if (shouldAppendKey(path, obj.key, valueType)) {
+  if (shouldAppendKey(path, obj.key)) {
     finalPath = append(path, obj.key);
   }
 

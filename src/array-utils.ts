@@ -43,7 +43,9 @@ export function convertArrayToObj(arr: any[], uniqKey: EmbeddedKey) {
   if (uniqKey === '$value') {
     for (const value of arr) obj[value] = value;
   } else if (uniqKey !== '$index') {
-    const keyFunction = typeof uniqKey === 'string' ? (item: unknown) => (item as Record<string, unknown>)?.[uniqKey] : uniqKey;
+    const keyFunction = typeof uniqKey === 'string' 
+      ? (item: unknown) => (item as Record<string, unknown>)?.[uniqKey] 
+      : uniqKey;
     obj = keyBy(arr, keyFunction);
   } else {
     for (let i = 0; i < arr.length; i++) obj[i] = arr[i];
@@ -54,7 +56,9 @@ export function convertArrayToObj(arr: any[], uniqKey: EmbeddedKey) {
 export function indexOfItemInArray(arr: any[], key: EmbeddedKey, value: unknown): number {
   if (key === '$value') return arr.indexOf(value);
 
-  const keyFunction = typeof key === 'string' ? (item: unknown) => (item as Record<string, unknown>)?.[key] : (key as FunctionKey);
+  const keyFunction = typeof key === 'string' 
+    ? (item: unknown) => (item as Record<string, unknown>)?.[key] 
+    : (key as FunctionKey);
 
   for (let i = 0; i < arr.length; i++) {
     const candidate = keyFunction(arr[i]);

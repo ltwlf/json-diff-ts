@@ -66,7 +66,13 @@ export function trimLeadingDots(
  * Core Comparison Functions
  * ======================= */
 
-function handleTypeChange(oldObj: unknown, newObj: unknown, path: KeySeg[], typeOfOldObj: string, typeOfNewObj: string): IChange[] {
+function handleTypeChange(
+  oldObj: unknown, 
+  newObj: unknown, 
+  path: KeySeg[], 
+  typeOfOldObj: string, 
+  typeOfNewObj: string
+): IChange[] {
   const changes: IChange[] = [];
   
   if (typeOfOldObj !== 'undefined') {

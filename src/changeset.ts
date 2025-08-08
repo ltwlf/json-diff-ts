@@ -98,17 +98,26 @@ export function applyLeafChange(obj: any, change: IChange, embeddedKey: Embedded
   return handler(obj, change, embeddedKey);
 }
 
+function sortChangesForIndexRemoval(changes: IChange[]): IChange[] {
+  return [...changes].sort((a, b) => {
+    const aIsRemove = a.type === 'REMOVE' as Operation;
+    const bIsRemove = b.type === 'REMOVE' as Operation;
+    
+    if (aIsRemove && bIsRemove) {
+      return Number(b.key) - Number(a.key); // Sort removes in descending order
+    }
+    if (aIsRemove) return -1; // Removes first
+    if (bIsRemove) return 1;  // Then other operations
+    return Number(a.key) - Number(b.key); // Regular order for others
+  });
+}
+
 export function applyArrayChange(arr: any[], change: IChange) {
   let changes = change.changes ?? [];
 
   // For $index removal, process from the end to avoid index shifts.
   if (change.embeddedKey === '$index') {
-    changes = [...changes].sort((a, b) => {
-      if (a.type === 'REMOVE' as Operation && b.type === 'REMOVE' as Operation) return Number(b.key) - Number(a.key);
-      if (a.type === 'REMOVE' as Operation) return -1;
-      if (b.type === 'REMOVE' as Operation) return 1;
-      return Number(a.key) - Number(b.key);
-    });
+    changes = sortChangesForIndexRemoval(changes);
   }
 
   for (const sub of changes) {

@@ -6,7 +6,8 @@ type EmbeddedObjKeysMapType = Map<string | RegExp, string | FunctionKey>;
 enum Operation {
   REMOVE = 'REMOVE',
   ADD = 'ADD',
-  UPDATE = 'UPDATE'
+  UPDATE = 'UPDATE',
+  MOVE = 'MOVE'
 }
 
 interface IChange {
@@ -15,6 +16,8 @@ interface IChange {
   embeddedKey?: string | FunctionKey;
   value?: any;
   oldValue?: any;
+  oldIndex?: number; // For MOVE operations - original position
+  newIndex?: number; // For MOVE operations - new position  
   changes?: IChange[];
 }
 type Changeset = IChange[];
@@ -26,12 +29,15 @@ interface IAtomicChange {
   valueType: string | null;
   value?: any;
   oldValue?: any;
+  oldIndex?: number; // For MOVE operations - original position
+  newIndex?: number; // For MOVE operations - new position
 }
 
 interface Options {
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
   keysToSkip?: string[];
   treatTypeChangeAsReplace?: boolean;
+  detectArrayMoves?: boolean;
 }
 
 /**
@@ -44,7 +50,7 @@ interface Options {
  */
 function diff(oldObj: any, newObj: any, options: Options = {}): IChange[] {
   let { embeddedObjKeys } = options;
-  const { keysToSkip, treatTypeChangeAsReplace } = options;
+  const { keysToSkip, treatTypeChangeAsReplace, detectArrayMoves } = options;
 
   // Trim leading '.' from keys in embeddedObjKeys
   if (embeddedObjKeys instanceof Map) {
@@ -64,7 +70,8 @@ function diff(oldObj: any, newObj: any, options: Options = {}): IChange[] {
   return compare(oldObj, newObj, [], [], {
     embeddedObjKeys,
     keysToSkip: keysToSkip ?? [],
-    treatTypeChangeAsReplace: treatTypeChangeAsReplace ?? true
+    treatTypeChangeAsReplace: treatTypeChangeAsReplace ?? true,
+    detectArrayMoves: detectArrayMoves ?? false
   });
 }
 
@@ -265,6 +272,10 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
       ptr.type = change.type;
       ptr.value = change.value;
       ptr.oldValue = change.oldValue;
+      if (change.type === Operation.MOVE) {
+        ptr.oldIndex = change.oldIndex;
+        ptr.newIndex = change.newIndex;
+      }
       changesArr.push(ptr);
     } else {
       for (let i = 1; i < segments.length; i++) {
@@ -295,7 +306,8 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
                 type: change.type,
                 key: arrKey!,
                 value: change.value,
-                oldValue: change.oldValue
+                oldValue: change.oldValue,
+                ...(change.type === Operation.MOVE && { oldIndex: change.oldIndex, newIndex: change.newIndex })
               } as IChange
             ];
           } else {
@@ -321,6 +333,10 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
             ptr.type = change.type;
             ptr.value = change.value;
             ptr.oldValue = change.oldValue;
+            if (change.type === Operation.MOVE) {
+              ptr.oldIndex = change.oldIndex;
+              ptr.newIndex = change.newIndex;
+            }
           } else {
             // branch
             ptr.key = segment;
@@ -570,13 +586,22 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
   const indexedNewObj = convertArrayToObj(newObj, uniqKey);
   const diffs = compareObject(indexedOldObj, indexedNewObj, path, keyPath, true, options);
-  if (diffs.length) {
+  
+  // Detect moves when using embedded keys and detectArrayMoves is enabled
+  let moveDiffs: any[] = [];
+  if (options.detectArrayMoves && uniqKey !== '$index' && left != null) {
+    moveDiffs = detectArrayMoves(oldObj, newObj, uniqKey);
+  }
+  
+  const allDiffs = [...diffs, ...moveDiffs];
+  
+  if (allDiffs.length) {
     return [
       {
         type: Operation.UPDATE,
         key: getKey(path),
         embeddedKey: typeof uniqKey === 'function' && uniqKey.length === 2 ? uniqKey(newObj[0], true) : uniqKey,
-        changes: diffs
+        changes: allDiffs
       }
     ];
   } else {
@@ -606,6 +631,46 @@ const getObjectKey = (embeddedObjKeys: any, keyPath: any) => {
     }
   }
   return undefined;
+};
+
+const detectArrayMoves = (oldArray: any[], newArray: any[], uniqKey: any) => {
+  const moves: any[] = [];
+  
+  // Get the key function for consistent element identification
+  const keyFunction = typeof uniqKey === 'string' ? (item: any) => item[uniqKey] : uniqKey;
+  
+  // Create maps of key to index for both arrays
+  const oldIndexMap = new Map();
+  const newIndexMap = new Map();
+  
+  oldArray.forEach((item, index) => {
+    const key = keyFunction(item);
+    oldIndexMap.set(key, index);
+  });
+  
+  newArray.forEach((item, index) => {
+    const key = keyFunction(item);
+    newIndexMap.set(key, index);
+  });
+  
+  // Find elements that exist in both arrays but have different positions
+  for (const [key, newIndex] of newIndexMap) {
+    if (oldIndexMap.has(key)) {
+      const oldIndex = oldIndexMap.get(key);
+      if (oldIndex !== newIndex) {
+        // This element has moved
+        moves.push({
+          type: Operation.MOVE,
+          key: key,
+          oldIndex: oldIndex,
+          newIndex: newIndex,
+          value: newArray[newIndex]
+        });
+      }
+    }
+  }
+  
+  return moves;
 };
 
 const convertArrayToObj = (arr: any[], uniqKey: any) => {
@@ -673,6 +738,37 @@ const indexOfItemInArray = (arr: any[], key: any, value: any) => {
 };
 
 const modifyKeyValue = (obj: any, key: any, value: any) => (obj[key] = value);
+
+const moveArrayElement = (arr: any[], key: any, oldIndex: number, newIndex: number, embeddedKey: any) => {
+  if (!Array.isArray(arr)) {
+    return;
+  }
+  
+  // Find the element to move
+  let elementIndex = -1;
+  if (embeddedKey === '$index') {
+    elementIndex = oldIndex;
+  } else if (embeddedKey === '$value') {
+    elementIndex = arr.indexOf(key);
+  } else {
+    elementIndex = arr.findIndex(item => {
+      const keyFunction = typeof embeddedKey === 'string' ? (item: any) => item[embeddedKey] : embeddedKey;
+      return keyFunction(item)?.toString() === key.toString();
+    });
+  }
+  
+  if (elementIndex === -1) {
+    console.warn(`Element with key '${key}' not found for MOVE operation`);
+    return;
+  }
+  
+  // Remove element from old position and insert at new position
+  const element = arr.splice(elementIndex, 1)[0];
+  arr.splice(newIndex, 0, element);
+  
+  return arr;
+};
+
 const addKeyValue = (obj: any, key: any, value: any, embeddedKey?: any) => {
   if (Array.isArray(obj)) {
     if (embeddedKey === '$index') {
@@ -686,7 +782,7 @@ const addKeyValue = (obj: any, key: any, value: any, embeddedKey?: any) => {
 };
 
 const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
-  const { type, key, value } = change;
+  const { type, key, value, oldIndex, newIndex } = change;
   switch (type) {
     case Operation.ADD:
       return addKeyValue(obj, key, value, embeddedKey);
@@ -694,6 +790,8 @@ const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
       return modifyKeyValue(obj, key, value);
     case Operation.REMOVE:
       return removeKey(obj, key, embeddedKey);
+    case Operation.MOVE:
+      return moveArrayElement(obj, key, oldIndex, newIndex, embeddedKey);
   }
 };
 
@@ -725,6 +823,7 @@ const applyArrayChange = (arr: any[], change: any) => {
       (subchange.value !== null && subchange.value !== undefined) ||
       subchange.type === Operation.REMOVE ||
       (subchange.value === null && subchange.type === Operation.ADD) ||
+      subchange.type === Operation.MOVE ||
       (subchange.value === undefined && subchange.type === Operation.ADD)
     ) {
       applyLeafChange(arr, subchange, change.embeddedKey);
@@ -757,7 +856,7 @@ const applyBranchChange = (obj: any, change: any) => {
 };
 
 const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
-  const { type, key, value, oldValue } = change;
+  const { type, key, value, oldValue, oldIndex, newIndex } = change;
   
   // Special handling for $root key
   if (key === '$root') {
@@ -798,6 +897,9 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
       return modifyKeyValue(obj, key, oldValue);
     case Operation.REMOVE:
       return addKeyValue(obj, key, value);
+    case Operation.MOVE:
+      // Revert move by moving from newIndex back to oldIndex
+      return moveArrayElement(obj, key, newIndex, oldIndex, embeddedKey);
   }
 };
 
@@ -813,7 +915,7 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
  */
 const revertArrayChange = (arr: any[], change: any) => {
   for (const subchange of change.changes) {
-    if (subchange.value != null || subchange.type === Operation.REMOVE) {
+    if (subchange.value != null || subchange.type === Operation.REMOVE || subchange.type === Operation.MOVE) {
       revertLeafChange(arr, subchange, change.embeddedKey);
     } else {
       let element;

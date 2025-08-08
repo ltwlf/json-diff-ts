@@ -193,6 +193,58 @@ import { diff } from 'json-diff-ts';
 const diffs = diff(oldData, newData, { embeddedObjKeys: { equipment: '$value' } });
 ```
 
+##### Array Move Detection
+
+When working with arrays that have embedded object keys, you can enable detection of element reordering as MOVE operations:
+
+```javascript
+import { diff } from 'json-diff-ts';
+
+const before = {
+  users: [
+    { id: 1, name: 'Alice' },
+    { id: 2, name: 'Bob' },
+    { id: 3, name: 'Charlie' }
+  ]
+};
+
+const after = {
+  users: [
+    { id: 2, name: 'Bob' },
+    { id: 3, name: 'Charlie' },
+    { id: 1, name: 'Alice' }
+  ]
+};
+
+// Without move detection (default behavior)
+const diffsNoMoves = diff(before, after, { embeddedObjKeys: { users: 'id' } });
+console.log(diffsNoMoves); // [] - no changes detected since elements are unchanged
+
+// With move detection enabled
+const diffsWithMoves = diff(before, after, { 
+  embeddedObjKeys: { users: 'id' },
+  detectArrayMoves: true 
+});
+console.log(diffsWithMoves);
+// [
+//   {
+//     type: 'UPDATE',
+//     key: 'users',
+//     embeddedKey: 'id',
+//     changes: [
+//       { type: 'MOVE', key: 2, oldIndex: 1, newIndex: 0, value: { id: 2, name: 'Bob' } },
+//       { type: 'MOVE', key: 3, oldIndex: 2, newIndex: 1, value: { id: 3, name: 'Charlie' } },
+//       { type: 'MOVE', key: 1, oldIndex: 0, newIndex: 2, value: { id: 1, name: 'Alice' } }
+//     ]
+//   }
+// ]
+```
+
+This feature is particularly useful for:
+- **UI reordering**: Drag-and-drop interfaces, sortable lists
+- **Priority changes**: Task lists, menu items
+- **Data synchronization**: Tracking positional changes in ordered collections
+
 ### `atomizeChangeset` and `unatomizeChangeset`
 
 Transform complex changesets into a list of atomic changes (and back), each describable by a JSONPath.
@@ -290,6 +342,7 @@ interface Options {
   embeddedObjKeys?: Record<string, string | Function> | Map<string | RegExp, string | Function>;
   keysToSkip?: string[];
   treatTypeChangeAsReplace?: boolean;
+  detectArrayMoves?: boolean;
 }
 ```
 
@@ -298,6 +351,7 @@ interface Options {
 | `embeddedObjKeys` | `Record<string, string | Function>` or `Map<string | RegExp, string | Function>` | Map paths of arrays to a key or resolver function used to match elements when diffing. Use a `Map` for regex paths. |
 | `keysToSkip` | `string[]` | Dotted paths to exclude from comparison, e.g. `"meta.info"`. |
 | `treatTypeChangeAsReplace` | `boolean` | When `true` (default), a type change results in a REMOVE/ADD pair. Set to `false` to treat it as an UPDATE. |
+| `detectArrayMoves` | `boolean` | When `true`, detect array element reordering as MOVE operations. Only works with `embeddedObjKeys`. Default: `false`. |
 
 ### Change Types
 
@@ -305,7 +359,8 @@ interface Options {
 enum Operation {
   REMOVE = 'REMOVE',
   ADD = 'ADD', 
-  UPDATE = 'UPDATE'
+  UPDATE = 'UPDATE',
+  MOVE = 'MOVE'
 }
 ```
 
@@ -338,6 +393,8 @@ enum Operation {
 - **v4.0.0:** Changed naming of flattenChangeset and unflattenChanges to atomizeChangeset and unatomizeChangeset; added option to set treatTypeChangeAsReplace
 - **v3.0.1:** Fixed issue with unflattenChanges when a key has periods
 - **v3.0.0:** Added support for both CommonJS and ECMAScript Modules. Replaced lodash-es with lodash to support both module formats
+- **v5.0.0-alpha.1:** Added MOVE operation for array reordering detection with embeddedObjKeys. New `detectArrayMoves` option enables tracking of element position changes within arrays when using key-based identification. Fully backward compatible.
+- **v4.8.2:** Latest stable release  
 - **v2.2.0:** Fixed lodash-es dependency, added exclude keys option, added string array comparison by value
 - **v2.1.0:** Fixed JSON Path filters by replacing single equal sign (=) with double equal sign (==). Added support for using '.' as root in paths
 - **v2.0.0:** Upgraded to ECMAScript module format with optimizations and improved documentation. Fixed regex path handling (breaking change: now requires Map instead of Record for regex paths)

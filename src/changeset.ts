@@ -3,6 +3,14 @@ import { addKeyValue, removeKey, moveArrayElement, modifyKeyValue } from './arra
 import { assertNever } from './path-utils.js';
 
 /* =======================
+ * Type Guards
+ * ======================= */
+
+function isRecord(obj: unknown): obj is Record<string | number, unknown> {
+  return obj !== null && typeof obj === 'object' && !Array.isArray(obj);
+}
+
+/* =======================
  * Changeset Operations
  * ======================= */
 
@@ -21,8 +29,10 @@ export function applyChangeset(obj: any, changeset: Changeset): any {
     if (isLeafChange(change)) {
       applyLeafChange(obj, change, embeddedKey);
     } else {
-      const objRecord = obj as Record<string | number, unknown>;
-      applyBranchChange(objRecord[change.key as string | number], change);
+      if (!isRecord(obj)) {
+        throw new TypeError('Expected obj to be a non-null object when applying branch change');
+      }
+      applyBranchChange(obj[change.key], change);
     }
   }
   return obj;
@@ -41,8 +51,10 @@ export function revertChangeset(obj: any, changeset: Changeset): any {
     if (!change.changes || (change.value === null && change.type === 'REMOVE' as Operation)) {
       revertLeafChange(obj, change);
     } else {
-      const objRecord = obj as Record<string | number, unknown>;
-      revertBranchChange(objRecord[change.key as string | number], change);
+      if (!isRecord(obj)) {
+        throw new TypeError('Expected obj to be a non-null object when reverting branch change');
+      }
+      revertBranchChange(obj[change.key], change);
     }
   }
   return obj;
@@ -137,8 +149,13 @@ export function applyBranchChange(obj: any, change: IChange) {
 }
 
 export function clearObject(target: any) {
-  const targetRecord = target as Record<string, unknown>;
-  for (const prop of Object.keys(target)) delete targetRecord[prop];
+  if (!isRecord(target)) {
+    throw new TypeError('Expected target to be a non-null object when clearing');
+  }
+  // Clear all enumerable own properties - this is the standard and efficient way
+  for (const prop of Object.keys(target)) {
+    delete target[prop];
+  }
 }
 
 // Root operation handlers for revert operations

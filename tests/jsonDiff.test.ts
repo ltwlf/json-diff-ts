@@ -55,6 +55,36 @@ describe('jsonDiff#diff', () => {
     expect(diffs).toMatchSnapshot();
   });
 
+  it('returns correct diff when key function uses index parameter', () => {
+    const oldRebels = {
+      rebels: [
+        { name: 'Luke Skywalker', faction: 'Jedi' },
+        { name: 'Yoda', faction: 'Jedi' },
+        { name: 'Princess Leia', faction: 'Rebellion' }
+      ]
+    };
+
+    const newRebels = {
+      rebels: [
+        { name: 'Luke Skywalker', faction: 'Jedi' },
+        { name: 'Master Yoda', faction: 'Jedi' },  // name changed
+        { name: 'General Leia', faction: 'Rebellion' }  // name changed
+      ]
+    };
+
+    const diffs = diff(oldRebels, newRebels, {
+      embeddedObjKeys: {
+        rebels: (obj: { faction: string }, shouldReturnKeyName: boolean, index?: number) => {
+          if (shouldReturnKeyName) return 'faction';
+          // Use index to differentiate rebels in the same faction
+          return `faction.${obj.faction}.${index}`;
+        }
+      }
+    });
+
+    expect(diffs).toMatchSnapshot();
+  });
+
   it('returns correct diff for object without keys to skip', () => {
     const keyToSkip = '@_index';
     oldObj[keyToSkip] = 'This should be ignored';

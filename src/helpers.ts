@@ -1,3 +1,5 @@
+export type FunctionKey<T = any> = (obj: T, shouldReturnKeyName?: boolean, index?: number) => any;
+
 export function splitJSONPath(path: string): string[] {
     const parts: string[] = [];
     let currentPart = '';
@@ -46,10 +48,10 @@ export function arrayIntersection<T>(first: T[], second: T[]): T[] {
     return first.filter(item => secondSet.has(item));
 }
 
-export function keyBy<T>(arr: T[], getKey: (item: T) => any): Record<string, T> {
+export function keyBy<T>(arr: T[], getKey: FunctionKey<T>): Record<string, T> {
     const result: Record<string, T> = {};
-    for (const item of arr) {
-        result[String(getKey(item))] = item;
+    for (const [index, item] of Object.entries(arr)) {
+        result[String(getKey(item, false, Number(index)))] = item;
     }
     return result;
 }

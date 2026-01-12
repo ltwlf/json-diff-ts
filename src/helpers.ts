@@ -46,10 +46,10 @@ export function arrayIntersection<T>(first: T[], second: T[]): T[] {
     return first.filter(item => secondSet.has(item));
 }
 
-export function keyBy<T>(arr: T[], getKey: (item: T) => any): Record<string, T> {
+export function keyBy<T>(arr: T[], getKey: (item: T, index: number) => any): Record<string, T> {
     const result: Record<string, T> = {};
-    for (const item of arr) {
-        result[String(getKey(item))] = item;
+    for (const [index, item] of Object.entries(arr)) {
+        result[String(getKey(item, Number(index)))] = item;
     }
     return result;
 }

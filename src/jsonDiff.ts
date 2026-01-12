@@ -1,6 +1,6 @@
 import { arrayDifference as difference, arrayIntersection as intersection, keyBy, splitJSONPath } from './helpers.js';
 
-type FunctionKey = (obj: any, shouldReturnKeyName?: boolean) => any;
+type FunctionKey = (obj: any, index: number) => any;
 type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
 type EmbeddedObjKeysMapType = Map<string | RegExp, string | FunctionKey>;
 enum Operation {

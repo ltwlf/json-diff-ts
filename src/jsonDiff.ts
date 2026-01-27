@@ -185,7 +185,7 @@ const atomizeChangeset = (
             const filterValue = path
               .slice(filterStartIdx + 2, filterEndIdx)
               // Remove single quotes at the start or end of the filter value
-              .replace(/(^'|'$)/g, '');
+              .replaceAll(/(^'|'$)/g, '');
             endsWithFilterValue = filterValue === String(obj.key);
           }
         }
@@ -347,7 +347,7 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
  * The type is extracted from the string returned by Object.prototype.toString using a regular expression.
  */
 const getTypeOfObj = (obj: any) => {
-  if (typeof obj === 'undefined') {
+  if (obj === undefined) {
     return 'undefined';
   }
 
@@ -360,8 +360,8 @@ const getTypeOfObj = (obj: any) => {
 };
 
 const getKey = (path: string) => {
-  const left = path[path.length - 1];
-  return left != null ? left : '$root';
+  const left = path.at(-1);
+  return left ?? '$root';
 };
 
 const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Options) => {
@@ -565,7 +565,7 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   }
 
   const left = getObjectKey(options.embeddedObjKeys, keyPath);
-  const uniqKey = left != null ? left : '$index';
+  const uniqKey = left ?? '$index';
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
   const indexedNewObj = convertArrayToObj(newObj, uniqKey);
   const diffs = compareObject(indexedOldObj, indexedNewObj, path, keyPath, true, options);
@@ -613,15 +613,15 @@ const convertArrayToObj = (arr: any[], uniqKey: any) => {
     arr.forEach((value) => {
       obj[value] = value;
     });
-  } else if (uniqKey !== '$index') {
-    // Convert string keys to functions for compatibility with es-toolkit keyBy
-    const keyFunction = typeof uniqKey === 'string' ? (item: any) => item[uniqKey] : uniqKey;
-    obj = keyBy(arr, keyFunction);
-  } else {
+  } else if (uniqKey === '$index') {
     for (let i = 0; i < arr.length; i++) {
       const value = arr[i];
       obj[i] = value;
     }
+  } else {
+    // Convert string keys to functions for compatibility with es-toolkit keyBy
+    const keyFunction = typeof uniqKey === 'string' ? (item: any) => item[uniqKey] : uniqKey;
+    obj = keyBy(arr, keyFunction);
   }
   return obj;
 };
@@ -651,7 +651,7 @@ const removeKey = (obj: any, key: any, embeddedKey: any) => {
       console.warn(`Element with the key '${embeddedKey}' and value '${key}' could not be found in the array'`);
       return;
     }
-    return obj.splice(index != null ? index : key, 1);
+    return obj.splice(index ?? key, 1);
   } else {
     delete obj[key];
     return;

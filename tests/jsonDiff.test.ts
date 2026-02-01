@@ -55,6 +55,36 @@ describe('jsonDiff#diff', () => {
     expect(diffs).toMatchSnapshot();
   });
 
+  it('returns correct diff when key function uses index parameter', () => {
+    const oldRebels = {
+      rebels: [
+        { name: 'Luke Skywalker', faction: 'Jedi' },
+        { name: 'Yoda', faction: 'Jedi' },
+        { name: 'Princess Leia', faction: 'Rebellion' }
+      ]
+    };
+
+    const newRebels = {
+      rebels: [
+        { name: 'Luke Skywalker', faction: 'Jedi' },
+        { name: 'Master Yoda', faction: 'Jedi' },  // name changed
+        { name: 'General Leia', faction: 'Rebellion' }  // name changed
+      ]
+    };
+
+    const diffs = diff(oldRebels, newRebels, {
+      embeddedObjKeys: {
+        rebels: (obj: { faction: string }, shouldReturnKeyName: boolean, index?: number) => {
+          if (shouldReturnKeyName) return 'faction';
+          // Use index to differentiate rebels in the same faction
+          return `faction.${obj.faction}.${index}`;
+        }
+      }
+    });
+
+    expect(diffs).toMatchSnapshot();
+  });
+
   it('returns correct diff for object without keys to skip', () => {
     const keyToSkip = '@_index';
     oldObj[keyToSkip] = 'This should be ignored';
@@ -193,13 +223,13 @@ describe('jsonDiff#applyChangeset', () => {
     const base = { xyz: [1, 2, 3] };
 
     const resultNull = applyChangeset(
-      JSON.parse(JSON.stringify(base)),
+      structuredClone(base),
       diff(base, { xyz: [null, 2, 3] })
     );
     expect(resultNull).toEqual({ xyz: [null, 2, 3] });
 
     const resultUndefined = applyChangeset(
-      JSON.parse(JSON.stringify(base)),
+      structuredClone(base),
       diff(base, { xyz: [1, undefined, 3] })
     );
     expect(resultUndefined).toEqual({ xyz: [1, undefined, 3] });
@@ -209,7 +239,7 @@ describe('jsonDiff#applyChangeset', () => {
     // Test case 1: undefined at beginning of array
     const base1 = { xyz: [1, 2, 3] };
     const target1: { xyz: (number | undefined)[] } = { xyz: [undefined, 2, 3] };
-    const result1 = applyChangeset(JSON.parse(JSON.stringify(base1)), diff(base1, target1));
+    const result1 = applyChangeset(structuredClone(base1), diff(base1, target1));
     expect(result1.xyz.length).toBe(3);
     expect(result1.xyz[0]).toBeUndefined();
     expect(result1.xyz[1]).toBe(2);
@@ -218,7 +248,7 @@ describe('jsonDiff#applyChangeset', () => {
     // Test case 2: undefined in middle of array
     const base2 = { xyz: [1, 2, 3] };
     const target2: { xyz: (number | undefined)[] } = { xyz: [1, undefined, 3] };
-    const result2 = applyChangeset(JSON.parse(JSON.stringify(base2)), diff(base2, target2));
+    const result2 = applyChangeset(structuredClone(base2), diff(base2, target2));
     expect(result2.xyz.length).toBe(3);
     expect(result2.xyz[0]).toBe(1);
     expect(result2.xyz[1]).toBeUndefined();
@@ -227,14 +257,14 @@ describe('jsonDiff#applyChangeset', () => {
     // Test case 3: array with only undefined
     const base3 = { xyz: [1] };
     const target3: { xyz: (number | undefined)[] } = { xyz: [undefined] };
-    const result3 = applyChangeset(JSON.parse(JSON.stringify(base3)), diff(base3, target3));
+    const result3 = applyChangeset(structuredClone(base3), diff(base3, target3));
     expect(result3.xyz.length).toBe(1);
     expect(result3.xyz[0]).toBeUndefined();
 
     // Test case 4: object property set to undefined should still be removed (not array context)
     const base4 = { test: 'value' };
     const target4: { test?: string } = { test: undefined };
-    const result4 = applyChangeset(JSON.parse(JSON.stringify(base4)), diff(base4, target4));
+    const result4 = applyChangeset(structuredClone(base4), diff(base4, target4));
     expect(result4).toEqual({});
     expect(result4.hasOwnProperty('test')).toBe(false);
   });
@@ -312,7 +342,7 @@ describe('jsonDiff#revertChangeset', () => {
 describe('jsonDiff#flatten', () => {
   it('flattens changes, unflattens them, and applies them correctly', () => {
     // Make a deep copy of oldObj to work with
-    const testObj = JSON.parse(JSON.stringify(oldObj));
+    const testObj = structuredClone(oldObj);
     
     const diffs = diff(oldObj, newObj, {
       embeddedObjKeys: {
@@ -423,7 +453,7 @@ describe('jsonDiff#arrayHandling', () => {
     });
     
     // Make a copy of obj1 to apply changes to
-    const objCopy = JSON.parse(JSON.stringify(obj1));
+    const objCopy = structuredClone(obj1);
     
     // Apply the changes to the copy
     const result = applyChangeset(objCopy, changes);
@@ -455,7 +485,7 @@ describe('jsonDiff#arrayHandling', () => {
     const changes = diff(obj1, obj2);
     
     // Make a copy of obj1 to apply changes to
-    const objCopy = JSON.parse(JSON.stringify(obj1));
+    const objCopy = structuredClone(obj1);
     
     // Apply the changes to the copy
     const result = applyChangeset(objCopy, changes);
@@ -511,7 +541,7 @@ describe('jsonDiff#arrayHandling', () => {
     });
     
     // Make a copy of obj1 to apply changes to
-    const objCopy = JSON.parse(JSON.stringify(obj1));
+    const objCopy = structuredClone(obj1);
     
     // Apply the changes to the copy
     const result = applyChangeset(objCopy, changes);

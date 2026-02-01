@@ -171,6 +171,23 @@ const diffs = diff(oldData, newData, {
     characters: (obj, shouldReturnKeyName) => (shouldReturnKeyName ? 'id' : obj.id)
   }
 });
+
+// Access index for array elements
+const rebels = [
+  { name: 'Luke Skywalker', faction: 'Jedi' },
+  { name: 'Yoda', faction: 'Jedi' },
+  { name: 'Princess Leia', faction: 'Rebellion' }
+];
+
+const diffs = diff(oldRebels, newRebels, {
+  embeddedObjKeys: {
+    rebels: (obj, shouldReturnKeyName, index) => {
+      if (shouldReturnKeyName) return 'faction';
+      // Use index to differentiate rebels in the same faction
+      return `faction.${obj.faction}.${index}`;
+    }
+  }
+});
 ```
 
 ##### Regular Expression Paths
@@ -295,7 +312,7 @@ interface Options {
 
 | Option | Type | Description |
 | ------ | ---- | ----------- |
-| `embeddedObjKeys` | `Record<string, string | Function>` or `Map<string | RegExp, string | Function>` | Map paths of arrays to a key or resolver function used to match elements when diffing. Use a `Map` for regex paths. |
+| `embeddedObjKeys` | `Record<string, string \| Function>` or `Map<string  \| RegExp, string \| Function>` | Map paths of arrays to a key or resolver function used to match elements when diffing. Use a `Map` for regex paths. |
 | `keysToSkip` | `string[]` | Dotted paths to exclude from comparison, e.g. `"meta.info"`. |
 | `treatTypeChangeAsReplace` | `boolean` | When `true` (default), a type change results in a REMOVE/ADD pair. Set to `false` to treat it as an UPDATE. |
 

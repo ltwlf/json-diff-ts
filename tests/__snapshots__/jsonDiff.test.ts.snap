@@ -819,6 +819,42 @@ exports[`jsonDiff#diff returns correct diff for objects with embedded array with
 ]
 `;
 
+exports[`jsonDiff#diff returns correct diff when key function uses index parameter 1`] = `
+[
+  {
+    "changes": [
+      {
+        "changes": [
+          {
+            "key": "name",
+            "oldValue": "Yoda",
+            "type": "UPDATE",
+            "value": "Master Yoda",
+          },
+        ],
+        "key": "faction.Jedi.1",
+        "type": "UPDATE",
+      },
+      {
+        "changes": [
+          {
+            "key": "name",
+            "oldValue": "Princess Leia",
+            "type": "UPDATE",
+            "value": "General Leia",
+          },
+        ],
+        "key": "faction.Rebellion.2",
+        "type": "UPDATE",
+      },
+    ],
+    "embeddedKey": [Function],
+    "key": "rebels",
+    "type": "UPDATE",
+  },
+]
+`;
+
 exports[`jsonDiff#flatten gets key name for flattening when using a key function 1`] = `
 [
   {

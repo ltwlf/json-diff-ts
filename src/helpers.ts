@@ -1,3 +1,5 @@
+export type FunctionKey<T = any> = (obj: T, shouldReturnKeyName?: boolean, index?: number) => any;
+
 export function splitJSONPath(path: string): string[] {
     const parts: string[] = [];
     let currentPart = '';
@@ -46,16 +48,16 @@ export function arrayIntersection<T>(first: T[], second: T[]): T[] {
     return first.filter(item => secondSet.has(item));
 }
 
-export function keyBy<T>(arr: T[], getKey: (item: T) => any): Record<string, T> {
+export function keyBy<T>(arr: T[], getKey: FunctionKey<T>): Record<string, T> {
     const result: Record<string, T> = {};
-    for (const item of arr) {
-        result[String(getKey(item))] = item;
+    for (const [index, item] of Object.entries(arr)) {
+        result[String(getKey(item, false, Number(index)))] = item;
     }
     return result;
 }
 
 export function setByPath(obj: any, path: string, value: any): void {
-    const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean);
+    const parts = path.replaceAll(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean);
     let current = obj;
     for (let i = 0; i < parts.length - 1; i++) {
         const part = parts[i];
@@ -64,5 +66,5 @@ export function setByPath(obj: any, path: string, value: any): void {
         }
         current = current[part];
     }
-    current[parts[parts.length - 1]] = value;
+    current[parts.at(-1)] = value;
 }

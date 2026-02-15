@@ -29,7 +29,7 @@ interface IAtomicChange {
 
 interface Options {
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
-  keysToSkip?: string[];
+  keysToSkip?: readonly string[];
   treatTypeChangeAsReplace?: boolean;
 }
 
@@ -94,7 +94,8 @@ const applyChangeset = (obj: any, changeset: Changeset) => {
         applyLeafChange(obj, change, embeddedKey);
       } else {
         // Apply the change to the branch
-        applyBranchChange(obj[key], change);
+        // When key is '$root', apply to obj itself (root-level arrays)
+        applyBranchChange(key === '$root' ? obj : obj[key], change);
       }
     });
   }
@@ -123,7 +124,8 @@ const revertChangeset = (obj: any, changeset: Changeset) => {
         if (!change.changes || (value === null && type === Operation.REMOVE)) {
           revertLeafChange(obj, change);
         } else {
-          revertBranchChange(obj[change.key], change);
+          // When key is '$root', revert on obj itself (root-level arrays)
+          revertBranchChange(change.key === '$root' ? obj : obj[change.key], change);
         }
       });
   }
@@ -648,7 +650,7 @@ const removeKey = (obj: any, key: any, embeddedKey: any) => {
     const index = indexOfItemInArray(obj, embeddedKey, key);
     if (index === -1) {
       // tslint:disable-next-line:no-console
-      console.warn(`Element with the key '${embeddedKey}' and value '${key}' could not be found in the array'`);
+      console.warn(`Element with the key '${embeddedKey}' and value '${key}' could not be found in the array!`);
       return;
     }
     return obj.splice(index ?? key, 1);

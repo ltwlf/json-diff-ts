@@ -304,16 +304,16 @@ console.log(reverted);
 
 ```typescript
 interface Options {
-  embeddedObjKeys?: Record<string, string | Function> | Map<string | RegExp, string | Function>;
-  keysToSkip?: string[];
+  embeddedObjKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
+  keysToSkip?: readonly string[];
   treatTypeChangeAsReplace?: boolean;
 }
 ```
 
 | Option | Type | Description |
 | ------ | ---- | ----------- |
-| `embeddedObjKeys` | `Record<string, string \| Function>` or `Map<string  \| RegExp, string \| Function>` | Map paths of arrays to a key or resolver function used to match elements when diffing. Use a `Map` for regex paths. |
-| `keysToSkip` | `string[]` | Dotted paths to exclude from comparison, e.g. `"meta.info"`. |
+| `embeddedObjKeys` | `Record<string, string \| FunctionKey>` or `Map<string \| RegExp, string \| FunctionKey>` | Map paths of arrays to a key or resolver function used to match elements when diffing. Use a `Map` for regex paths. |
+| `keysToSkip` | `readonly string[]` | Dotted paths to exclude from comparison, e.g. `"meta.info"`. |
 | `treatTypeChangeAsReplace` | `boolean` | When `true` (default), a type change results in a REMOVE/ADD pair. Set to `false` to treat it as an UPDATE. |
 
 ### Change Types
@@ -328,7 +328,15 @@ enum Operation {
 
 ## Release Notes
 
-- **v4.9.0:** Enhanced array handling for `undefined` values - arrays with `undefined` elements can now be properly reconstructed from changesets. Fixed issue where transitions to `undefined` in arrays were treated as removals instead of updates (fixes issue #316)
+- **v4.9.0:**
+  - Fixed `applyChangeset` and `revertChangeset` for root-level arrays containing objects (fixes #362)
+  - Fixed `compare` on root-level arrays producing unexpected UNCHANGED entries (fixes #358)
+  - Refactored `applyChangelist` path resolution for correctness with terminal array indices
+  - `keysToSkip` now accepts `readonly string[]` (fixes #359)
+  - `keyBy` callback now receives the element index (PR #365)
+  - Enhanced array handling for `undefined` values (fixes #316)
+  - Fixed typo in warning message (#361)
+  - Fixed README Options Interface formatting (#360)
 - **v4.8.2:** Fixed array handling in `applyChangeset` for null, undefined, and deleted elements (fixes issue #316)
 - **v4.8.1:** Improved documentation with working examples and detailed options.
 - **v4.8.0:** Significantly reduced bundle size by completely removing es-toolkit dependency and implementing custom utility functions. This change eliminates external dependencies while maintaining identical functionality and improving performance.

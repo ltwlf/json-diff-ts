@@ -200,6 +200,30 @@ describe('jsonCompare#compare', () => {
     done();
   });
 
+  it('compares root-level arrays correctly (issue #358)', (done) => {
+    const result = compare(["foo"], ["bar"]);
+    expect(result.type).toBe(CompareOperation.CONTAINER);
+    expect(Array.isArray(result.value)).toBe(true);
+    expect(result.value[0].type).toBe(Operation.UPDATE);
+    expect(result.value[0].value).toBe('bar');
+    expect(result.value[0].oldValue).toBe('foo');
+    done();
+  });
+
+  it('compares root-level arrays of objects correctly (issue #358)', (done) => {
+    const result = compare(
+      [{ name: 'Alice' }],
+      [{ name: 'Bob' }]
+    );
+    expect(result.type).toBe(CompareOperation.CONTAINER);
+    expect(Array.isArray(result.value)).toBe(true);
+    expect(result.value[0].type).toBe(CompareOperation.CONTAINER);
+    expect(result.value[0].value.name.type).toBe(Operation.UPDATE);
+    expect(result.value[0].value.name.value).toBe('Bob');
+    expect(result.value[0].value.name.oldValue).toBe('Alice');
+    done();
+  });
+
   it('should handle Function types in enrich', (done) => {
     const funcObj = { fn: () => console.log('test') };
     const result = enrich(funcObj);

@@ -857,6 +857,39 @@ describe('jsonDiff#valueKey', () => {
       expect(secretChanges.length).toBe(0);
     });
 
+    it('should apply changeset to root-level arrays with objects (issue #362)', () => {
+      const oldArr = [{ id: 1, name: 'foo' }];
+      const newArr = [{ id: 1, name: 'bar' }];
+
+      const changes = diff(oldArr, newArr);
+      const result = applyChangeset(structuredClone(oldArr), changes);
+      expect(result).toEqual(newArr);
+    });
+
+    it('should apply changeset to root-level arrays with embedded keys (issue #362)', () => {
+      const oldArr = [
+        { id: 1, name: 'Alice' },
+        { id: 2, name: 'Bob' }
+      ];
+      const newArr = [
+        { id: 1, name: 'Alice Updated' },
+        { id: 3, name: 'Charlie' }
+      ];
+
+      const changes = diff(oldArr, newArr, { embeddedObjKeys: { '': 'id' } });
+      const result = applyChangeset(structuredClone(oldArr), changes);
+      expect(result).toEqual(newArr);
+    });
+
+    it('should revert changeset on root-level arrays with objects (issue #362)', () => {
+      const oldArr = [{ id: 1, name: 'foo' }];
+      const newArr = [{ id: 1, name: 'bar' }];
+
+      const changes = diff(oldArr, newArr);
+      const result = revertChangeset(structuredClone(newArr), changes);
+      expect(result).toEqual(oldArr);
+    });
+
     it('should handle root level changes with embedded keys', () => {
       const oldObj = [
         { id: 1, name: 'first' }

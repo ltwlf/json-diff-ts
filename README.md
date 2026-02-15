@@ -10,6 +10,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg?logo=buy-me-a-coffee)](https://buymeacoffee.com/leitwolf)
 
 ## Overview
 
@@ -415,6 +416,12 @@ A: json-diff-ts provides a more flexible format with advanced array handling, wh
 
 **Q: Is it suitable for large objects?**  
 A: Yes, the library is optimized for performance and can handle large, complex JSON structures efficiently.
+
+## Support
+
+If you find this library useful, consider supporting its development:
+
+[![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/leitwolf)
 
 ## Contact
 

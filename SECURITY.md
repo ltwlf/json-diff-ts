@@ -13,10 +13,9 @@ If you discover a security vulnerability in this project, please report it respo
 
 **Please do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, use one of the following methods:
+Instead, please use the following method:
 
-1. **GitHub Private Vulnerability Reporting:** Use the [Security tab](https://github.com/ltwlf/json-diff-ts/security/advisories/new) to report a vulnerability privately.
-2. **Email:** Send details to the maintainer directly.
+**GitHub Private Vulnerability Reporting:** Use the [Security tab](https://github.com/ltwlf/json-diff-ts/security/advisories/new) to report a vulnerability privately. At this time, this is the only supported channel for reporting security vulnerabilities.
 
 ### What to include
 

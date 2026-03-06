@@ -57,10 +57,10 @@
   },
   "homepage": "https://github.com/ltwlf/json-diff-ts#readme",
   "devDependencies": {
-    "@eslint/js": "^9.29.0",
+    "@eslint/js": "^10.0.1",
     "@jest/globals": "^30.0.0",
     "@types/jest": "^30.0.0",
-    "eslint": "^9.29.0",
+    "eslint": "^10.0.2",
     "jest": "^30.0.0",
     "prettier": "^3.0.3",
     "ts-jest": "^29.4.0",

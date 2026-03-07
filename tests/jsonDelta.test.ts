@@ -130,6 +130,26 @@ describe('validateDelta', () => {
     expect(validateDelta('string').valid).toBe(false);
     expect(validateDelta(42).valid).toBe(false);
   });
+
+  it('rejects non-object operation entries', () => {
+    const result = validateDelta({
+      format: 'json-delta',
+      version: 1,
+      operations: [null, 'not-an-object'],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toMatch(/must be an object/);
+  });
+
+  it('rejects operation with non-string path', () => {
+    const result = validateDelta({
+      format: 'json-delta',
+      version: 1,
+      operations: [{ op: 'add', path: 123, value: 'x' }],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toMatch(/path must be a string/);
+  });
 });
 
 // ─── diffDelta ──────────────────────────────────────────────────────────────
@@ -330,6 +350,56 @@ describe('diffDelta', () => {
     );
     expect(delta.operations).toHaveLength(1);
     expect(delta.operations[0].path).toBe('$.items[?(@.id==1)].name');
+  });
+
+  it('handles function keys with add operations', () => {
+    const delta = diffDelta(
+      { items: [{ id: 1, name: 'Widget' }] },
+      { items: [{ id: 1, name: 'Widget' }, { id: 2, name: 'Gadget' }] },
+      {
+        embeddedObjKeys: {
+          items: ((item: any, returnKeyName?: boolean) =>
+            returnKeyName ? 'id' : item.id) as any,
+        },
+      }
+    );
+    expect(delta.operations).toHaveLength(1);
+    expect(delta.operations[0].op).toBe('add');
+    expect(delta.operations[0].path).toBe('$.items[?(@.id==2)]');
+  });
+
+  it('handles function keys with remove operations', () => {
+    const delta = diffDelta(
+      { items: [{ id: 1, name: 'Widget' }, { id: 2, name: 'Gadget' }] },
+      { items: [{ id: 1, name: 'Widget' }] },
+      {
+        embeddedObjKeys: {
+          items: ((item: any, returnKeyName?: boolean) =>
+            returnKeyName ? 'id' : item.id) as any,
+        },
+      }
+    );
+    expect(delta.operations).toHaveLength(1);
+    expect(delta.operations[0].op).toBe('remove');
+    expect(delta.operations[0].path).toBe('$.items[?(@.id==2)]');
+  });
+
+  it('handles nested property names with dots (bracket notation)', () => {
+    const delta = diffDelta(
+      { 'a.b': 1 },
+      { 'a.b': 2 }
+    );
+    expect(delta.operations).toHaveLength(1);
+    expect(delta.operations[0].path).toBe("$['a.b']");
+  });
+
+  it('handles deep path in $index arrays', () => {
+    const delta = diffDelta(
+      { items: [{ name: 'Widget', color: 'red' }] },
+      { items: [{ name: 'Widget', color: 'blue' }] }
+    );
+    expect(delta.operations).toHaveLength(1);
+    expect(delta.operations[0].path).toBe('$.items[0].color');
   });
 });
 
@@ -583,6 +653,18 @@ describe('applyDelta', () => {
     expect(() => applyDelta({}, { format: 'wrong' } as any)).toThrow();
   });
 
+  it('root replace object with array returns array', () => {
+    const result = applyDelta(
+      { old: true },
+      {
+        format: 'json-delta',
+        version: 1,
+        operations: [{ op: 'replace', path: '$', value: [1, 2, 3], oldValue: { old: true } }],
+      }
+    );
+    expect(result).toEqual([1, 2, 3]);
+  });
+
   it('applies operations sequentially (order matters)', () => {
     const obj = { items: ['a', 'b', 'c'] };
     // Remove index 1, then the array becomes ['a', 'c']
@@ -712,6 +794,10 @@ describe('invertDelta', () => {
     };
     const inverse = invertDelta(delta);
     expect(inverse.operations[0].x_author).toBe('alice');
+  });
+
+  it('throws on invalid delta input', () => {
+    expect(() => invertDelta({ format: 'wrong' } as any)).toThrow(/Invalid delta/);
   });
 });
 

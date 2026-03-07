@@ -212,6 +212,22 @@ describe('parseDeltaPath', () => {
     expect(() => parseDeltaPath('name')).toThrow();
     expect(() => parseDeltaPath('$[01]')).toThrow(); // leading zero
   });
+
+  it('throws on unexpected character after [', () => {
+    expect(() => parseDeltaPath('$[!invalid]')).toThrow(/Unexpected character after/);
+  });
+
+  it('throws on unexpected character in path', () => {
+    expect(() => parseDeltaPath('$!name')).toThrow(/Unexpected character/);
+  });
+
+  it('throws on unterminated quoted string', () => {
+    expect(() => parseDeltaPath("$['unterminated")).toThrow(/Unterminated quoted string/);
+  });
+
+  it('throws on invalid filter expression', () => {
+    expect(() => parseDeltaPath('$[?(invalid==1)]')).toThrow(/Invalid filter expression/);
+  });
 });
 
 describe('buildDeltaPath', () => {
@@ -329,6 +345,14 @@ describe('atomicPathToDeltaPath', () => {
     expect(atomicPathToDeltaPath('$[foo-bar]')).toBe("$['foo-bar']");
   });
 
+  it('throws when path does not start with $', () => {
+    expect(() => atomicPathToDeltaPath('invalid')).toThrow(/must start with/);
+  });
+
+  it('throws on unexpected character', () => {
+    expect(() => atomicPathToDeltaPath('$!bad')).toThrow(/Unexpected character/);
+  });
+
   it('handles paths with filters and deep properties', () => {
     expect(atomicPathToDeltaPath("$.items[?(@.id=='1')].name")).toBe("$.items[?(@.id=='1')].name");
   });
@@ -374,6 +398,18 @@ describe('deltaPathToAtomicPath', () => {
   it('preserves array indices', () => {
     expect(deltaPathToAtomicPath('$.items[0]')).toBe('$.items[0]');
   });
+
+  it('throws when path does not start with $', () => {
+    expect(() => deltaPathToAtomicPath('invalid')).toThrow(/must start with/);
+  });
+
+  it('throws on unexpected character after [', () => {
+    expect(() => deltaPathToAtomicPath('$[!bad]')).toThrow(/Unexpected character after/);
+  });
+
+  it('throws on unexpected character in path', () => {
+    expect(() => deltaPathToAtomicPath('$!bad')).toThrow(/Unexpected character/);
+  });
 });
 
 describe('extractKeyFromAtomicPath', () => {
@@ -399,5 +435,13 @@ describe('extractKeyFromAtomicPath', () => {
 
   it('extracts property after filter (deep path)', () => {
     expect(extractKeyFromAtomicPath("$.items[?(@.id=='1')].name")).toBe('name');
+  });
+
+  it('extracts bracket property key (non-numeric, non-filter)', () => {
+    expect(extractKeyFromAtomicPath('$[a.b]')).toBe('a.b');
+  });
+
+  it('returns the path itself as fallback', () => {
+    expect(extractKeyFromAtomicPath('$')).toBe('$');
   });
 });

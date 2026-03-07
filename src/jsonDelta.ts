@@ -265,8 +265,8 @@ function buildCanonicalFilterPath(
     return `${basePath}[?(@==${formatFilterLiteral(typedVal)})]`;
   }
 
+  /* istanbul ignore next -- diff() always resolves function keys to strings in embeddedKey */
   if (typeof embeddedKey === 'function') {
-    // Function key — get the property name and find the element
     const sample = (oldArr && oldArr.length > 0 ? oldArr[0] : newArr?.[0]);
     const keyName = sample ? embeddedKey(sample, true) : changeKey;
     const element = findElementByFn(oldArr, newArr, embeddedKey, changeKey, change.type);
@@ -275,7 +275,6 @@ function buildCanonicalFilterPath(
       const memberAccess = SIMPLE_PROPERTY_RE.test(keyName) ? `.${keyName}` : `['${keyName.replace(/'/g, "''")}']`;
       return `${basePath}[?(@${memberAccess}==${formatFilterLiteral(typedVal)})]`;
     }
-    // Fallback: string-quoted
     const memberAccess = typeof keyName === 'string' && SIMPLE_PROPERTY_RE.test(keyName) ? `.${keyName}` : `.${changeKey}`;
     return `${basePath}[?(@${memberAccess}=='${changeKey}')]`;
   }
@@ -300,6 +299,7 @@ function findActualValue(oldArr: any[], newArr: any[], stringKey: string, opType
       if (String(item) === stringKey) return item;
     }
   }
+  /* istanbul ignore next -- $value arrays only produce ADD/REMOVE, not UPDATE */
   // For UPDATE, check both (prefer old for the key identity)
   if (oldArr) {
     for (const item of oldArr) {
@@ -320,9 +320,11 @@ function findElement(arr: any[], embeddedKey: string | FunctionKey, changeKey: s
   if (embeddedKey === '$index') {
     return arr[Number(changeKey)];
   }
+  /* istanbul ignore next -- $value arrays contain primitives, no deep paths trigger findElement */
   if (embeddedKey === '$value') {
     return arr.find((item) => String(item) === changeKey);
   }
+  /* istanbul ignore next -- diff() resolves function keys to strings */
   if (typeof embeddedKey === 'function') {
     return arr.find((item) => String(embeddedKey(item)) === changeKey);
   }
@@ -348,6 +350,7 @@ function findElementByKey(
   return undefined;
 }
 
+/* istanbul ignore next -- only reachable if embeddedKey is a function, which diff() never stores */
 function findElementByFn(
   oldArr: any[],
   newArr: any[],
@@ -406,6 +409,7 @@ export function toDelta(changeset: Changeset | IAtomicChange[], options: { rever
         }
         return op;
       }
+      /* istanbul ignore next -- exhaustive switch */
       default:
         throw new Error(`Unknown operation type: ${atom.type}`);
     }
@@ -479,6 +483,7 @@ export function fromDelta(delta: IJsonDelta): IAtomicChange[] {
         }
         return atom;
       }
+      /* istanbul ignore next -- exhaustive switch */
       default:
         throw new Error(`Unknown operation: ${op.op}`);
     }
@@ -533,6 +538,7 @@ export function invertDelta(delta: IJsonDelta): IJsonDelta {
         return { op: 'add' as DeltaOp, path: op.path, value: op.oldValue, ...extensions };
       case 'replace':
         return { op: 'replace' as DeltaOp, path: op.path, value: op.oldValue, oldValue: op.value, ...extensions };
+      /* istanbul ignore next -- exhaustive switch */
       default:
         throw new Error(`Unknown operation: ${op.op}`);
     }
@@ -598,6 +604,7 @@ function applyRootOp(obj: any, op: IDeltaOperation): any {
       }
       return op.value;
     }
+    /* istanbul ignore next -- exhaustive switch */
     default:
       throw new Error(`Unknown operation: ${op.op}`);
   }
@@ -621,6 +628,7 @@ function deltaOpToAtomicChange(op: IDeltaOperation): IAtomicChange {
         value: op.value,
         oldValue: op.oldValue,
       };
+    /* istanbul ignore next -- exhaustive switch */
     default:
       throw new Error(`Unknown operation: ${op.op}`);
   }

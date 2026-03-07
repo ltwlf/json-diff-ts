@@ -1,0 +1,52 @@
+{
+  "name": "keyed-array-update",
+  "description": "Update, add, and remove elements in an array identified by key",
+  "source": {
+    "items": [
+      { "id": "1", "name": "Widget", "price": 10 },
+      { "id": "2", "name": "Gadget", "price": 20 },
+      { "id": "3", "name": "Doohickey", "price": 30 }
+    ]
+  },
+  "target": {
+    "items": [
+      { "id": "1", "name": "Widget Pro", "price": 15 },
+      { "id": "2", "name": "Gadget", "price": 20 },
+      { "id": "4", "name": "Thingamajig", "price": 40 }
+    ]
+  },
+  "delta": {
+    "format": "json-delta",
+    "version": 1,
+    "operations": [
+      {
+        "op": "replace",
+        "path": "$.items[?(@.id=='1')].name",
+        "value": "Widget Pro",
+        "oldValue": "Widget"
+      },
+      {
+        "op": "replace",
+        "path": "$.items[?(@.id=='1')].price",
+        "value": 15,
+        "oldValue": 10
+      },
+      {
+        "op": "remove",
+        "path": "$.items[?(@.id=='3')]",
+        "oldValue": { "id": "3", "name": "Doohickey", "price": 30 }
+      },
+      {
+        "op": "add",
+        "path": "$.items[?(@.id=='4')]",
+        "value": { "id": "4", "name": "Thingamajig", "price": 40 }
+      }
+    ]
+  },
+  "computeHints": {
+    "arrayKeys": {
+      "items": "id"
+    }
+  },
+  "level": 2
+}

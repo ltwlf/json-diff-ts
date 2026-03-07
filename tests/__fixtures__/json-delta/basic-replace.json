@@ -1,0 +1,25 @@
+{
+  "name": "basic-replace",
+  "description": "Replace a top-level string property",
+  "source": {
+    "name": "Alice",
+    "age": 30
+  },
+  "target": {
+    "name": "Bob",
+    "age": 30
+  },
+  "delta": {
+    "format": "json-delta",
+    "version": 1,
+    "operations": [
+      {
+        "op": "replace",
+        "path": "$.name",
+        "value": "Bob",
+        "oldValue": "Alice"
+      }
+    ]
+  },
+  "level": 2
+}

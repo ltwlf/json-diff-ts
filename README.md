@@ -49,7 +49,7 @@ const after = {
   ],
 };
 
-const delta = diffDelta(before, after, { embeddedObjKeys: { items: 'id' } });
+const delta = diffDelta(before, after, { arrayIdentityKeys: { items: 'id' } });
 ```
 
 The delta tracks _what_ changed, not _where_ it moved:
@@ -66,11 +66,12 @@ The delta tracks _what_ changed, not _where_ it moved:
 }
 ```
 
-Apply forward or revert:
+Apply forward to get the new state, or revert to restore the original:
 
 ```typescript
-const result   = applyDelta(structuredClone(before), delta);   // → after
-const original = revertDelta(structuredClone(result), delta);  // → before
+// Clone before applying — applyDelta mutates the input object
+const updated  = applyDelta(structuredClone(before), delta);  // updated === after
+const restored = revertDelta(structuredClone(updated), delta); // restored === before
 ```
 
 ## Quick Start
@@ -78,19 +79,30 @@ const original = revertDelta(structuredClone(result), delta);  // → before
 ```typescript
 import { diffDelta, applyDelta, revertDelta } from 'json-diff-ts';
 
+const oldObj = {
+  items: [
+    { id: 1, name: 'Widget', price: 9.99 },
+    { id: 2, name: 'Gadget', price: 24.99 },
+  ],
+};
+
+const newObj = {
+  items: [
+    { id: 1, name: 'Widget Pro', price: 9.99 },
+    { id: 2, name: 'Gadget', price: 24.99 },
+    { id: 3, name: 'Doohickey', price: 4.99 },
+  ],
+};
+
 // 1. Compute a delta between two JSON objects
 const delta = diffDelta(oldObj, newObj, {
-  embeddedObjKeys: { items: 'id' },   // match array elements by 'id' field
+  arrayIdentityKeys: { items: 'id' },   // match array elements by 'id' field
 });
-// delta =>
-// {
-//   format: 'json-delta',
-//   version: 1,
-//   operations: [
-//     { op: 'replace', path: '$.items[?(@.id==1)].name', value: 'New Name', oldValue: 'Old Name' },
-//     { op: 'add', path: '$.items[?(@.id==3)]', value: { id: 3, name: 'New Item' } }
-//   ]
-// }
+// delta.operations =>
+// [
+//   { op: 'replace', path: '$.items[?(@.id==1)].name', value: 'Widget Pro', oldValue: 'Widget' },
+//   { op: 'add', path: '$.items[?(@.id==3)]', value: { id: 3, name: 'Doohickey', price: 4.99 } }
+// ]
 
 // 2. Apply the delta to produce the new state
 const updated = applyDelta(structuredClone(oldObj), delta);
@@ -152,7 +164,7 @@ const delta = diffDelta(
   { user: { name: 'Alice', role: 'viewer' } },
   { user: { name: 'Alice', role: 'admin' } }
 );
-// → { op: 'replace', path: '$.user.role', value: 'admin', oldValue: 'viewer' }
+// delta.operations → [{ op: 'replace', path: '$.user.role', value: 'admin', oldValue: 'viewer' }]
 ```
 
 #### Keyed Arrays
@@ -163,9 +175,9 @@ Match array elements by identity key. Filter paths use canonical typed literals 
 const delta = diffDelta(
   { users: [{ id: 1, role: 'viewer' }, { id: 2, role: 'editor' }] },
   { users: [{ id: 1, role: 'admin' },  { id: 2, role: 'editor' }] },
-  { embeddedObjKeys: { users: 'id' } }
+  { arrayIdentityKeys: { users: 'id' } }
 );
-// → { op: 'replace', path: '$.users[?(@.id==1)].role', value: 'admin', oldValue: 'viewer' }
+// delta.operations → [{ op: 'replace', path: '$.users[?(@.id==1)].role', value: 'admin', oldValue: 'viewer' }]
 ```
 
 #### Non-reversible Mode
@@ -226,7 +238,7 @@ Extends the base `Options` interface:
 ```typescript
 interface DeltaOptions extends Options {
   reversible?: boolean;       // Include oldValue for undo. Default: true
-  embeddedObjKeys?: Record<string, string | FunctionKey>;
+  arrayIdentityKeys?: Record<string, string | FunctionKey>;
   keysToSkip?: readonly string[];
 }
 ```
@@ -249,25 +261,46 @@ interface AuditEntry {
 }
 
 const auditLog: AuditEntry[] = [];
+let doc = {
+  title: 'Project Plan',
+  status: 'draft',
+  items: [
+    { id: 1, task: 'Design', done: false },
+    { id: 2, task: 'Build', done: false },
+  ],
+};
 
-function updateDocument(doc: any, changes: any, userId: string) {
-  const delta = diffDelta(doc, { ...doc, ...changes }, {
-    embeddedObjKeys: { items: 'id', members: 'email' },
+function updateDocument(newDoc: typeof doc, userId: string) {
+  const delta = diffDelta(doc, newDoc, {
+    arrayIdentityKeys: { items: 'id' },
   });
 
   if (delta.operations.length > 0) {
     auditLog.push({ timestamp: new Date().toISOString(), userId, delta });
+    doc = applyDelta(structuredClone(doc), delta);
   }
 
-  return applyDelta(doc, delta);
+  return doc;
 }
 
 // Revert the last change
-function undo(doc: any): any {
+function undo(): typeof doc {
   const last = auditLog.pop();
   if (!last) return doc;
-  return revertDelta(doc, last.delta);
+  doc = revertDelta(structuredClone(doc), last.delta);
+  return doc;
 }
+
+// Example usage:
+updateDocument(
+  { ...doc, status: 'active', items: [{ id: 1, task: 'Design', done: true }, ...doc.items.slice(1)] },
+  'alice'
+);
+// auditLog[0].delta.operations =>
+// [
+//   { op: 'replace', path: '$.status', value: 'active', oldValue: 'draft' },
+//   { op: 'replace', path: '$.items[?(@.id==1)].done', value: true, oldValue: false }
+// ]
 ```
 
 Because every delta is self-describing JSON, your audit log is queryable, storable in any database, and readable from any language.
@@ -312,39 +345,6 @@ class UndoManager<T extends object> {
 }
 ```
 
-### AI Agent State Tracking
-
-Track tool calls, context updates, and reasoning steps in an AI agent pipeline. Each state transition is a delta you can inspect, replay, or roll back:
-
-```typescript
-import { diffDelta, applyDelta, IJsonDelta } from 'json-diff-ts';
-
-interface AgentState {
-  context: Record<string, any>;
-  messages: Array<{ role: string; content: string }>;
-  tools: Array<{ name: string; status: string; result?: any }>;
-}
-
-const transitions: IJsonDelta[] = [];
-
-function recordTransition(before: AgentState, after: AgentState) {
-  const delta = diffDelta(before, after, {
-    embeddedObjKeys: { tools: 'name' },
-  });
-  transitions.push(delta);
-  return delta;
-}
-
-// Replay from initial state to any point
-function replayTo(initial: AgentState, stepIndex: number): AgentState {
-  let state = structuredClone(initial);
-  for (let i = 0; i <= stepIndex; i++) {
-    state = applyDelta(state, transitions[i]);
-  }
-  return state;
-}
-```
-
 ### Data Synchronization
 
 Send only what changed between client and server. Deltas are compact -- a single field change in a 10KB document produces a few bytes of delta, making state synchronization efficient over the wire:
@@ -354,7 +354,7 @@ import { diffDelta, applyDelta, validateDelta } from 'json-diff-ts';
 
 // Client side: compute and send delta
 const delta = diffDelta(localState, updatedState, {
-  embeddedObjKeys: { records: 'id' },
+  arrayIdentityKeys: { records: 'id' },
 });
 await fetch('/api/sync', {
   method: 'POST',
@@ -364,7 +364,7 @@ await fetch('/api/sync', {
 // Server side: validate and apply
 const result = validateDelta(req.body);
 if (!result.valid) return res.status(400).json(result.errors);
-const newState = applyDelta(currentState, req.body);
+currentState = applyDelta(structuredClone(currentState), req.body);
 ```
 
 ---
@@ -377,7 +377,7 @@ Convert between the legacy internal format and JSON Delta:
 import { diff, toDelta, fromDelta, unatomizeChangeset } from 'json-diff-ts';
 
 // v4 changeset → JSON Delta
-const changeset = diff(source, target, { embeddedObjKeys: { items: 'id' } });
+const changeset = diff(source, target, { arrayIdentityKeys: { items: 'id' } });
 const delta = toDelta(changeset);
 
 // JSON Delta → v4 atomic changes
@@ -418,7 +418,7 @@ const newData = {
   ],
 };
 
-const changes = diff(oldData, newData, { embeddedObjKeys: { characters: 'id' } });
+const changes = diff(oldData, newData, { arrayIdentityKeys: { characters: 'id' } });
 ```
 
 ### `applyChangeset` and `revertChangeset`
@@ -455,11 +455,11 @@ const restored = unatomizeChangeset(atoms.slice(0, 2));
 
 ```typescript
 // Named key
-diff(old, new, { embeddedObjKeys: { characters: 'id' } });
+diff(old, new, { arrayIdentityKeys: { characters: 'id' } });
 
 // Function key
 diff(old, new, {
-  embeddedObjKeys: {
+  arrayIdentityKeys: {
     characters: (obj, shouldReturnKeyName) => (shouldReturnKeyName ? 'id' : obj.id)
   }
 });
@@ -467,10 +467,10 @@ diff(old, new, {
 // Regex path matching
 const keys = new Map();
 keys.set(/^characters/, 'id');
-diff(old, new, { embeddedObjKeys: keys });
+diff(old, new, { arrayIdentityKeys: keys });
 
 // Value-based identity for primitive arrays
-diff(old, new, { embeddedObjKeys: { tags: '$value' } });
+diff(old, new, { arrayIdentityKeys: { tags: '$value' } });
 ```
 
 #### Path Skipping
@@ -506,6 +506,8 @@ diff(old, new, { treatTypeChangeAsReplace: false });
 
 ```typescript
 interface Options {
+  arrayIdentityKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
+  /** @deprecated Use arrayIdentityKeys instead */
   embeddedObjKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
   keysToSkip?: readonly string[];
   treatTypeChangeAsReplace?: boolean; // default: true
@@ -519,7 +521,8 @@ interface Options {
 1. **No action required** -- all v4 APIs work identically in v5.
 2. **Adopt JSON Delta** -- use `diffDelta()` / `applyDelta()` for new code.
 3. **Bridge existing data** -- `toDelta()` / `fromDelta()` for interop with stored v4 changesets.
-4. Both formats coexist. No forced migration.
+4. **Rename `embeddedObjKeys` to `arrayIdentityKeys`** -- the old name still works, but `arrayIdentityKeys` is the preferred name going forward.
+5. Both formats coexist. No forced migration.
 
 ---
 
@@ -550,7 +553,7 @@ Yes. The library handles large, deeply nested JSON structures efficiently with z
 Yes. Both APIs coexist. Use `toDelta()` / `fromDelta()` to convert between formats.
 
 **Q: What about arrays of primitives?**
-Use `$value` as the embedded key: `{ embeddedObjKeys: { tags: '$value' } }`. Elements are matched by value identity.
+Use `$value` as the identity key: `{ arrayIdentityKeys: { tags: '$value' } }`. Elements are matched by value identity.
 
 ---
 
@@ -560,6 +563,7 @@ Use `$value` as the embedded key: `{ embeddedObjKeys: { tags: '$value' } }`. Ele
   - JSON Delta API: `diffDelta`, `applyDelta`, `revertDelta`, `invertDelta`, `toDelta`, `fromDelta`, `validateDelta`
   - Canonical path production with typed filter literals
   - Conformance with the [JSON Delta Specification](https://github.com/ltwlf/json-delta-format) v0
+  - Renamed `embeddedObjKeys` to `arrayIdentityKeys` (old name still works as deprecated alias)
   - All v4 APIs preserved unchanged
 
 - **v4.9.0:**

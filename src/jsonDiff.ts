@@ -28,6 +28,9 @@ interface IAtomicChange {
 }
 
 interface Options {
+  /** Identify array elements by a stable key instead of index. */
+  arrayIdentityKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
+  /** @deprecated Use `arrayIdentityKeys` instead. */
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
   keysToSkip?: readonly string[];
   treatTypeChangeAsReplace?: boolean;
@@ -42,7 +45,7 @@ interface Options {
  * @returns {IChange[]} - An array of changes that transform the old object into the new object.
  */
 function diff(oldObj: any, newObj: any, options: Options = {}): IChange[] {
-  let { embeddedObjKeys } = options;
+  let embeddedObjKeys = options.arrayIdentityKeys ?? options.embeddedObjKeys;
   const { keysToSkip, treatTypeChangeAsReplace } = options;
 
   // Trim leading '.' from keys in embeddedObjKeys

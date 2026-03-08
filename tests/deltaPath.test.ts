@@ -1,0 +1,482 @@
+import {
+  parseDeltaPath,
+  buildDeltaPath,
+  formatFilterLiteral,
+  parseFilterLiteral,
+  atomicPathToDeltaPath,
+  deltaPathToAtomicPath,
+  extractKeyFromAtomicPath,
+} from '../src/deltaPath';
+
+describe('formatFilterLiteral', () => {
+  it('formats string values with single quotes', () => {
+    expect(formatFilterLiteral('Alice')).toBe("'Alice'");
+  });
+
+  it('escapes single quotes by doubling', () => {
+    expect(formatFilterLiteral("O'Brien")).toBe("'O''Brien'");
+  });
+
+  it('formats integers', () => {
+    expect(formatFilterLiteral(42)).toBe('42');
+  });
+
+  it('formats negative numbers', () => {
+    expect(formatFilterLiteral(-7)).toBe('-7');
+  });
+
+  it('formats floating point numbers', () => {
+    expect(formatFilterLiteral(3.14)).toBe('3.14');
+  });
+
+  it('formats booleans', () => {
+    expect(formatFilterLiteral(true)).toBe('true');
+    expect(formatFilterLiteral(false)).toBe('false');
+  });
+
+  it('formats null', () => {
+    expect(formatFilterLiteral(null)).toBe('null');
+  });
+
+  it('throws for unsupported types', () => {
+    expect(() => formatFilterLiteral({})).toThrow();
+    expect(() => formatFilterLiteral(undefined)).toThrow();
+  });
+
+  it('throws for NaN', () => {
+    expect(() => formatFilterLiteral(NaN)).toThrow(/non-finite/);
+  });
+
+  it('throws for Infinity', () => {
+    expect(() => formatFilterLiteral(Infinity)).toThrow(/non-finite/);
+    expect(() => formatFilterLiteral(-Infinity)).toThrow(/non-finite/);
+  });
+});
+
+describe('parseFilterLiteral', () => {
+  it('parses single-quoted strings', () => {
+    expect(parseFilterLiteral("'Alice'")).toBe('Alice');
+  });
+
+  it('unescapes doubled quotes', () => {
+    expect(parseFilterLiteral("'O''Brien'")).toBe("O'Brien");
+  });
+
+  it('parses integers', () => {
+    expect(parseFilterLiteral('42')).toBe(42);
+  });
+
+  it('parses negative numbers', () => {
+    expect(parseFilterLiteral('-7')).toBe(-7);
+  });
+
+  it('parses floating point numbers', () => {
+    expect(parseFilterLiteral('3.14')).toBe(3.14);
+  });
+
+  it('parses scientific notation', () => {
+    expect(parseFilterLiteral('1e3')).toBe(1000);
+    expect(parseFilterLiteral('1.5E-2')).toBe(0.015);
+  });
+
+  it('parses booleans', () => {
+    expect(parseFilterLiteral('true')).toBe(true);
+    expect(parseFilterLiteral('false')).toBe(false);
+  });
+
+  it('parses null', () => {
+    expect(parseFilterLiteral('null')).toBe(null);
+  });
+
+  it('throws for invalid literals', () => {
+    expect(() => parseFilterLiteral('abc')).toThrow();
+  });
+
+  it('rejects non-JSON numeric formats', () => {
+    expect(() => parseFilterLiteral('')).toThrow();
+    expect(() => parseFilterLiteral('0x10')).toThrow();
+    expect(() => parseFilterLiteral('0o7')).toThrow();
+    expect(() => parseFilterLiteral('0b101')).toThrow();
+    expect(() => parseFilterLiteral(' ')).toThrow();
+    expect(() => parseFilterLiteral('01')).toThrow(); // leading zero
+  });
+
+  it('round-trips with formatFilterLiteral', () => {
+    const values: unknown[] = ['hello', "O'Brien", 42, -7, 3.14, true, false, null];
+    for (const val of values) {
+      expect(parseFilterLiteral(formatFilterLiteral(val))).toEqual(val);
+    }
+  });
+});
+
+describe('parseDeltaPath', () => {
+  it('parses root-only path', () => {
+    expect(parseDeltaPath('$')).toEqual([{ type: 'root' }]);
+  });
+
+  it('parses dot property', () => {
+    expect(parseDeltaPath('$.name')).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'name' },
+    ]);
+  });
+
+  it('parses chained dot properties', () => {
+    expect(parseDeltaPath('$.user.address.city')).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'user' },
+      { type: 'property', name: 'address' },
+      { type: 'property', name: 'city' },
+    ]);
+  });
+
+  it('parses bracket property', () => {
+    expect(parseDeltaPath("$['a.b']")).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'a.b' },
+    ]);
+  });
+
+  it('parses bracket property with escaped quotes', () => {
+    expect(parseDeltaPath("$['O''Brien']")).toEqual([
+      { type: 'root' },
+      { type: 'property', name: "O'Brien" },
+    ]);
+  });
+
+  it('parses array index', () => {
+    expect(parseDeltaPath('$.items[0]')).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'index', index: 0 },
+    ]);
+  });
+
+  it('parses key filter with dot property and number', () => {
+    expect(parseDeltaPath('$.items[?(@.id==42)]')).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'id', value: 42 },
+    ]);
+  });
+
+  it('parses key filter with string literal', () => {
+    expect(parseDeltaPath("$.items[?(@.name=='Widget')]")).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'name', value: 'Widget' },
+    ]);
+  });
+
+  it('parses key filter with bracket property', () => {
+    expect(parseDeltaPath("$.items[?(@['a.b']==42)]")).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'a.b', value: 42 },
+    ]);
+  });
+
+  it('parses key filter with boolean literal', () => {
+    expect(parseDeltaPath('$.items[?(@.active==true)]')).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'active', value: true },
+    ]);
+  });
+
+  it('parses key filter with null literal', () => {
+    expect(parseDeltaPath('$.items[?(@.status==null)]')).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'status', value: null },
+    ]);
+  });
+
+  it('parses value filter with string', () => {
+    expect(parseDeltaPath("$.tags[?(@=='urgent')]")).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'tags' },
+      { type: 'valueFilter', value: 'urgent' },
+    ]);
+  });
+
+  it('parses value filter with number', () => {
+    expect(parseDeltaPath('$.scores[?(@==100)]')).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'scores' },
+      { type: 'valueFilter', value: 100 },
+    ]);
+  });
+
+  it('parses deep path after key filter', () => {
+    expect(parseDeltaPath('$.items[?(@.id==1)].name')).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'id', value: 1 },
+      { type: 'property', name: 'name' },
+    ]);
+  });
+
+  it('parses non-canonical bracket-for-everything form', () => {
+    expect(parseDeltaPath("$['user']['name']")).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'user' },
+      { type: 'property', name: 'name' },
+    ]);
+  });
+
+  it('throws on invalid paths', () => {
+    expect(() => parseDeltaPath('')).toThrow();
+    expect(() => parseDeltaPath('name')).toThrow();
+    expect(() => parseDeltaPath('$[01]')).toThrow(); // leading zero
+  });
+
+  it('throws on unexpected character after [', () => {
+    expect(() => parseDeltaPath('$[!invalid]')).toThrow(/Unexpected character after/);
+  });
+
+  it('throws on unexpected character in path', () => {
+    expect(() => parseDeltaPath('$!name')).toThrow(/Unexpected character/);
+  });
+
+  it('throws on unterminated quoted string', () => {
+    expect(() => parseDeltaPath("$['unterminated")).toThrow(/Unterminated quoted string/);
+  });
+
+  it('throws on invalid filter expression', () => {
+    expect(() => parseDeltaPath('$[?(invalid==1)]')).toThrow(/Invalid filter expression/);
+  });
+
+  it('handles filter literal containing )]', () => {
+    const result = parseDeltaPath("$.items[?(@.name=='val)]ue')]");
+    expect(result).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'name', value: 'val)]ue' },
+    ]);
+  });
+});
+
+describe('buildDeltaPath', () => {
+  it('builds root-only path', () => {
+    expect(buildDeltaPath([{ type: 'root' }])).toBe('$');
+  });
+
+  it('builds simple dot property path', () => {
+    expect(buildDeltaPath([
+      { type: 'root' },
+      { type: 'property', name: 'user' },
+      { type: 'property', name: 'name' },
+    ])).toBe('$.user.name');
+  });
+
+  it('uses bracket notation for special property names', () => {
+    expect(buildDeltaPath([
+      { type: 'root' },
+      { type: 'property', name: 'a.b' },
+    ])).toBe("$['a.b']");
+  });
+
+  it('uses bracket notation for properties starting with digits', () => {
+    expect(buildDeltaPath([
+      { type: 'root' },
+      { type: 'property', name: '0key' },
+    ])).toBe("$['0key']");
+  });
+
+  it('builds array index', () => {
+    expect(buildDeltaPath([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'index', index: 3 },
+    ])).toBe('$.items[3]');
+  });
+
+  it('builds key filter with number', () => {
+    expect(buildDeltaPath([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'id', value: 42 },
+    ])).toBe('$.items[?(@.id==42)]');
+  });
+
+  it('builds key filter with string', () => {
+    expect(buildDeltaPath([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'id', value: 'abc' },
+    ])).toBe("$.items[?(@.id=='abc')]");
+  });
+
+  it('builds key filter with bracket-notation property', () => {
+    expect(buildDeltaPath([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'a.b', value: 42 },
+    ])).toBe("$.items[?(@['a.b']==42)]");
+  });
+
+  it('builds value filter', () => {
+    expect(buildDeltaPath([
+      { type: 'root' },
+      { type: 'property', name: 'tags' },
+      { type: 'valueFilter', value: 'urgent' },
+    ])).toBe("$.tags[?(@=='urgent')]");
+  });
+
+  it('round-trips with parseDeltaPath for canonical paths', () => {
+    const paths = [
+      '$',
+      '$.name',
+      '$.user.address.city',
+      "$.config['a.b']",
+      '$.items[0]',
+      '$.items[?(@.id==42)]',
+      "$.items[?(@.name=='Widget')]",
+      "$.tags[?(@=='urgent')]",
+      '$.items[?(@.id==1)].name',
+    ];
+    for (const path of paths) {
+      expect(buildDeltaPath(parseDeltaPath(path))).toBe(path);
+    }
+  });
+});
+
+describe('atomicPathToDeltaPath', () => {
+  it('converts $.$root to $', () => {
+    expect(atomicPathToDeltaPath('$.$root')).toBe('$');
+  });
+
+  it('converts simple dot paths unchanged', () => {
+    expect(atomicPathToDeltaPath('$.name')).toBe('$.name');
+    expect(atomicPathToDeltaPath('$.user.name')).toBe('$.user.name');
+  });
+
+  it('quotes unquoted bracket properties', () => {
+    expect(atomicPathToDeltaPath('$[a.b]')).toBe("$['a.b']");
+  });
+
+  it('preserves already-quoted bracket properties', () => {
+    expect(atomicPathToDeltaPath("$['a.b']")).toBe("$['a.b']");
+  });
+
+  it('preserves array indices', () => {
+    expect(atomicPathToDeltaPath('$.items[0]')).toBe('$.items[0]');
+  });
+
+  it('preserves filter expressions', () => {
+    expect(atomicPathToDeltaPath("$.items[?(@.id=='1')]")).toBe("$.items[?(@.id=='1')]");
+  });
+
+  it('handles bracket property with special characters', () => {
+    expect(atomicPathToDeltaPath('$[foo-bar]')).toBe("$['foo-bar']");
+  });
+
+  it('throws when path does not start with $', () => {
+    expect(() => atomicPathToDeltaPath('invalid')).toThrow(/must start with/);
+  });
+
+  it('throws on unexpected character', () => {
+    expect(() => atomicPathToDeltaPath('$!bad')).toThrow(/Unexpected character/);
+  });
+
+  it('handles paths with filters and deep properties', () => {
+    expect(atomicPathToDeltaPath("$.items[?(@.id=='1')].name")).toBe("$.items[?(@.id=='1')].name");
+  });
+
+  it('handles filter literal containing )]', () => {
+    expect(atomicPathToDeltaPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
+  });
+});
+
+describe('deltaPathToAtomicPath', () => {
+  it('converts $ to $.$root', () => {
+    expect(deltaPathToAtomicPath('$')).toBe('$.$root');
+  });
+
+  it('passes through simple dot paths', () => {
+    expect(deltaPathToAtomicPath('$.name')).toBe('$.name');
+  });
+
+  it('strips bracket-property quotes', () => {
+    expect(deltaPathToAtomicPath("$['a.b']")).toBe('$[a.b]');
+  });
+
+  it('re-quotes numeric filter literals as strings', () => {
+    expect(deltaPathToAtomicPath('$.items[?(@.id==42)]')).toBe("$.items[?(@.id=='42')]");
+  });
+
+  it('re-quotes boolean filter literals as strings', () => {
+    expect(deltaPathToAtomicPath('$.items[?(@.active==true)]')).toBe("$.items[?(@.active=='true')]");
+  });
+
+  it('re-quotes null filter literals as strings', () => {
+    expect(deltaPathToAtomicPath('$.items[?(@.status==null)]')).toBe("$.items[?(@.status=='null')]");
+  });
+
+  it('preserves already string-quoted filter literals', () => {
+    expect(deltaPathToAtomicPath("$.items[?(@.id=='42')]")).toBe("$.items[?(@.id=='42')]");
+  });
+
+  it('handles value filter re-quoting', () => {
+    expect(deltaPathToAtomicPath('$.scores[?(@==100)]')).toBe("$.scores[?(@=='100')]");
+  });
+
+  it('handles deep path after filter with re-quoting', () => {
+    expect(deltaPathToAtomicPath('$.items[?(@.id==1)].name')).toBe("$.items[?(@.id=='1')].name");
+  });
+
+  it('preserves array indices', () => {
+    expect(deltaPathToAtomicPath('$.items[0]')).toBe('$.items[0]');
+  });
+
+  it('throws when path does not start with $', () => {
+    expect(() => deltaPathToAtomicPath('invalid')).toThrow(/must start with/);
+  });
+
+  it('throws on unexpected character after [', () => {
+    expect(() => deltaPathToAtomicPath('$[!bad]')).toThrow(/Unexpected character after/);
+  });
+
+  it('throws on unexpected character in path', () => {
+    expect(() => deltaPathToAtomicPath('$!bad')).toThrow(/Unexpected character/);
+  });
+
+  it('handles filter literal containing )]', () => {
+    expect(deltaPathToAtomicPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
+  });
+});
+
+describe('extractKeyFromAtomicPath', () => {
+  it('extracts $root from root path', () => {
+    expect(extractKeyFromAtomicPath('$.$root')).toBe('$root');
+  });
+
+  it('extracts last dot property', () => {
+    expect(extractKeyFromAtomicPath('$.user.name')).toBe('name');
+  });
+
+  it('extracts array index', () => {
+    expect(extractKeyFromAtomicPath('$.items[0]')).toBe('0');
+  });
+
+  it('extracts filter key value', () => {
+    expect(extractKeyFromAtomicPath("$.items[?(@.id=='42')]")).toBe('42');
+  });
+
+  it('extracts value filter key', () => {
+    expect(extractKeyFromAtomicPath("$.tags[?(@=='urgent')]")).toBe('urgent');
+  });
+
+  it('extracts property after filter (deep path)', () => {
+    expect(extractKeyFromAtomicPath("$.items[?(@.id=='1')].name")).toBe('name');
+  });
+
+  it('extracts bracket property key (non-numeric, non-filter)', () => {
+    expect(extractKeyFromAtomicPath('$[a.b]')).toBe('a.b');
+  });
+
+  it('returns the path itself as fallback', () => {
+    expect(extractKeyFromAtomicPath('$')).toBe('$');
+  });
+});

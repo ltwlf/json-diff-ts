@@ -12,33 +12,106 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg?logo=buy-me-a-coffee)](https://buymeacoffee.com/leitwolf)
 
-## Overview
+**Deterministic JSON state transitions with key-based array identity.** A TypeScript JSON diff library that computes, applies, and reverts atomic changes using the [JSON Delta](https://github.com/ltwlf/json-delta-format) wire format -- a JSON Patch alternative with stable array paths, built-in undo/redo for JSON, and language-agnostic state synchronization.
 
-**Modern TypeScript JSON diff library** - `json-diff-ts` is a lightweight, high-performance TypeScript library for calculating and applying differences between JSON objects. Perfect for modern web applications, state management, data synchronization, and real-time collaborative editing.
+Zero dependencies. TypeScript-first. ESM + CommonJS. Trusted by thousands of developers ([500K+ weekly npm downloads](https://www.npmjs.com/package/json-diff-ts)).
 
-### 🚀 **Why Choose json-diff-ts?**
+## Why Index-Based Diffing Breaks
 
-- **🔥 Zero dependencies** - Lightweight bundle size
-- **⚡ High performance** - Optimized algorithms for fast JSON diffing and patching
-- **🎯 95%+ test coverage** - Thoroughly tested with comprehensive test suite
-- **📦 Modern ES modules** - Full TypeScript support with tree-shaking
-- **🔧 Flexible API** - Compare, diff, patch, and atomic operations
-- **🌐 Universal** - Works in browsers, Node.js, and edge environments
-- **✅ Production ready** - Used in enterprise applications worldwide
-- **🎯 TypeScript-first** - Full type safety and IntelliSense support
-- **🔧 Modern features** - ESM + CommonJS, JSONPath, atomic operations
-- **📦 Production ready** - Battle-tested with comprehensive test suite
+Most JSON diff libraries track array changes by position. Insert one element at the start and every path shifts:
 
-### ✨ **Key Features**
+```text
+Remove /items/0  ← was actually "Widget"
+Add    /items/0  ← now it's "NewItem"
+Update /items/1  ← this used to be /items/0
+...
+```
 
-- **Key-based array identification**: Compare array elements using keys instead of indices for more intuitive diffing
-- **JSONPath support**: Target specific parts of JSON documents with precision  
-- **Atomic changesets**: Transform changes into granular, independently applicable operations
-- **Dual module support**: Works with both ECMAScript Modules and CommonJS
-- **Type change handling**: Flexible options for handling data type changes
-- **Path skipping**: Skip nested paths during comparison for performance
+This makes diffs fragile -- you can't store them, replay them reliably, or build audit logs on top of them. Reorder the array and every operation is wrong. This is the fundamental problem with index-based formats like JSON Patch (RFC 6902): paths like `/items/0` are positional, so any insertion, deletion, or reorder invalidates every subsequent path.
 
-This library is particularly valuable for applications where tracking changes in JSON data is crucial, such as state management systems, form handling, or data synchronization.
+**json-diff-ts solves this with key-based identity.** Array elements are matched by a stable key (`id`, `sku`, or any field), and paths use JSONPath filter expressions that survive insertions, deletions, and reordering:
+
+```typescript
+import { diffDelta, applyDelta, revertDelta } from 'json-diff-ts';
+
+const before = {
+  items: [
+    { id: 1, name: 'Widget', price: 9.99 },
+    { id: 2, name: 'Gadget', price: 24.99 },
+  ],
+};
+
+const after = {
+  items: [
+    { id: 2, name: 'Gadget', price: 24.99 },           // reordered
+    { id: 1, name: 'Widget Pro', price: 14.99 },        // renamed + repriced
+    { id: 3, name: 'Doohickey', price: 4.99 },          // added
+  ],
+};
+
+const delta = diffDelta(before, after, { arrayIdentityKeys: { items: 'id' } });
+```
+
+The delta tracks _what_ changed, not _where_ it moved:
+
+```json
+{
+  "format": "json-delta",
+  "version": 1,
+  "operations": [
+    { "op": "replace", "path": "$.items[?(@.id==1)].name", "value": "Widget Pro", "oldValue": "Widget" },
+    { "op": "replace", "path": "$.items[?(@.id==1)].price", "value": 14.99, "oldValue": 9.99 },
+    { "op": "add", "path": "$.items[?(@.id==3)]", "value": { "id": 3, "name": "Doohickey", "price": 4.99 } }
+  ]
+}
+```
+
+Apply forward to get the new state, or revert to restore the original:
+
+```typescript
+// Clone before applying — applyDelta mutates the input object
+const updated  = applyDelta(structuredClone(before), delta);  // updated === after
+const restored = revertDelta(structuredClone(updated), delta); // restored === before
+```
+
+## Quick Start
+
+```typescript
+import { diffDelta, applyDelta, revertDelta } from 'json-diff-ts';
+
+const oldObj = {
+  items: [
+    { id: 1, name: 'Widget', price: 9.99 },
+    { id: 2, name: 'Gadget', price: 24.99 },
+  ],
+};
+
+const newObj = {
+  items: [
+    { id: 1, name: 'Widget Pro', price: 9.99 },
+    { id: 2, name: 'Gadget', price: 24.99 },
+    { id: 3, name: 'Doohickey', price: 4.99 },
+  ],
+};
+
+// 1. Compute a delta between two JSON objects
+const delta = diffDelta(oldObj, newObj, {
+  arrayIdentityKeys: { items: 'id' },   // match array elements by 'id' field
+});
+// delta.operations =>
+// [
+//   { op: 'replace', path: '$.items[?(@.id==1)].name', value: 'Widget Pro', oldValue: 'Widget' },
+//   { op: 'add', path: '$.items[?(@.id==3)]', value: { id: 3, name: 'Doohickey', price: 4.99 } }
+// ]
+
+// 2. Apply the delta to produce the new state
+const updated = applyDelta(structuredClone(oldObj), delta);
+
+// 3. Revert the delta to restore the original state
+const reverted = revertDelta(structuredClone(updated), delta);
+```
+
+That's it. `delta` is a plain JSON object you can store in a database, send over HTTP, or consume in any language.
 
 ## Installation
 
@@ -46,288 +119,454 @@ This library is particularly valuable for applications where tracking changes in
 npm install json-diff-ts
 ```
 
-## Quick Start
+```typescript
+// ESM / TypeScript
+import { diffDelta, applyDelta, revertDelta } from 'json-diff-ts';
+
+// CommonJS
+const { diffDelta, applyDelta, revertDelta } = require('json-diff-ts');
+```
+
+## What is JSON Delta?
+
+[JSON Delta](https://github.com/ltwlf/json-delta-format) is a specification for representing atomic changes to JSON documents. json-diff-ts is the originating implementation from which the spec was derived.
+
+A delta is a self-describing JSON document you can store, transmit, and consume in any language:
+
+- **Three operations** -- `add`, `remove`, `replace`. Nothing else to learn.
+- **JSONPath-based paths** -- `$.items[?(@.id==1)].name` identifies elements by key, not index.
+- **Reversible by default** -- every `replace` and `remove` includes `oldValue` for undo.
+- **Self-identifying** -- the `format` field makes deltas discoverable without external context.
+- **Extension-friendly** -- unknown properties are preserved; `x_`-prefixed properties are future-safe.
+
+### JSON Delta vs JSON Patch (RFC 6902)
+
+JSON Patch uses JSON Pointer paths like `/items/0` that reference array elements by index. When an element is inserted at position 0, every subsequent path shifts -- `/items/1` now points to what was `/items/0`. This makes stored patches unreliable for JSON change tracking, audit logs, or undo/redo across time.
+
+JSON Delta uses JSONPath filter expressions like `$.items[?(@.id==1)]` that identify elements by a stable key. The path stays valid regardless of insertions, deletions, or reordering.
+
+| | JSON Delta | JSON Patch (RFC 6902) |
+| --- | --- | --- |
+| Path syntax | JSONPath (`$.items[?(@.id==1)]`) | JSON Pointer (`/items/0`) |
+| Array identity | Key-based -- survives reorder | Index-based -- breaks on insert/delete |
+| Reversibility | Built-in `oldValue` | Not supported |
+| Self-describing | `format` field in envelope | No envelope |
+| Specification | [json-delta-format](https://github.com/ltwlf/json-delta-format) | [RFC 6902](https://tools.ietf.org/html/rfc6902) |
+
+---
+
+## JSON Delta API
+
+### `diffDelta` -- Compute a Delta
 
 ```typescript
-import { diff, applyChangeset } from 'json-diff-ts';
+const delta = diffDelta(
+  { user: { name: 'Alice', role: 'viewer' } },
+  { user: { name: 'Alice', role: 'admin' } }
+);
+// delta.operations → [{ op: 'replace', path: '$.user.role', value: 'admin', oldValue: 'viewer' }]
+```
 
-// Two versions of data
-const oldData = { name: 'Luke', level: 1, skills: ['piloting'] };
-const newData = { name: 'Luke Skywalker', level: 5, skills: ['piloting', 'force'] };
+#### Keyed Arrays
 
-// Calculate differences
-const changes = diff(oldData, newData);
-console.log(changes);
-// Output: [
-//   { type: 'UPDATE', key: 'name', value: 'Luke Skywalker', oldValue: 'Luke' },
-//   { type: 'UPDATE', key: 'level', value: 5, oldValue: 1 },
-//   { type: 'ADD', key: 'skills', value: 'force', embeddedKey: '1' }
+Match array elements by identity key. Filter paths use canonical typed literals per the spec:
+
+```typescript
+const delta = diffDelta(
+  { users: [{ id: 1, role: 'viewer' }, { id: 2, role: 'editor' }] },
+  { users: [{ id: 1, role: 'admin' },  { id: 2, role: 'editor' }] },
+  { arrayIdentityKeys: { users: 'id' } }
+);
+// delta.operations → [{ op: 'replace', path: '$.users[?(@.id==1)].role', value: 'admin', oldValue: 'viewer' }]
+```
+
+#### Non-reversible Mode
+
+Omit `oldValue` fields when you don't need undo:
+
+```typescript
+const delta = diffDelta(source, target, { reversible: false });
+```
+
+### `applyDelta` -- Apply a Delta
+
+Applies operations sequentially. Always use the return value (required for root-level replacements):
+
+```typescript
+const result = applyDelta(structuredClone(source), delta);
+```
+
+### `revertDelta` -- Revert a Delta
+
+Computes the inverse and applies it. Requires `oldValue` on all `replace` and `remove` operations:
+
+```typescript
+const original = revertDelta(structuredClone(target), delta);
+```
+
+### `invertDelta` -- Compute the Inverse
+
+Returns a new delta that undoes the original (spec Section 9.2):
+
+```typescript
+const inverse = invertDelta(delta);
+// add ↔ remove, replace swaps value/oldValue, order reversed
+```
+
+### `validateDelta` -- Validate Structure
+
+```typescript
+const { valid, errors } = validateDelta(maybeDelta);
+```
+
+### API Reference
+
+| Function | Signature | Description |
+| --- | --- | --- |
+| `diffDelta` | `(oldObj, newObj, options?) => IJsonDelta` | Compute a canonical JSON Delta |
+| `applyDelta` | `(obj, delta) => any` | Apply a delta sequentially. Returns the result |
+| `revertDelta` | `(obj, delta) => any` | Revert a reversible delta |
+| `invertDelta` | `(delta) => IJsonDelta` | Compute the inverse delta |
+| `validateDelta` | `(delta) => { valid, errors }` | Structural validation |
+| `toDelta` | `(changeset, options?) => IJsonDelta` | Bridge: v4 changeset to JSON Delta |
+| `fromDelta` | `(delta) => IAtomicChange[]` | Bridge: JSON Delta to v4 atomic changes |
+
+### DeltaOptions
+
+Extends the base `Options` interface:
+
+```typescript
+interface DeltaOptions extends Options {
+  reversible?: boolean;       // Include oldValue for undo. Default: true
+  arrayIdentityKeys?: Record<string, string | FunctionKey>;
+  keysToSkip?: readonly string[];
+}
+```
+
+---
+
+## Practical Examples
+
+### Audit Log
+
+Store every change to a document as a reversible delta. Each entry records who changed what, when, and can be replayed or reverted independently -- a complete JSON change tracking system:
+
+```typescript
+import { diffDelta, applyDelta, revertDelta, IJsonDelta } from 'json-diff-ts';
+
+interface AuditEntry {
+  timestamp: string;
+  userId: string;
+  delta: IJsonDelta;
+}
+
+const auditLog: AuditEntry[] = [];
+let doc = {
+  title: 'Project Plan',
+  status: 'draft',
+  items: [
+    { id: 1, task: 'Design', done: false },
+    { id: 2, task: 'Build', done: false },
+  ],
+};
+
+function updateDocument(newDoc: typeof doc, userId: string) {
+  const delta = diffDelta(doc, newDoc, {
+    arrayIdentityKeys: { items: 'id' },
+  });
+
+  if (delta.operations.length > 0) {
+    auditLog.push({ timestamp: new Date().toISOString(), userId, delta });
+    doc = applyDelta(structuredClone(doc), delta);
+  }
+
+  return doc;
+}
+
+// Revert the last change
+function undo(): typeof doc {
+  const last = auditLog.pop();
+  if (!last) return doc;
+  doc = revertDelta(structuredClone(doc), last.delta);
+  return doc;
+}
+
+// Example usage:
+updateDocument(
+  { ...doc, status: 'active', items: [{ id: 1, task: 'Design', done: true }, ...doc.items.slice(1)] },
+  'alice'
+);
+// auditLog[0].delta.operations =>
+// [
+//   { op: 'replace', path: '$.status', value: 'active', oldValue: 'draft' },
+//   { op: 'replace', path: '$.items[?(@.id==1)].done', value: true, oldValue: false }
 // ]
-
-// Apply changes to get the new object
-const result = applyChangeset(oldData, changes);
-console.log(result); // { name: 'Luke Skywalker', level: 5, skills: ['piloting', 'force'] }
 ```
 
-### Import Options
+Because every delta is self-describing JSON, your audit log is queryable, storable in any database, and readable from any language.
 
-**TypeScript / ES Modules:**
+### Undo / Redo Stack
+
+Build undo/redo for any JSON state object. Deltas are small (only changed fields), reversible, and serializable:
+
 ```typescript
-import { diff } from 'json-diff-ts';
+import { diffDelta, applyDelta, revertDelta, IJsonDelta } from 'json-diff-ts';
+
+class UndoManager<T extends object> {
+  private undoStack: IJsonDelta[] = [];
+  private redoStack: IJsonDelta[] = [];
+
+  constructor(private state: T) {}
+
+  apply(newState: T): T {
+    const delta = diffDelta(this.state, newState);
+    if (delta.operations.length === 0) return this.state;
+    this.undoStack.push(delta);
+    this.redoStack = [];
+    this.state = applyDelta(structuredClone(this.state), delta);
+    return this.state;
+  }
+
+  undo(): T {
+    const delta = this.undoStack.pop();
+    if (!delta) return this.state;
+    this.redoStack.push(delta);
+    this.state = revertDelta(structuredClone(this.state), delta);
+    return this.state;
+  }
+
+  redo(): T {
+    const delta = this.redoStack.pop();
+    if (!delta) return this.state;
+    this.undoStack.push(delta);
+    this.state = applyDelta(structuredClone(this.state), delta);
+    return this.state;
+  }
+}
 ```
 
-**CommonJS:**
-```javascript
-const { diff } = require('json-diff-ts');
+### Data Synchronization
+
+Send only what changed between client and server. Deltas are compact -- a single field change in a 10KB document produces a few bytes of delta, making state synchronization efficient over the wire:
+
+```typescript
+import { diffDelta, applyDelta, validateDelta } from 'json-diff-ts';
+
+// Client side: compute and send delta
+const delta = diffDelta(localState, updatedState, {
+  arrayIdentityKeys: { records: 'id' },
+});
+await fetch('/api/sync', {
+  method: 'POST',
+  body: JSON.stringify(delta),
+});
+
+// Server side: validate and apply
+const result = validateDelta(req.body);
+if (!result.valid) return res.status(400).json(result.errors);
+// ⚠️ In production, sanitize paths/values to prevent prototype pollution
+//    (e.g. reject paths containing "__proto__" or "constructor")
+currentState = applyDelta(structuredClone(currentState), req.body);
 ```
 
-## Core Features
+---
+
+## Bridge: v4 Changeset <-> JSON Delta
+
+Convert between the legacy internal format and JSON Delta:
+
+```typescript
+import { diff, toDelta, fromDelta, unatomizeChangeset } from 'json-diff-ts';
+
+// v4 changeset → JSON Delta
+const changeset = diff(source, target, { arrayIdentityKeys: { items: 'id' } });
+const delta = toDelta(changeset);
+
+// JSON Delta → v4 atomic changes
+const atoms = fromDelta(delta);
+
+// v4 atomic changes → hierarchical changeset (if needed)
+const cs = unatomizeChangeset(atoms);
+```
+
+**Note:** `toDelta` is a best-effort bridge. Filter literals are always string-quoted (e.g., `[?(@.id=='42')]` instead of canonical `[?(@.id==42)]`). Use `diffDelta()` for fully canonical output.
+
+---
+
+## Legacy Changeset API (v4 Compatibility)
+
+All v4 APIs remain fully supported. Existing code continues to work without changes. For new projects, prefer the JSON Delta API above.
 
 ### `diff`
 
-Generates a difference set for JSON objects. When comparing arrays, if a specific key is provided, differences are determined by matching elements via this key rather than array indices.
-
-#### Basic Example with Star Wars Data
+Generates a hierarchical changeset between two objects:
 
 ```typescript
 import { diff } from 'json-diff-ts';
 
-// State during A New Hope - Desert planet, small rebel cell
 const oldData = {
   location: 'Tatooine',
-  mission: 'Rescue Princess',
-  status: 'In Progress',
   characters: [
-    { id: 'LUKE_SKYWALKER', name: 'Luke Skywalker', role: 'Farm Boy', forceTraining: false },
-    { id: 'LEIA_ORGANA', name: 'Princess Leia', role: 'Prisoner', forceTraining: false }
+    { id: 'LUKE', name: 'Luke Skywalker', role: 'Farm Boy' },
+    { id: 'LEIA', name: 'Princess Leia', role: 'Prisoner' }
   ],
-  equipment: ['Lightsaber', 'Blaster']
 };
 
-// State after successful rescue - Base established, characters evolved
 const newData = {
   location: 'Yavin Base',
-  mission: 'Destroy Death Star',
-  status: 'Complete',
   characters: [
-    { id: 'LUKE_SKYWALKER', name: 'Luke Skywalker', role: 'Pilot', forceTraining: true, rank: 'Commander' },
-    { id: 'HAN_SOLO', name: 'Han Solo', role: 'Smuggler', forceTraining: false, ship: 'Millennium Falcon' }
+    { id: 'LUKE', name: 'Luke Skywalker', role: 'Pilot', rank: 'Commander' },
+    { id: 'HAN', name: 'Han Solo', role: 'Smuggler' }
   ],
-  equipment: ['Lightsaber', 'Blaster', 'Bowcaster', 'X-wing Fighter']
 };
 
-const diffs = diff(oldData, newData, { embeddedObjKeys: { characters: 'id' } });
-console.log(diffs);
-// First operations:
-// [
-//   { type: 'UPDATE', key: 'location', value: 'Yavin Base', oldValue: 'Tatooine' },
-//   { type: 'UPDATE', key: 'mission', value: 'Destroy Death Star', oldValue: 'Rescue Princess' },
-//   { type: 'UPDATE', key: 'status', value: 'Complete', oldValue: 'In Progress' },
-//   ...
-// ]
-```
-
-#### Advanced Options
-
-##### Path-based Key Identification
-
-```javascript
-import { diff } from 'json-diff-ts';
-
-// Using nested paths for sub-arrays
-const diffs = diff(oldData, newData, { embeddedObjKeys: { 'characters.equipment': 'id' } });
-
-// Designating root with '.' - useful for complex nested structures
-const diffs = diff(oldData, newData, { embeddedObjKeys: { '.characters.allies': 'id' } });
-```
-
-##### Type Change Handling
-
-```javascript
-import { diff } from 'json-diff-ts';
-
-// Control how type changes are treated
-const diffs = diff(oldData, newData, { treatTypeChangeAsReplace: false });
-```
-
-Date objects can now be updated to primitive values without errors when `treatTypeChangeAsReplace` is set to `false`.
-
-##### Skip Nested Paths
-
-```javascript
-import { diff } from 'json-diff-ts';
-
-// Skip specific nested paths from comparison - useful for ignoring metadata
-const diffs = diff(oldData, newData, { keysToSkip: ['characters.metadata'] });
-```
-
-##### Dynamic Key Resolution
-
-```javascript
-import { diff } from 'json-diff-ts';
-
-// Use function to resolve object keys dynamically
-const diffs = diff(oldData, newData, {
-  embeddedObjKeys: {
-    characters: (obj, shouldReturnKeyName) => (shouldReturnKeyName ? 'id' : obj.id)
-  }
-});
-
-// Access index for array elements
-const rebels = [
-  { name: 'Luke Skywalker', faction: 'Jedi' },
-  { name: 'Yoda', faction: 'Jedi' },
-  { name: 'Princess Leia', faction: 'Rebellion' }
-];
-
-const diffs = diff(oldRebels, newRebels, {
-  embeddedObjKeys: {
-    rebels: (obj, shouldReturnKeyName, index) => {
-      if (shouldReturnKeyName) return 'faction';
-      // Use index to differentiate rebels in the same faction
-      return `faction.${obj.faction}.${index}`;
-    }
-  }
-});
-```
-
-##### Regular Expression Paths
-
-```javascript
-import { diff } from 'json-diff-ts';
-
-// Use regex for path matching - powerful for dynamic property names
-const embeddedObjKeys = new Map();
-embeddedObjKeys.set(/^characters/, 'id');  // Match any property starting with 'characters'
-const diffs = diff(oldData, newData, { embeddedObjKeys });
-```
-
-##### String Array Comparison
-
-```javascript
-import { diff } from 'json-diff-ts';
-
-// Compare string arrays by value instead of index - useful for tags, categories
-const diffs = diff(oldData, newData, { embeddedObjKeys: { equipment: '$value' } });
-```
-
-### `atomizeChangeset` and `unatomizeChangeset`
-
-Transform complex changesets into a list of atomic changes (and back), each describable by a JSONPath.
-
-```javascript
-import { atomizeChangeset, unatomizeChangeset } from 'json-diff-ts';
-
-// Create atomic changes
-const atomicChanges = atomizeChangeset(diffs);
-
-// Restore the changeset from a selection of atomic changes
-const changeset = unatomizeChangeset(atomicChanges.slice(0, 3));
-```
-
-**Atomic Changes Structure:**
-
-```javascript
-[
-  { 
-    type: 'UPDATE', 
-    key: 'location', 
-    value: 'Yavin Base', 
-    oldValue: 'Tatooine', 
-    path: '$.location', 
-    valueType: 'String' 
-  },
-  { 
-    type: 'UPDATE', 
-    key: 'mission', 
-    value: 'Destroy Death Star', 
-    oldValue: 'Rescue Princess', 
-    path: '$.mission', 
-    valueType: 'String' 
-  },
-  { 
-    type: 'ADD', 
-    key: 'rank', 
-    value: 'Commander', 
-    path: "$.characters[?(@.id=='LUKE_SKYWALKER')].rank", 
-    valueType: 'String' 
-  },
-  { 
-    type: 'ADD', 
-    key: 'HAN_SOLO', 
-    value: { id: 'HAN_SOLO', name: 'Han Solo', role: 'Smuggler', forceTraining: false, ship: 'Millennium Falcon' }, 
-    path: "$.characters[?(@.id=='HAN_SOLO')]", 
-    valueType: 'Object' 
-  }
-]
+const changes = diff(oldData, newData, { arrayIdentityKeys: { characters: 'id' } });
 ```
 
 ### `applyChangeset` and `revertChangeset`
 
-Apply or revert changes to JSON objects.
-
-```javascript
+```typescript
 import { applyChangeset, revertChangeset } from 'json-diff-ts';
 
-// Apply changes
-const updated = applyChangeset(oldData, diffs);
-console.log(updated);
-// { location: 'Yavin Base', mission: 'Destroy Death Star', status: 'Complete', ... }
-
-// Revert changes
-const reverted = revertChangeset(newData, diffs);
-console.log(reverted);
-// { location: 'Tatooine', mission: 'Rescue Princess', status: 'In Progress', ... }
+const updated = applyChangeset(structuredClone(oldData), changes);
+const reverted = revertChangeset(structuredClone(newData), changes);
 ```
 
-## API Reference
+### `atomizeChangeset` and `unatomizeChangeset`
 
-### Core Functions
+Flatten a hierarchical changeset into atomic changes addressable by JSONPath, or reconstruct the hierarchy:
 
-| Function | Description | Parameters |
-|----------|-------------|------------|
-| `diff(oldObj, newObj, options?)` | Generate differences between two objects | `oldObj`: Original object<br>`newObj`: Updated object<br>`options`: Optional configuration |
-| `applyChangeset(obj, changeset)` | Apply changes to an object | `obj`: Object to modify<br>`changeset`: Changes to apply |
-| `revertChangeset(obj, changeset)` | Revert changes from an object | `obj`: Object to modify<br>`changeset`: Changes to revert |
-| `atomizeChangeset(changeset)` | Convert changeset to atomic changes | `changeset`: Nested changeset |
-| `unatomizeChangeset(atomicChanges)` | Convert atomic changes back to nested changeset | `atomicChanges`: Array of atomic changes |
+```typescript
+import { atomizeChangeset, unatomizeChangeset } from 'json-diff-ts';
+
+const atoms = atomizeChangeset(changes);
+// [
+//   { type: 'UPDATE', key: 'location', value: 'Yavin Base', oldValue: 'Tatooine',
+//     path: '$.location', valueType: 'String' },
+//   { type: 'ADD', key: 'rank', value: 'Commander',
+//     path: "$.characters[?(@.id=='LUKE')].rank", valueType: 'String' },
+//   ...
+// ]
+
+const restored = unatomizeChangeset(atoms.slice(0, 2));
+```
+
+### Advanced Options
+
+#### Key-based Array Matching
+
+```typescript
+// Named key
+diff(old, new, { arrayIdentityKeys: { characters: 'id' } });
+
+// Function key
+diff(old, new, {
+  arrayIdentityKeys: {
+    characters: (obj, shouldReturnKeyName) => (shouldReturnKeyName ? 'id' : obj.id)
+  }
+});
+
+// Regex path matching
+const keys = new Map();
+keys.set(/^characters/, 'id');
+diff(old, new, { arrayIdentityKeys: keys });
+
+// Value-based identity for primitive arrays
+diff(old, new, { arrayIdentityKeys: { tags: '$value' } });
+```
+
+#### Path Skipping
+
+```typescript
+diff(old, new, { keysToSkip: ['characters.metadata'] });
+```
+
+#### Type Change Handling
+
+```typescript
+diff(old, new, { treatTypeChangeAsReplace: false });
+```
+
+### Legacy API Reference
+
+| Function | Description |
+| --- | --- |
+| `diff(oldObj, newObj, options?)` | Compute hierarchical changeset |
+| `applyChangeset(obj, changeset)` | Apply a changeset to an object |
+| `revertChangeset(obj, changeset)` | Revert a changeset from an object |
+| `atomizeChangeset(changeset)` | Flatten to atomic changes with JSONPath |
+| `unatomizeChangeset(atoms)` | Reconstruct hierarchy from atomic changes |
 
 ### Comparison Functions
 
-| Function | Description | Parameters |
-|----------|-------------|------------|
-| `compare(oldObj, newObj)` | Create enriched comparison object | `oldObj`: Original object<br>`newObj`: Updated object |
-| `enrich(obj)` | Create enriched representation of object | `obj`: Object to enrich |
-| `createValue(value)` | Create value node for comparison | `value`: Any value |
-| `createContainer(value)` | Create container node for comparison | `value`: Object or Array |
+| Function | Description |
+| --- | --- |
+| `compare(oldObj, newObj)` | Create enriched comparison object |
+| `enrich(obj)` | Create enriched representation |
 
-### Options Interface
+### Options
 
 ```typescript
 interface Options {
+  arrayIdentityKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
+  /** @deprecated Use arrayIdentityKeys instead */
   embeddedObjKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
   keysToSkip?: readonly string[];
-  treatTypeChangeAsReplace?: boolean;
+  treatTypeChangeAsReplace?: boolean; // default: true
 }
 ```
 
-| Option | Type | Description |
-| ------ | ---- | ----------- |
-| `embeddedObjKeys` | `Record<string, string \| FunctionKey>` or `Map<string \| RegExp, string \| FunctionKey>` | Map paths of arrays to a key or resolver function used to match elements when diffing. Use a `Map` for regex paths. |
-| `keysToSkip` | `readonly string[]` | Dotted paths to exclude from comparison, e.g. `"meta.info"`. |
-| `treatTypeChangeAsReplace` | `boolean` | When `true` (default), a type change results in a REMOVE/ADD pair. Set to `false` to treat it as an UPDATE. |
+---
 
-### Change Types
+## Migration from v4
 
-```typescript
-enum Operation {
-  REMOVE = 'REMOVE',
-  ADD = 'ADD', 
-  UPDATE = 'UPDATE'
-}
-```
+1. **No action required** -- all v4 APIs work identically in v5.
+2. **Adopt JSON Delta** -- use `diffDelta()` / `applyDelta()` for new code.
+3. **Bridge existing data** -- `toDelta()` / `fromDelta()` for interop with stored v4 changesets.
+4. **Rename `embeddedObjKeys` to `arrayIdentityKeys`** -- the old name still works, but `arrayIdentityKeys` is the preferred name going forward.
+5. Both formats coexist. No forced migration.
+
+---
+
+## Why json-diff-ts?
+
+| Feature | json-diff-ts | deep-diff | jsondiffpatch | RFC 6902 |
+| --- | --- | --- | --- | --- |
+| TypeScript | Native | Partial | Definitions only | Varies |
+| Bundle Size | ~21KB | ~45KB | ~120KB+ | Varies |
+| Dependencies | Zero | Few | Many | Varies |
+| ESM Support | Native | CJS only | CJS only | Varies |
+| Array Identity | Key-based | Index only | Configurable | Index only |
+| Wire Format | JSON Delta (standardized) | Proprietary | Proprietary | JSON Pointer |
+| Reversibility | Built-in (`oldValue`) | Manual | Plugin | Not built-in |
+
+## FAQ
+
+**Q: How does JSON Delta compare to JSON Patch (RFC 6902)?**
+JSON Patch uses JSON Pointer (`/items/0`) for paths, which breaks when array elements are inserted, deleted, or reordered. JSON Delta uses JSONPath filter expressions (`$.items[?(@.id==1)]`) for stable, key-based identity. JSON Delta also supports built-in reversibility via `oldValue`.
+
+**Q: Can I use this with React / Vue / Angular?**
+Yes. json-diff-ts works in any JavaScript runtime -- browsers, Node.js, Deno, Bun, edge workers.
+
+**Q: Is it suitable for large objects?**
+Yes. The library handles large, deeply nested JSON structures efficiently with zero dependencies and a ~6KB gzipped footprint.
+
+**Q: Can I use the v4 API alongside JSON Delta?**
+Yes. Both APIs coexist. Use `toDelta()` / `fromDelta()` to convert between formats.
+
+**Q: What about arrays of primitives?**
+Use `$value` as the identity key: `{ arrayIdentityKeys: { tags: '$value' } }`. Elements are matched by value identity.
+
+---
 
 ## Release Notes
+
+- **v5.0.0-alpha.0:**
+  - JSON Delta API: `diffDelta`, `applyDelta`, `revertDelta`, `invertDelta`, `toDelta`, `fromDelta`, `validateDelta`
+  - Canonical path production with typed filter literals
+  - Conformance with the [JSON Delta Specification](https://github.com/ltwlf/json-delta-format) v0
+  - Renamed `embeddedObjKeys` to `arrayIdentityKeys` (old name still works as deprecated alias)
+  - All v4 APIs preserved unchanged
 
 - **v4.9.0:**
   - Fixed `applyChangeset` and `revertChangeset` for root-level arrays containing objects (fixes #362)
@@ -340,82 +579,22 @@ enum Operation {
   - Fixed README Options Interface formatting (#360)
 - **v4.8.2:** Fixed array handling in `applyChangeset` for null, undefined, and deleted elements (fixes issue #316)
 - **v4.8.1:** Improved documentation with working examples and detailed options.
-- **v4.8.0:** Significantly reduced bundle size by completely removing es-toolkit dependency and implementing custom utility functions. This change eliminates external dependencies while maintaining identical functionality and improving performance.
-
+- **v4.8.0:** Significantly reduced bundle size by completely removing es-toolkit dependency and implementing custom utility functions.
 - **v4.7.0:** Optimized bundle size and performance by replacing es-toolkit/compat with es-toolkit for difference, intersection, and keyBy functions
-
 - **v4.6.3:** Fixed null comparison returning update when values are both null (fixes issue #284)
-
-- **v4.6.2:** Fixed updating to null when `treatTypeChangeAsReplace` is false and bumped Jest dev dependencies
+- **v4.6.2:** Fixed updating to null when `treatTypeChangeAsReplace` is false
 - **v4.6.1:** Consistent JSONPath format for array items (fixes issue #269)
 - **v4.6.0:** Fixed filter path regex to avoid polynomial complexity
-- **v4.5.1:** Updated package dependencies
 - **v4.5.0:** Switched internal utilities from lodash to es-toolkit/compat for a smaller bundle size
 - **v4.4.0:** Fixed Date-to-string diff when `treatTypeChangeAsReplace` is false
-- **v4.3.0:** Enhanced functionality:
-  - Added support for nested keys to skip using dotted path notation in the keysToSkip option
-  - This allows excluding specific nested object paths from comparison (fixes #242)
-- **v4.2.0:** Improved stability with multiple fixes:
-  - Fixed object handling in atomizeChangeset and unatomizeChangeset
-  - Fixed array handling in applyChangeset and revertChangeset
-  - Fixed handling of null values in applyChangeset
-  - Fixed handling of empty REMOVE operations when diffing from undefined
+- **v4.3.0:** Added support for nested keys to skip using dotted path notation (fixes #242)
+- **v4.2.0:** Improved stability with multiple fixes for atomize/unatomize, apply/revert, null handling
 - **v4.1.0:** Full support for ES modules while maintaining CommonJS compatibility
-- **v4.0.0:** Changed naming of flattenChangeset and unflattenChanges to atomizeChangeset and unatomizeChangeset; added option to set treatTypeChangeAsReplace
-- **v3.0.1:** Fixed issue with unflattenChanges when a key has periods
-- **v3.0.0:** Added support for both CommonJS and ECMAScript Modules. Replaced lodash-es with lodash to support both module formats
-- **v2.2.0:** Fixed lodash-es dependency, added exclude keys option, added string array comparison by value
-- **v2.1.0:** Fixed JSON Path filters by replacing single equal sign (=) with double equal sign (==). Added support for using '.' as root in paths
-- **v2.0.0:** Upgraded to ECMAScript module format with optimizations and improved documentation. Fixed regex path handling (breaking change: now requires Map instead of Record for regex paths)
-- **v1.2.6:** Enhanced JSON Path handling for period-inclusive segments
-- **v1.2.5:** Added key name resolution support for key functions
-- **v1.2.4:** Documentation updates and dependency upgrades
-- **v1.2.3:** Updated dependencies and TypeScript
+- **v4.0.0:** Renamed flattenChangeset/unflattenChanges to atomizeChangeset/unatomizeChangeset; added treatTypeChangeAsReplace option
 
 ## Contributing
 
 Contributions are welcome! Please follow the provided issue templates and code of conduct.
-
-## Performance & Bundle Size
-
-- **Zero dependencies**: No external runtime dependencies
-- **Lightweight**: ~21KB minified, ~6KB gzipped
-- **Tree-shakable**: Use only what you need with ES modules
-- **High performance**: Optimized for large JSON objects and arrays
-
-## Use Cases
-
-- **State Management**: Track changes in Redux, Zustand, or custom state stores  
-- **Form Handling**: Detect field changes in React, Vue, or Angular forms
-- **Data Synchronization**: Sync data between client and server efficiently
-- **Version Control**: Implement undo/redo functionality
-- **API Optimization**: Send only changed data to reduce bandwidth
-- **Real-time Updates**: Track changes in collaborative applications
-
-## Comparison with Alternatives
-
-| Feature | json-diff-ts | deep-diff | jsondiffpatch |
-|---------|--------------|-----------|---------------|
-| TypeScript | ✅ Native | ❌ Partial | ❌ Definitions only |
-| Bundle Size | 🟢 21KB | 🟡 45KB | 🔴 120KB+ |
-| Dependencies | 🟢 Zero | 🟡 Few | 🔴 Many |
-| ESM Support | ✅ Native | ❌ CJS only | ❌ CJS only |
-| Array Key Matching | ✅ Advanced | ❌ Basic | ✅ Advanced |
-| JSONPath Support | ✅ Full | ❌ None | ❌ Limited |
-
-## FAQ
-
-**Q: Can I use this with React/Vue/Angular?**  
-A: Yes! json-diff-ts works with any JavaScript framework or vanilla JS.
-
-**Q: Does it work with Node.js?**  
-A: Absolutely! Supports Node.js 18+ with both CommonJS and ES modules.
-
-**Q: How does it compare to JSON Patch (RFC 6902)?**  
-A: json-diff-ts provides a more flexible format with advanced array handling, while JSON Patch is a standardized format.
-
-**Q: Is it suitable for large objects?**  
-A: Yes, the library is optimized for performance and can handle large, complex JSON structures efficiently.
 
 ## Support
 
@@ -424,8 +603,6 @@ If you find this library useful, consider supporting its development:
 [![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/leitwolf)
 
 ## Contact
-
-Reach out to the maintainer:
 
 - LinkedIn: [Christian Glessner](https://www.linkedin.com/in/christian-glessner/)
 - Twitter: [@leitwolf_io](https://twitter.com/leitwolf_io)

@@ -95,7 +95,7 @@ jobs:
           fi
           
       - name: Publish package
-        uses: JS-DevTools/npm-publish@19c28f1ef146469e409470805ea4279d47c3d35c # v3
+        uses: JS-DevTools/npm-publish@0fd2f4369c5d6bcfcde6091a7c527d810b9b5c3f # v4.1.5
         with:
           token: ${{ secrets.NPM_TOKEN }}
           tag: ${{ steps.prep.outputs.RELEASE_TYPE }}

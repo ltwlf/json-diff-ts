@@ -129,7 +129,7 @@ const { diffDelta, applyDelta, revertDelta } = require('json-diff-ts');
 
 ## What is JSON Delta?
 
-[JSON Delta](https://github.com/ltwlf/json-delta-format) is a specification for representing atomic changes to JSON documents. json-diff-ts is the originating implementation from which the spec was derived.
+[JSON Delta](https://github.com/ltwlf/json-delta-format) is a specification for representing atomic changes to JSON documents. json-diff-ts is the originating implementation from which the spec was derived. A Python implementation is also available: [json-delta-py](https://github.com/ltwlf/json-delta-py).
 
 A delta is a self-describing JSON document you can store, transmit, and consume in any language:
 

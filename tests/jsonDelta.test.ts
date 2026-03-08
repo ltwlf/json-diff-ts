@@ -663,6 +663,33 @@ describe('applyDelta', () => {
       }
     );
     expect(result).toEqual([1, 2, 3]);
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it('root replace array with object returns plain object', () => {
+    const result = applyDelta(
+      [1, 2, 3],
+      {
+        format: 'json-delta',
+        version: 1,
+        operations: [{ op: 'replace', path: '$', value: { new: true }, oldValue: [1, 2, 3] }],
+      }
+    );
+    expect(result).toEqual({ new: true });
+    expect(Array.isArray(result)).toBe(false);
+  });
+
+  it('root replace array with array returns new array', () => {
+    const result = applyDelta(
+      [1, 2],
+      {
+        format: 'json-delta',
+        version: 1,
+        operations: [{ op: 'replace', path: '$', value: [3, 4, 5], oldValue: [1, 2] }],
+      }
+    );
+    expect(result).toEqual([3, 4, 5]);
+    expect(Array.isArray(result)).toBe(true);
   });
 
   it('applies operations sequentially (order matters)', () => {

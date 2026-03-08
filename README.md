@@ -364,6 +364,8 @@ await fetch('/api/sync', {
 // Server side: validate and apply
 const result = validateDelta(req.body);
 if (!result.valid) return res.status(400).json(result.errors);
+// ⚠️ In production, sanitize paths/values to prevent prototype pollution
+//    (e.g. reject paths containing "__proto__" or "constructor")
 currentState = applyDelta(structuredClone(currentState), req.body);
 ```
 

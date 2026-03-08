@@ -562,7 +562,7 @@ export function invertDelta(delta: IJsonDelta): IJsonDelta {
  * Processes operations sequentially. Handles root operations directly.
  * Returns the result (MUST use return value for root primitive replacements).
  */
-export function applyDelta<T = any>(obj: T, delta: IJsonDelta): T {
+export function applyDelta(obj: any, delta: IJsonDelta): any {
   const validation = validateDelta(delta);
   if (!validation.valid) {
     throw new Error(`Invalid delta: ${validation.errors.join(', ')}`);
@@ -590,18 +590,18 @@ function applyRootOp(obj: any, op: IDeltaOperation): any {
     case 'remove':
       return null;
     case 'replace': {
-      if (typeof obj === 'object' && obj !== null && typeof op.value === 'object' && op.value !== null) {
-        // Clear existing properties and assign new ones
+      // Only attempt in-place mutation when both old and new are plain objects (not arrays)
+      if (
+        typeof obj === 'object' && obj !== null && !Array.isArray(obj) &&
+        typeof op.value === 'object' && op.value !== null && !Array.isArray(op.value)
+      ) {
         for (const key of Object.keys(obj)) {
           delete obj[key];
-        }
-        if (Array.isArray(op.value)) {
-          // Converting to array requires returning new value
-          return [...op.value];
         }
         Object.assign(obj, op.value);
         return obj;
       }
+      // All other cases: return new value directly (primitives, arrays, type changes)
       return op.value;
     }
     /* istanbul ignore next -- exhaustive switch */
@@ -640,7 +640,7 @@ function deltaOpToAtomicChange(op: IDeltaOperation): IAtomicChange {
  * Revert a JSON Delta by computing its inverse and applying it.
  * Requires all replace/remove operations to have oldValue.
  */
-export function revertDelta<T = any>(obj: T, delta: IJsonDelta): T {
+export function revertDelta(obj: any, delta: IJsonDelta): any {
   const inverse = invertDelta(delta);
   return applyDelta(obj, inverse);
 }

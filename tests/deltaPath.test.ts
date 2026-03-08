@@ -42,6 +42,15 @@ describe('formatFilterLiteral', () => {
     expect(() => formatFilterLiteral({})).toThrow();
     expect(() => formatFilterLiteral(undefined)).toThrow();
   });
+
+  it('throws for NaN', () => {
+    expect(() => formatFilterLiteral(NaN)).toThrow(/non-finite/);
+  });
+
+  it('throws for Infinity', () => {
+    expect(() => formatFilterLiteral(Infinity)).toThrow(/non-finite/);
+    expect(() => formatFilterLiteral(-Infinity)).toThrow(/non-finite/);
+  });
 });
 
 describe('parseFilterLiteral', () => {
@@ -81,6 +90,15 @@ describe('parseFilterLiteral', () => {
 
   it('throws for invalid literals', () => {
     expect(() => parseFilterLiteral('abc')).toThrow();
+  });
+
+  it('rejects non-JSON numeric formats', () => {
+    expect(() => parseFilterLiteral('')).toThrow();
+    expect(() => parseFilterLiteral('0x10')).toThrow();
+    expect(() => parseFilterLiteral('0o7')).toThrow();
+    expect(() => parseFilterLiteral('0b101')).toThrow();
+    expect(() => parseFilterLiteral(' ')).toThrow();
+    expect(() => parseFilterLiteral('01')).toThrow(); // leading zero
   });
 
   it('round-trips with formatFilterLiteral', () => {
@@ -228,6 +246,15 @@ describe('parseDeltaPath', () => {
   it('throws on invalid filter expression', () => {
     expect(() => parseDeltaPath('$[?(invalid==1)]')).toThrow(/Invalid filter expression/);
   });
+
+  it('handles filter literal containing )]', () => {
+    const result = parseDeltaPath("$.items[?(@.name=='val)]ue')]");
+    expect(result).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'name', value: 'val)]ue' },
+    ]);
+  });
 });
 
 describe('buildDeltaPath', () => {
@@ -356,6 +383,10 @@ describe('atomicPathToDeltaPath', () => {
   it('handles paths with filters and deep properties', () => {
     expect(atomicPathToDeltaPath("$.items[?(@.id=='1')].name")).toBe("$.items[?(@.id=='1')].name");
   });
+
+  it('handles filter literal containing )]', () => {
+    expect(atomicPathToDeltaPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
+  });
 });
 
 describe('deltaPathToAtomicPath', () => {
@@ -409,6 +440,10 @@ describe('deltaPathToAtomicPath', () => {
 
   it('throws on unexpected character in path', () => {
     expect(() => deltaPathToAtomicPath('$!bad')).toThrow(/Unexpected character/);
+  });
+
+  it('handles filter literal containing )]', () => {
+    expect(deltaPathToAtomicPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
   });
 });
 

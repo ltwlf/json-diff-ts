@@ -17,7 +17,10 @@ export type DeltaPathSegment =
 export function formatFilterLiteral(value: unknown): string {
   if (value === null) return 'null';
   if (typeof value === 'boolean') return String(value);
-  if (typeof value === 'number') return String(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error(`Cannot format non-finite number as filter literal: ${value}`);
+    return String(value);
+  }
   if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
   throw new Error(`Cannot format filter literal for type ${typeof value}`);
 }
@@ -33,9 +36,10 @@ export function parseFilterLiteral(s: string): unknown {
   if (s.startsWith("'") && s.endsWith("'")) {
     return s.slice(1, -1).replace(/''/g, "'");
   }
-  // Number
-  const n = Number(s);
-  if (!Number.isNaN(n)) return n;
+  // Number — only accept JSON-compatible numeric literals (decimal, optional sign, optional exponent)
+  if (/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(s)) {
+    return Number(s);
+  }
   throw new Error(`Invalid filter literal: ${s}`);
 }
 
@@ -62,6 +66,40 @@ function extractQuotedString(s: string, start: number): [string, number] {
     }
   }
   throw new Error('Unterminated quoted string');
+}
+
+// ─── Filter Closing Search ──────────────────────────────────────────────────
+
+/**
+ * Find the index of the closing `)]` for a filter expression starting at `from`,
+ * skipping over single-quoted strings (with doubled-quote escaping).
+ * Returns the index of `)` in `)]`, or -1 if not found.
+ */
+function findFilterClose(s: string, from: number): number {
+  let i = from;
+  while (i < s.length) {
+    if (s[i] === "'") {
+      // Skip single-quoted string
+      i += 1;
+      while (i < s.length) {
+        if (s[i] === "'") {
+          if (i + 1 < s.length && s[i + 1] === "'") {
+            i += 2; // escaped quote
+          } else {
+            i += 1; // closing quote
+            break;
+          }
+        } else {
+          i += 1;
+        }
+      }
+    } else if (s[i] === ')' && i + 1 < s.length && s[i + 1] === ']') {
+      return i;
+    } else {
+      i += 1;
+    }
+  }
+  return -1;
 }
 
 // ─── Filter Parsing ─────────────────────────────────────────────────────────
@@ -117,7 +155,7 @@ export function parseDeltaPath(path: string): DeltaPathSegment[] {
 
       if (path[i + 1] === '?') {
         // Filter expression: [?(@...==...)]
-        const closingIdx = path.indexOf(')]', i);
+        const closingIdx = findFilterClose(path, i + 2);
         if (closingIdx === -1) throw new Error(`Unterminated filter expression in: ${path}`);
         const inner = path.slice(i + 3, closingIdx); // strip "[?(" ... ")"
         segments.push(parseFilter(inner));
@@ -228,7 +266,7 @@ export function atomicPathToDeltaPath(atomicPath: string): string {
     } else if (atomicPath[i] === '[') {
       if (atomicPath[i + 1] === '?') {
         // Filter expression — pass through as-is until ')]'
-        const closingIdx = atomicPath.indexOf(')]', i);
+        const closingIdx = findFilterClose(atomicPath, i + 2);
         if (closingIdx === -1) throw new Error(`Unterminated filter in: ${atomicPath}`);
         result += atomicPath.slice(i, closingIdx + 2);
         i = closingIdx + 2;
@@ -287,7 +325,7 @@ export function deltaPathToAtomicPath(deltaPath: string): string {
     } else if (deltaPath[i] === '[') {
       if (deltaPath[i + 1] === '?') {
         // Filter expression — need to re-quote non-string literals to strings
-        const closingIdx = deltaPath.indexOf(')]', i);
+        const closingIdx = findFilterClose(deltaPath, i + 2);
         if (closingIdx === -1) throw new Error(`Unterminated filter in: ${deltaPath}`);
         const filterContent = deltaPath.slice(i, closingIdx + 2);
         result += normalizeFilterToStringLiterals(filterContent);

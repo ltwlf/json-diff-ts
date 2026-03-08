@@ -30,7 +30,7 @@ tests/
 ## Key Architecture Notes
 
 - **Internal format**: Hierarchical `IChange[]` tree (v4). Flat `IAtomicChange[]` via atomize/unatomize.
-- **JSON Delta format**: Flat `IDeltaOperation[]` in an `IJsonDelta` envelope. Spec at `/json-delta-format/spec/v0.md`.
+- **JSON Delta format**: Flat `IDeltaOperation[]` in an `IJsonDelta` envelope. Spec at [json-delta-format](https://github.com/ltwlf/json-delta-format).
 - **Adapter pattern**: `jsonDelta.ts` converts between internal and delta formats. No changes to `jsonDiff.ts`.
 - **`diffDelta`** always uses `treatTypeChangeAsReplace: true` and merges REMOVE+ADD pairs into single `replace` ops.
 - **`applyDelta`** processes operations sequentially with dedicated root (`$`) handling.

@@ -137,7 +137,7 @@ json-delta-format  (specification)
     └── json-delta-py     (Python implementation)
 ```
 
-The specification defines the wire format. Each language implementation produces and consumes compatible deltas. A Python implementation is also available: [json-delta-py](https://github.com/ltwlf/json-delta-py).
+The specification defines the wire format. Each language implementation produces and consumes compatible deltas.
 
 A delta is a self-describing JSON document you can store, transmit, and consume in any language:
 

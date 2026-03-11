@@ -238,6 +238,15 @@ const { valid, errors } = validateDelta(maybeDelta);
 | `validateDelta` | `(delta) => { valid, errors }` | Structural validation |
 | `toDelta` | `(changeset, options?) => IJsonDelta` | Bridge: v4 changeset to JSON Delta |
 | `fromDelta` | `(delta) => IAtomicChange[]` | Bridge: JSON Delta to v4 atomic changes |
+| `squashDeltas` | `(source, deltas, options?) => IJsonDelta` | Compact multiple deltas into one net-effect delta |
+| `deltaMap` | `(delta, fn) => IJsonDelta` | Transform each operation in a delta |
+| `deltaStamp` | `(delta, extensions) => IJsonDelta` | Set extension properties on all operations |
+| `deltaGroupBy` | `(delta, keyFn) => Record<string, IJsonDelta>` | Group operations into sub-deltas |
+| `operationSpecDict` | `(op) => IDeltaOperation` | Strip extension properties from operation |
+| `operationExtensions` | `(op) => Record<string, any>` | Get extension properties from operation |
+| `deltaSpecDict` | `(delta) => IJsonDelta` | Strip all extensions from delta |
+| `deltaExtensions` | `(delta) => Record<string, any>` | Get envelope extensions from delta |
+| `leafProperty` | `(op) => string \| null` | Terminal property name from operation path |
 
 ### DeltaOptions
 
@@ -249,6 +258,125 @@ interface DeltaOptions extends Options {
   arrayIdentityKeys?: Record<string, string | FunctionKey>;
   keysToSkip?: readonly string[];
 }
+```
+
+### Delta Workflow Helpers
+
+Transform, inspect, and compact deltas for workflow automation.
+
+#### `squashDeltas` -- Compact Multiple Deltas
+
+Combine a sequence of deltas into a single net-effect delta. Useful for compacting audit logs or collapsing undo history:
+
+```typescript
+import { diffDelta, applyDelta, squashDeltas } from 'json-diff-ts';
+
+const source = { name: 'Alice', role: 'viewer' };
+const d1 = diffDelta(source, { name: 'Bob', role: 'viewer' });
+const d2 = diffDelta({ name: 'Bob', role: 'viewer' }, { name: 'Bob', role: 'admin' });
+
+const squashed = squashDeltas(source, [d1, d2]);
+// squashed.operations => [
+//   { op: 'replace', path: '$.name', value: 'Bob', oldValue: 'Alice' },
+//   { op: 'replace', path: '$.role', value: 'admin', oldValue: 'viewer' }
+// ]
+
+// Verify: applying the squashed delta equals applying both sequentially
+const result = applyDelta(structuredClone(source), squashed);
+// result => { name: 'Bob', role: 'admin' }
+```
+
+Options: `reversible`, `arrayIdentityKeys`, `target` (pre-computed final state), `verifyTarget` (default: true).
+
+#### `deltaMap` / `deltaStamp` / `deltaGroupBy` -- Delta Transformations
+
+All transforms are immutable — they return new deltas without modifying the original:
+
+```typescript
+import { diffDelta, deltaMap, deltaStamp, deltaGroupBy } from 'json-diff-ts';
+
+const delta = diffDelta(
+  { name: 'Alice', age: 30, role: 'viewer' },
+  { name: 'Bob', age: 31, status: 'active' }
+);
+
+// Stamp metadata onto every operation
+const stamped = deltaStamp(delta, { x_author: 'system', x_ts: Date.now() });
+
+// Transform operations
+const prefixed = deltaMap(delta, (op) => ({
+  ...op,
+  path: op.path.replace('$', '$.data'),
+}));
+
+// Group by operation type
+const groups = deltaGroupBy(delta, (op) => op.op);
+// groups => { replace: IJsonDelta, add: IJsonDelta, remove: IJsonDelta }
+```
+
+#### `operationSpecDict` / `deltaSpecDict` -- Spec Introspection
+
+Separate spec-defined fields from extension properties:
+
+```typescript
+import { operationSpecDict, operationExtensions, deltaSpecDict } from 'json-diff-ts';
+
+const op = { op: 'replace', path: '$.name', value: 'Bob', x_author: 'system' };
+operationSpecDict(op);    // { op: 'replace', path: '$.name', value: 'Bob' }
+operationExtensions(op);  // { x_author: 'system' }
+
+// Strip all extensions from a delta
+const clean = deltaSpecDict(delta);
+```
+
+#### `leafProperty` -- Path Introspection
+
+Extract the terminal property name from an operation's path:
+
+```typescript
+import { leafProperty } from 'json-diff-ts';
+
+leafProperty({ op: 'replace', path: '$.user.name' });          // 'name'
+leafProperty({ op: 'add', path: '$.items[?(@.id==1)]' });      // null (filter)
+leafProperty({ op: 'replace', path: '$' });                     // null (root)
+```
+
+---
+
+## Comparison Serialization
+
+Serialize enriched comparison trees to plain objects or flat change lists.
+
+```typescript
+import { compare, comparisonToDict, comparisonToFlatList } from 'json-diff-ts';
+
+const result = compare(
+  { name: 'Alice', age: 30, role: 'viewer' },
+  { name: 'Bob', age: 30, status: 'active' }
+);
+
+// Recursive plain object
+const dict = comparisonToDict(result);
+// {
+//   type: 'CONTAINER',
+//   value: {
+//     name: { type: 'UPDATE', value: 'Bob', oldValue: 'Alice' },
+//     age: { type: 'UNCHANGED', value: 30 },
+//     role: { type: 'REMOVE', oldValue: 'viewer' },
+//     status: { type: 'ADD', value: 'active' }
+//   }
+// }
+
+// Flat list of leaf changes with paths
+const flat = comparisonToFlatList(result);
+// [
+//   { path: '$.name', type: 'UPDATE', value: 'Bob', oldValue: 'Alice' },
+//   { path: '$.role', type: 'REMOVE', oldValue: 'viewer' },
+//   { path: '$.status', type: 'ADD', value: 'active' }
+// ]
+
+// Include unchanged entries
+const all = comparisonToFlatList(result, { includeUnchanged: true });
 ```
 
 ---
@@ -511,6 +639,8 @@ diff(old, new, { treatTypeChangeAsReplace: false });
 | --- | --- |
 | `compare(oldObj, newObj)` | Create enriched comparison object |
 | `enrich(obj)` | Create enriched representation |
+| `comparisonToDict(node)` | Serialize comparison tree to plain object |
+| `comparisonToFlatList(node, options?)` | Flatten comparison to leaf change list |
 
 ### Options
 
@@ -568,6 +698,11 @@ Use `$value` as the identity key: `{ arrayIdentityKeys: { tags: '$value' } }`. E
 ---
 
 ## Release Notes
+
+- **v5.0.0-alpha.2:**
+  - Delta workflow helpers: `squashDeltas`, `deltaMap`, `deltaStamp`, `deltaGroupBy`
+  - Delta/operation introspection: `operationSpecDict`, `operationExtensions`, `deltaSpecDict`, `deltaExtensions`, `leafProperty`
+  - Comparison serialization: `comparisonToDict`, `comparisonToFlatList`
 
 - **v5.0.0-alpha.0:**
   - JSON Delta API: `diffDelta`, `applyDelta`, `revertDelta`, `invertDelta`, `toDelta`, `fromDelta`, `validateDelta`

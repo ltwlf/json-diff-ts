@@ -1,4 +1,4 @@
-import { compare, CompareOperation, IComparisonEnrichedNode, enrich, applyChangelist } from '../src/jsonCompare';
+import { compare, CompareOperation, IComparisonEnrichedNode, enrich, applyChangelist, comparisonToDict, comparisonToFlatList } from '../src/jsonCompare';
 import { Operation, diff, atomizeChangeset } from '../src/jsonDiff';
 
 let testedObject: any;
@@ -301,5 +301,178 @@ describe('jsonCompare#compare', () => {
       });
     }).toThrow();
     done();
+  });
+});
+
+// ─── comparisonToDict ──────────────────────────────────────────────────────
+
+describe('comparisonToDict', () => {
+  it('serializes container with mixed children', () => {
+    const result = compare(
+      { name: 'Alice', age: 30, role: 'viewer' },
+      { name: 'Bob', age: 30, status: 'active' }
+    );
+    const dict = comparisonToDict(result);
+
+    expect(dict.type).toBe('CONTAINER');
+    expect(dict.value.name).toEqual({ type: 'UPDATE', value: 'Bob', oldValue: 'Alice' });
+    expect(dict.value.age).toEqual({ type: 'UNCHANGED', value: 30 });
+    expect(dict.value.role).toEqual({ type: 'REMOVE', oldValue: 'viewer' });
+    expect(dict.value.status).toEqual({ type: 'ADD', value: 'active' });
+  });
+
+  it('preserves null as a valid value', () => {
+    // Construct node directly — diff engine treats null↔string as type change
+    const node: IComparisonEnrichedNode = {
+      type: CompareOperation.CONTAINER,
+      value: {
+        x: { type: Operation.UPDATE, value: null, oldValue: 'hello' } as IComparisonEnrichedNode,
+      },
+    };
+    const dict = comparisonToDict(node);
+    expect(dict.value.x).toEqual({ type: 'UPDATE', value: null, oldValue: 'hello' });
+  });
+
+  it('handles nested containers', () => {
+    const result = compare(
+      { nested: { deep: { val: 1 } } },
+      { nested: { deep: { val: 2 } } }
+    );
+    const dict = comparisonToDict(result);
+    expect(dict.value.nested.type).toBe('CONTAINER');
+    expect(dict.value.nested.value.deep.type).toBe('CONTAINER');
+    expect(dict.value.nested.value.deep.value.val).toEqual({
+      type: 'UPDATE',
+      value: 2,
+      oldValue: 1,
+    });
+  });
+
+  it('handles arrays', () => {
+    const result = compare(['a', 'b'], ['a', 'c']);
+    const dict = comparisonToDict(result);
+    expect(dict.type).toBe('CONTAINER');
+    expect(Array.isArray(dict.value)).toBe(true);
+    expect(dict.value[0]).toEqual({ type: 'UNCHANGED', value: 'a' });
+    expect(dict.value[1]).toEqual({ type: 'UPDATE', value: 'c', oldValue: 'b' });
+  });
+
+  it('result is JSON-serializable', () => {
+    const result = compare({ a: 1, b: 'x' }, { a: 2, b: 'x', c: true });
+    const dict = comparisonToDict(result);
+    const roundTripped = JSON.parse(JSON.stringify(dict));
+    expect(roundTripped).toEqual(dict);
+  });
+});
+
+// ─── comparisonToFlatList ──────────────────────────────────────────────────
+
+describe('comparisonToFlatList', () => {
+  it('produces correct paths for simple changes', () => {
+    const result = compare({ name: 'Alice', age: 30 }, { name: 'Bob', age: 30 });
+    const flat = comparisonToFlatList(result);
+    expect(flat).toEqual([
+      { path: '$.name', type: 'UPDATE', value: 'Bob', oldValue: 'Alice' },
+    ]);
+  });
+
+  it('excludes unchanged by default', () => {
+    const result = compare({ a: 1, b: 2 }, { a: 1, b: 3 });
+    const flat = comparisonToFlatList(result);
+    expect(flat).toHaveLength(1);
+    expect(flat[0].path).toBe('$.b');
+  });
+
+  it('includes unchanged when requested', () => {
+    const result = compare({ a: 1, b: 2 }, { a: 1, b: 3 });
+    const flat = comparisonToFlatList(result, { includeUnchanged: true });
+    expect(flat).toHaveLength(2);
+    expect(flat.find((e) => e.path === '$.a')).toEqual({
+      path: '$.a',
+      type: 'UNCHANGED',
+      value: 1,
+    });
+  });
+
+  it('uses array index notation', () => {
+    const result = compare(['a', 'b'], ['a', 'c']);
+    const flat = comparisonToFlatList(result);
+    expect(flat).toEqual([
+      { path: '$[1]', type: 'UPDATE', value: 'c', oldValue: 'b' },
+    ]);
+  });
+
+  it('handles nested paths', () => {
+    const result = compare(
+      { nested: { deep: { val: 1 } } },
+      { nested: { deep: { val: 2 } } }
+    );
+    const flat = comparisonToFlatList(result);
+    expect(flat).toEqual([
+      { path: '$.nested.deep.val', type: 'UPDATE', value: 2, oldValue: 1 },
+    ]);
+  });
+
+  it('returns empty list for identical documents', () => {
+    const result = compare({ a: 1 }, { a: 1 });
+    expect(comparisonToFlatList(result)).toEqual([]);
+  });
+
+  it('uses bracket notation for non-identifier keys', () => {
+    // Construct node directly — compare/diff treats dots in keys as path separators
+    const node: IComparisonEnrichedNode = {
+      type: CompareOperation.CONTAINER,
+      value: {
+        'a.b': { type: Operation.UPDATE, value: 2, oldValue: 1 } as IComparisonEnrichedNode,
+      },
+    };
+    const flat = comparisonToFlatList(node);
+    expect(flat[0].path).toBe("$['a.b']");
+  });
+
+  it('escapes single quotes in keys', () => {
+    // Construct node directly — keys with quotes need bracket notation
+    const node: IComparisonEnrichedNode = {
+      type: CompareOperation.CONTAINER,
+      value: {
+        "it's": { type: Operation.UPDATE, value: 2, oldValue: 1 } as IComparisonEnrichedNode,
+      },
+    };
+    const flat = comparisonToFlatList(node);
+    expect(flat[0].path).toBe("$['it''s']");
+  });
+
+  it('uses dot notation for simple identifier keys', () => {
+    const result = compare({ name: 'a' }, { name: 'b' });
+    const flat = comparisonToFlatList(result);
+    expect(flat[0].path).toBe('$.name');
+  });
+
+  it('handles add and remove operations', () => {
+    const result = compare({ old: 1 }, { new: 2 });
+    const flat = comparisonToFlatList(result);
+    expect(flat).toEqual(
+      expect.arrayContaining([
+        { path: '$.old', type: 'REMOVE', oldValue: 1 },
+        expect.objectContaining({ path: '$.new', type: 'ADD', value: 2 }),
+      ])
+    );
+  });
+
+  it('handles null values', () => {
+    // Construct node directly — diff engine treats null↔string as type change
+    const node: IComparisonEnrichedNode = {
+      type: CompareOperation.CONTAINER,
+      value: {
+        x: { type: Operation.UPDATE, value: 'hello', oldValue: null } as IComparisonEnrichedNode,
+      },
+    };
+    const flat = comparisonToFlatList(node);
+    expect(flat[0]).toEqual({
+      path: '$.x',
+      type: 'UPDATE',
+      value: 'hello',
+      oldValue: null,
+    });
   });
 });

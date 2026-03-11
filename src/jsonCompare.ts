@@ -118,4 +118,138 @@ const compare = (oldObject: any, newObject: any): IComparisonEnrichedNode => {
   return applyChangelist(enrich(oldObject), atomizeChangeset(diff(oldObject, newObject)));
 };
 
-export { CompareOperation, IComparisonEnrichedNode, createValue, createContainer, enrich, applyChangelist, compare };
+// ─── Comparison Serialization ──────────────────────────────────────────────
+
+export interface IComparisonDict {
+  type: string;
+  value?: any;
+  oldValue?: any;
+}
+
+export interface IFlatChange {
+  path: string;
+  type: string;
+  value?: any;
+  oldValue?: any;
+}
+
+/**
+ * Recursively serializes an enriched comparison tree to a plain JS object.
+ * The result is JSON-serializable when contained `value`/`oldValue` are
+ * themselves JSON-serializable. Includes `value`/`oldValue` based on change
+ * type, not truthiness — `null` is preserved as a valid JSON value.
+ */
+const comparisonToDict = (node: IComparisonEnrichedNode): IComparisonDict => {
+  const result: IComparisonDict = { type: node.type };
+
+  if (node.type === CompareOperation.CONTAINER) {
+    if (Array.isArray(node.value)) {
+      const children = node.value as IComparisonEnrichedNode[];
+      const serialized: (IComparisonDict | null)[] = new Array(children.length);
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        serialized[i] = child != null ? comparisonToDict(child) : null;
+      }
+      result.value = serialized;
+    } else if (node.value && typeof node.value === 'object') {
+      const obj: Record<string, IComparisonDict> = Object.create(null);
+      for (const [key, child] of Object.entries(
+        node.value as Record<string, IComparisonEnrichedNode>
+      )) {
+        if (child == null) continue;
+        obj[key] = comparisonToDict(child);
+      }
+      result.value = obj;
+    }
+  } else {
+    // Leaf: include fields based on change type
+    if (
+      node.type === CompareOperation.UNCHANGED ||
+      node.type === Operation.ADD ||
+      node.type === Operation.UPDATE
+    ) {
+      result.value = node.value;
+    }
+    if (node.type === Operation.REMOVE || node.type === Operation.UPDATE) {
+      result.oldValue = node.oldValue;
+    }
+  }
+
+  return result;
+};
+
+const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/**
+ * Flattens an enriched comparison tree to a list of leaf changes with paths.
+ * Uses dot notation for identifier keys and bracket-quote notation for
+ * non-identifier keys (per spec Section 5.5).
+ *
+ * By default, `UNCHANGED` entries are excluded. Set `includeUnchanged: true`
+ * to include them.
+ */
+const comparisonToFlatList = (
+  node: IComparisonEnrichedNode,
+  options: { includeUnchanged?: boolean } = {}
+): IFlatChange[] => {
+  const results: IFlatChange[] = [];
+  flattenNode(node, '$', options.includeUnchanged ?? false, results);
+  return results;
+};
+
+function flattenNode(
+  node: IComparisonEnrichedNode,
+  path: string,
+  includeUnchanged: boolean,
+  results: IFlatChange[]
+): void {
+  if (node.type === CompareOperation.CONTAINER) {
+    if (Array.isArray(node.value)) {
+      for (let i = 0; i < (node.value as IComparisonEnrichedNode[]).length; i++) {
+        const child = (node.value as IComparisonEnrichedNode[])[i];
+        if (child == null) continue;
+        flattenNode(child, `${path}[${i}]`, includeUnchanged, results);
+      }
+    } else if (node.value && typeof node.value === 'object') {
+      for (const [key, child] of Object.entries(
+        node.value as Record<string, IComparisonEnrichedNode>
+      )) {
+        if (child == null) continue;
+        const childPath = IDENT_RE.test(key)
+          ? `${path}.${key}`
+          : `${path}['${key.replace(/'/g, "''")}']`;
+        flattenNode(child, childPath, includeUnchanged, results);
+      }
+    }
+    return;
+  }
+
+  if (node.type === CompareOperation.UNCHANGED && !includeUnchanged) {
+    return;
+  }
+
+  const entry: IFlatChange = { path, type: node.type };
+  if (
+    node.type === CompareOperation.UNCHANGED ||
+    node.type === Operation.ADD ||
+    node.type === Operation.UPDATE
+  ) {
+    entry.value = node.value;
+  }
+  if (node.type === Operation.REMOVE || node.type === Operation.UPDATE) {
+    entry.oldValue = node.oldValue;
+  }
+  results.push(entry);
+}
+
+export {
+  CompareOperation,
+  IComparisonEnrichedNode,
+  createValue,
+  createContainer,
+  enrich,
+  applyChangelist,
+  compare,
+  comparisonToDict,
+  comparisonToFlatList,
+};

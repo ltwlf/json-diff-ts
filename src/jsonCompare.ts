@@ -134,9 +134,10 @@ export interface IFlatChange {
 }
 
 /**
- * Recursively serializes an enriched comparison tree to a plain JSON object.
- * Includes `value`/`oldValue` based on change type, not truthiness —
- * `null` is preserved as a valid JSON value.
+ * Recursively serializes an enriched comparison tree to a plain JS object.
+ * The result is JSON-serializable when contained `value`/`oldValue` are
+ * themselves JSON-serializable. Includes `value`/`oldValue` based on change
+ * type, not truthiness — `null` is preserved as a valid JSON value.
  */
 const comparisonToDict = (node: IComparisonEnrichedNode): IComparisonDict => {
   const result: IComparisonDict = { type: node.type };

@@ -161,7 +161,8 @@ export function squashDeltas(
     for (const d of deltas) {
       computed = applyDelta(computed, d);
     }
-    if (JSON.stringify(computed) !== JSON.stringify(target)) {
+    const verification = diffDelta(computed, target, diffOptions);
+    if (verification.operations.length > 0) {
       throw new Error(
         'squashDeltas: provided target does not match sequential application of deltas to source'
       );

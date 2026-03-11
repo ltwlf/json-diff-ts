@@ -58,9 +58,8 @@ describe('operationSpecDict', () => {
     expect('value' in result).toBe(false);
   });
 
-  it('preserves undefined value when key is present', () => {
+  it('omits absent keys from result', () => {
     const op: IDeltaOperation = { op: 'remove', path: '$.x' };
-    // value and oldValue both absent
     const result = operationSpecDict(op);
     expect('value' in result).toBe(false);
     expect('oldValue' in result).toBe(false);

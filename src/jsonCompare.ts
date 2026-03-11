@@ -143,12 +143,15 @@ const comparisonToDict = (node: IComparisonEnrichedNode): IComparisonDict => {
 
   if (node.type === CompareOperation.CONTAINER) {
     if (Array.isArray(node.value)) {
-      result.value = (node.value as IComparisonEnrichedNode[]).map(comparisonToDict);
+      result.value = (node.value as IComparisonEnrichedNode[])
+        .filter((child) => child != null)
+        .map(comparisonToDict);
     } else if (node.value && typeof node.value === 'object') {
       const obj: Record<string, IComparisonDict> = {};
       for (const [key, child] of Object.entries(
         node.value as Record<string, IComparisonEnrichedNode>
       )) {
+        if (child == null) continue;
         obj[key] = comparisonToDict(child);
       }
       result.value = obj;
@@ -170,7 +173,7 @@ const comparisonToDict = (node: IComparisonEnrichedNode): IComparisonDict => {
   return result;
 };
 
-const IDENT_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
+const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 /**
  * Flattens an enriched comparison tree to a list of leaf changes with paths.
@@ -198,17 +201,15 @@ function flattenNode(
   if (node.type === CompareOperation.CONTAINER) {
     if (Array.isArray(node.value)) {
       for (let i = 0; i < (node.value as IComparisonEnrichedNode[]).length; i++) {
-        flattenNode(
-          (node.value as IComparisonEnrichedNode[])[i],
-          `${path}[${i}]`,
-          includeUnchanged,
-          results
-        );
+        const child = (node.value as IComparisonEnrichedNode[])[i];
+        if (child == null) continue;
+        flattenNode(child, `${path}[${i}]`, includeUnchanged, results);
       }
     } else if (node.value && typeof node.value === 'object') {
       for (const [key, child] of Object.entries(
         node.value as Record<string, IComparisonEnrichedNode>
       )) {
+        if (child == null) continue;
         const childPath = IDENT_RE.test(key)
           ? `${path}.${key}`
           : `${path}['${key.replace(/'/g, "''")}']`;

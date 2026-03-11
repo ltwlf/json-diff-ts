@@ -244,7 +244,7 @@ describe('deltaGroupBy', () => {
       { op: 'add', path: '$.c', value: 3 },
     ]);
     const groups = deltaGroupBy(delta, (op) => op.op);
-    expect(Object.keys(groups).sort()).toEqual(['add', 'replace']);
+    expect(Object.keys(groups).sort((a, b) => a.localeCompare(b))).toEqual(['add', 'replace']);
     expect(groups.add.operations).toHaveLength(2);
     expect(groups.replace.operations).toHaveLength(1);
   });

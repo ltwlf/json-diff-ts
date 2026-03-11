@@ -81,7 +81,7 @@ export function deltaMap(
   delta: IJsonDelta,
   fn: (op: IDeltaOperation, index: number) => IDeltaOperation
 ): IJsonDelta {
-  return { ...delta, operations: delta.operations.map(fn) };
+  return { ...delta, operations: delta.operations.map((op, i) => fn(op, i)) };
 }
 
 /**

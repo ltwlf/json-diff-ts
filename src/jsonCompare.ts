@@ -143,9 +143,13 @@ const comparisonToDict = (node: IComparisonEnrichedNode): IComparisonDict => {
 
   if (node.type === CompareOperation.CONTAINER) {
     if (Array.isArray(node.value)) {
-      result.value = (node.value as IComparisonEnrichedNode[])
-        .filter((child) => child != null)
-        .map(comparisonToDict);
+      const children = node.value as IComparisonEnrichedNode[];
+      const serialized: (IComparisonDict | null)[] = new Array(children.length);
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        serialized[i] = child != null ? comparisonToDict(child) : null;
+      }
+      result.value = serialized;
     } else if (node.value && typeof node.value === 'object') {
       const obj: Record<string, IComparisonDict> = {};
       for (const [key, child] of Object.entries(

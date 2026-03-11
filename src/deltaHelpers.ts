@@ -25,7 +25,7 @@ export function operationSpecDict(op: IDeltaOperation): IDeltaOperation {
  * Complement of `operationSpecDict`.
  */
 export function operationExtensions(op: IDeltaOperation): Record<string, any> {
-  const result: Record<string, any> = {};
+  const result: Record<string, any> = Object.create(null);
   for (const key of Object.keys(op)) {
     if (!OP_SPEC_KEYS.has(key)) {
       result[key] = op[key];
@@ -64,7 +64,7 @@ export function deltaSpecDict(delta: IJsonDelta): IJsonDelta {
  * Complement of `deltaSpecDict`.
  */
 export function deltaExtensions(delta: IJsonDelta): Record<string, any> {
-  const result: Record<string, any> = {};
+  const result: Record<string, any> = Object.create(null);
   for (const key of Object.keys(delta)) {
     if (!DELTA_SPEC_KEYS.has(key)) {
       result[key] = delta[key];
@@ -104,7 +104,7 @@ export function deltaGroupBy(
   delta: IJsonDelta,
   keyFn: (op: IDeltaOperation) => string
 ): Record<string, IJsonDelta> {
-  const groups: Record<string, IDeltaOperation[]> = {};
+  const groups: Record<string, IDeltaOperation[]> = Object.create(null);
   for (const op of delta.operations) {
     const k = keyFn(op);
     if (!groups[k]) groups[k] = [];
@@ -119,7 +119,7 @@ export function deltaGroupBy(
     }
   }
 
-  const result: Record<string, IJsonDelta> = {};
+  const result: Record<string, IJsonDelta> = Object.create(null);
   for (const [k, ops] of Object.entries(groups)) {
     result[k] = { ...envelope, operations: ops } as IJsonDelta;
   }

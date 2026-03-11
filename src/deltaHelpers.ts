@@ -112,7 +112,7 @@ export function deltaGroupBy(
   }
 
   // Build envelope without operations
-  const envelope: Record<string, any> = {};
+  const envelope: Record<string, any> = Object.create(null);
   for (const key of Object.keys(delta)) {
     if (key !== 'operations') {
       envelope[key] = delta[key];

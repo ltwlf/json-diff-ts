@@ -151,7 +151,7 @@ const comparisonToDict = (node: IComparisonEnrichedNode): IComparisonDict => {
       }
       result.value = serialized;
     } else if (node.value && typeof node.value === 'object') {
-      const obj: Record<string, IComparisonDict> = {};
+      const obj: Record<string, IComparisonDict> = Object.create(null);
       for (const [key, child] of Object.entries(
         node.value as Record<string, IComparisonEnrichedNode>
       )) {

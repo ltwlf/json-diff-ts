@@ -186,7 +186,12 @@ export function squashDeltas(
   for (const d of deltas) {
     for (const key of Object.keys(d)) {
       if (!DELTA_SPEC_KEYS.has(key)) {
-        result[key] = d[key];
+        Object.defineProperty(result, key, {
+          value: d[key],
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
       }
     }
   }

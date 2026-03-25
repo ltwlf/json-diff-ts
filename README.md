@@ -614,7 +614,11 @@ diff(old, new, { arrayIdentityKeys: { tags: '$value' } });
 #### Path Skipping
 
 ```typescript
+// Skip an exact path and all its children
 diff(old, new, { keysToSkip: ['characters.metadata'] });
+
+// Skip all children of a path, but still detect ADD/REMOVE of the node itself
+diff(old, new, { keysToSkip: ['characters.metadata.*'] });
 ```
 
 #### Type Change Handling

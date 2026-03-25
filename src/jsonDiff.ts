@@ -380,6 +380,12 @@ const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Opt
       return true;
     }
     
+    // The current path is inside an excluded parent by wildcard
+    if (skipPath.endsWith('.*')) {
+      const basePath = skipPath.slice(0, -2);
+      return currentPath.startsWith(basePath + '.');
+    }
+
     // The current path is a parent of the skip path
     if (skipPath.includes('.') && skipPath.startsWith(currentPath + '.')) {
       return false; // Don't skip, we need to process the parent

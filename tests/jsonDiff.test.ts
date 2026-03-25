@@ -133,6 +133,53 @@ describe('jsonDiff#diff', () => {
     ]);
   });
 
+  describe('wildcard keysToSkip (property.*)', () => {
+    const base = {
+      property: {
+        name: 'Alice',
+        address: {
+          formattedAddress: '123 Main St',
+            utcOffset: 0,
+        }
+      }
+    };
+
+    it('ignores property changes inside the wildcarded key', () => {
+      const withChangedAddress = {
+        property: {
+          name: 'Alice',
+          address: {
+            formattedAddress: 'New Address',
+              utcOffset: 5,
+          }
+        }
+      };
+      expect(diff(base, withChangedAddress, { keysToSkip: ['property.address.*'] })).toEqual([]);
+    });
+
+    it('detects removal of the wildcarded key itself', () => {
+      const withoutAddress = { property: { name: 'Alice' } };
+      expect(diff(base, withoutAddress, { keysToSkip: ['property.address.*'] })).toEqual([
+        {
+          type: 'UPDATE',
+          key: 'property',
+          changes: [{ type: 'REMOVE', key: 'address', value: base.property.address }]
+        }
+      ]);
+    });
+
+    it('detects addition of the wildcarded key itself', () => {
+      const withoutAddress = { property: { name: 'Alice' } };
+      expect(diff(withoutAddress, base, { keysToSkip: ['property.address.*'] })).toEqual([
+        {
+          type: 'UPDATE',
+          key: 'property',
+          changes: [{ type: 'ADD', key: 'address', value: base.property.address }]
+        }
+      ]);
+    });
+  });
+
   it.each(fixtures.assortedDiffs)(
     'correctly diffs $oldVal with $newVal',
     ({ oldVal, newVal, expectedReplacement, expectedUpdate }) => {

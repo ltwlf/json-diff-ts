@@ -15,8 +15,8 @@
       { "id": "4", "name": "Thingamajig", "price": 40 }
     ]
   },
-  "delta": {
-    "format": "json-delta",
+  "atom": {
+    "format": "json-atom",
     "version": 1,
     "operations": [
       {

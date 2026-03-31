@@ -20,22 +20,22 @@ src/
                     #   atomizeChangeset, unatomizeChangeset
   jsonCompare.ts    # Enriched comparison: compare, enrich, applyChangelist
   helpers.ts        # Shared utilities: splitJSONPath, keyBy, setByPath
-  deltaPath.ts      # JSON Delta path parsing, canonicalization, conversion
-  jsonDelta.ts      # JSON Delta APIs: diffDelta, applyDelta, revertDelta,
-                    #   invertDelta, toDelta, fromDelta, validateDelta
+  atomPath.ts      # JSON Atom path parsing, canonicalization, conversion
+  jsonAtom.ts      # JSON Atom APIs: diffAtom, applyAtom, revertAtom,
+                    #   invertAtom, toAtom, fromAtom, validateAtom
 tests/
-  __fixtures__/     # Test fixtures (jsonDiff fixtures + json-delta conformance)
+  __fixtures__/     # Test fixtures (jsonDiff fixtures + json-atom conformance)
 ```
 
 ## Key Architecture Notes
 
 - **Internal format**: Hierarchical `IChange[]` tree (v4). Flat `IAtomicChange[]` via atomize/unatomize.
-- **JSON Delta format**: Flat `IDeltaOperation[]` in an `IJsonDelta` envelope. Spec at [json-delta-format](https://github.com/ltwlf/json-delta-format).
-- **Adapter pattern**: `jsonDelta.ts` converts between internal and delta formats. No changes to `jsonDiff.ts`.
-- **`diffDelta`** always uses `treatTypeChangeAsReplace: true` and merges REMOVE+ADD pairs into single `replace` ops.
-- **`applyDelta`** processes operations sequentially with dedicated root (`$`) handling.
-- **`fromDelta`** returns `IAtomicChange[]` (1:1 mapping), NOT `Changeset`.
-- **Path differences**: Internal uses `$[a.b]` (no quotes); delta spec requires `$['a.b']` (single-quoted). Internal always string-quotes filter literals; spec requires type-correct literals.
+- **JSON Atom format**: Flat `IAtomOperation[]` in an `IJsonAtom` envelope. Spec at [json-atom-format](https://github.com/ltwlf/json-atom-format).
+- **Adapter pattern**: `jsonAtom.ts` converts between internal and atom formats. No changes to `jsonDiff.ts`.
+- **`diffAtom`** always uses `treatTypeChangeAsReplace: true` and merges REMOVE+ADD pairs into single `replace` ops.
+- **`applyAtom`** processes operations sequentially with dedicated root (`$`) handling.
+- **`fromAtom`** returns `IAtomicChange[]` (1:1 mapping), NOT `Changeset`.
+- **Path differences**: Internal uses `$[a.b]` (no quotes); atom spec requires `$['a.b']` (single-quoted). Internal always string-quotes filter literals; spec requires type-correct literals.
 
 ## Known Limitations (don't try to fix in jsonDiff.ts)
 

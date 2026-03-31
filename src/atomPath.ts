@@ -1,6 +1,6 @@
 // ─── Segment Types ──────────────────────────────────────────────────────────
 
-export type DeltaPathSegment =
+export type AtomPathSegment =
   | { type: 'root' }
   | { type: 'property'; name: string }
   | { type: 'index'; index: number }
@@ -10,7 +10,7 @@ export type DeltaPathSegment =
 // ─── Filter Literal Formatting ──────────────────────────────────────────────
 
 /**
- * Format a value as a canonical JSON Delta filter literal.
+ * Format a value as a canonical JSON Atom filter literal.
  * Strings → single-quoted with doubled-quote escaping.
  * Numbers, booleans, null → plain JSON representation.
  */
@@ -104,7 +104,7 @@ function findFilterClose(s: string, from: number): number {
 
 // ─── Filter Parsing ─────────────────────────────────────────────────────────
 
-function parseFilter(inner: string): DeltaPathSegment {
+function parseFilter(inner: string): AtomPathSegment {
   if (inner.startsWith("@.")) {
     // Key filter with dot property: @.key==val
     const eq = inner.indexOf('==');
@@ -129,15 +129,15 @@ function parseFilter(inner: string): DeltaPathSegment {
 // ─── Path Parsing ───────────────────────────────────────────────────────────
 
 /**
- * Parse a JSON Delta Path string into an array of typed segments.
- * Follows the grammar from the JSON Delta spec Section 5.1.
+ * Parse a JSON Atom Path string into an array of typed segments.
+ * Follows the grammar from the JSON Atom spec Section 5.1.
  */
-export function parseDeltaPath(path: string): DeltaPathSegment[] {
+export function parseAtomPath(path: string): AtomPathSegment[] {
   if (!path.startsWith('$')) {
     throw new Error(`Path must start with '$': ${path}`);
   }
 
-  const segments: DeltaPathSegment[] = [{ type: 'root' }];
+  const segments: AtomPathSegment[] = [{ type: 'root' }];
   let i = 1;
 
   while (i < path.length) {
@@ -201,9 +201,9 @@ function formatMemberAccess(name: string): string {
 }
 
 /**
- * Build a canonical JSON Delta Path string from an array of segments.
+ * Build a canonical JSON Atom Path string from an array of segments.
  */
-export function buildDeltaPath(segments: DeltaPathSegment[]): string {
+export function buildAtomPath(segments: AtomPathSegment[]): string {
   let result = '';
   for (const seg of segments) {
     switch (seg.type) {
@@ -234,14 +234,14 @@ export function buildDeltaPath(segments: DeltaPathSegment[]): string {
 // ─── Path Conversion Utilities ──────────────────────────────────────────────
 
 /**
- * Convert an internal atomic path (v4 format) to a canonical JSON Delta path.
+ * Convert an internal atomic path (v4 format) to a canonical JSON Atom path.
  *
  * Transformations:
  * - `$.$root` → `$`
  * - Unquoted bracket properties `$[a.b]` → quoted `$['a.b']`
  * - Filter literals stay as-is (v4 always uses string-quoted)
  */
-export function atomicPathToDeltaPath(atomicPath: string): string {
+export function atomicPathToAtomPath(atomicPath: string): string {
   // Handle root sentinel
   if (atomicPath === '$.$root') return '$';
   if (atomicPath.startsWith('$.$root.')) return '$' + atomicPath.slice(7);
@@ -293,60 +293,60 @@ export function atomicPathToDeltaPath(atomicPath: string): string {
 }
 
 /**
- * Convert a JSON Delta path to an internal atomic path (v4 format).
+ * Convert a JSON Atom path to an internal atomic path (v4 format).
  *
  * Transformations:
  * - `$` (root-only) → `$.$root` with key `$root`
  * - Bracket-quoted properties `$['a.b']` → unquoted `$[a.b]`
  * - Non-string filter literals re-quoted to strings: `[?(@.id==42)]` → `[?(@.id=='42')]`
  */
-export function deltaPathToAtomicPath(deltaPath: string): string {
-  if (!deltaPath.startsWith('$')) {
-    throw new Error(`Delta path must start with '$': ${deltaPath}`);
+export function atomPathToAtomicPath(atomPath: string): string {
+  if (!atomPath.startsWith('$')) {
+    throw new Error(`Atom path must start with '$': ${atomPath}`);
   }
 
   // Root-only path
-  if (deltaPath === '$') {
+  if (atomPath === '$') {
     return '$.$root';
   }
 
   let result = '$';
   let i = 1;
 
-  while (i < deltaPath.length) {
-    if (deltaPath[i] === '.') {
+  while (i < atomPath.length) {
+    if (atomPath[i] === '.') {
       // Dot property — pass through
       i += 1;
       const start = i;
-      while (i < deltaPath.length && /[a-zA-Z0-9_]/.test(deltaPath[i])) {
+      while (i < atomPath.length && /[a-zA-Z0-9_]/.test(atomPath[i])) {
         i += 1;
       }
-      result += '.' + deltaPath.slice(start, i);
-    } else if (deltaPath[i] === '[') {
-      if (deltaPath[i + 1] === '?') {
+      result += '.' + atomPath.slice(start, i);
+    } else if (atomPath[i] === '[') {
+      if (atomPath[i + 1] === '?') {
         // Filter expression — need to re-quote non-string literals to strings
-        const closingIdx = findFilterClose(deltaPath, i + 2);
-        if (closingIdx === -1) throw new Error(`Unterminated filter in: ${deltaPath}`);
-        const filterContent = deltaPath.slice(i, closingIdx + 2);
+        const closingIdx = findFilterClose(atomPath, i + 2);
+        if (closingIdx === -1) throw new Error(`Unterminated filter in: ${atomPath}`);
+        const filterContent = atomPath.slice(i, closingIdx + 2);
         result += normalizeFilterToStringLiterals(filterContent);
         i = closingIdx + 2;
-      } else if (deltaPath[i + 1] === "'") {
+      } else if (atomPath[i + 1] === "'") {
         // Bracket-quoted property: ['a.b'] → [a.b]
-        const [key, endIdx] = extractQuotedString(deltaPath, i + 2);
-        if (deltaPath[endIdx + 1] !== ']') throw new Error(`Expected ']' in: ${deltaPath}`);
+        const [key, endIdx] = extractQuotedString(atomPath, i + 2);
+        if (atomPath[endIdx + 1] !== ']') throw new Error(`Expected ']' in: ${atomPath}`);
         result += `[${key}]`;
         i = endIdx + 2;
-      } else if (/\d/.test(deltaPath[i + 1])) {
+      } else if (/\d/.test(atomPath[i + 1])) {
         // Array index — pass through
-        const end = deltaPath.indexOf(']', i);
-        if (end === -1) throw new Error(`Unterminated bracket in: ${deltaPath}`);
-        result += deltaPath.slice(i, end + 1);
+        const end = atomPath.indexOf(']', i);
+        if (end === -1) throw new Error(`Unterminated bracket in: ${atomPath}`);
+        result += atomPath.slice(i, end + 1);
         i = end + 1;
       } else {
-        throw new Error(`Unexpected character after '[' in: ${deltaPath}`);
+        throw new Error(`Unexpected character after '[' in: ${atomPath}`);
       }
     } else {
-      throw new Error(`Unexpected character '${deltaPath[i]}' in delta path: ${deltaPath}`);
+      throw new Error(`Unexpected character '${atomPath[i]}' in atom path: ${atomPath}`);
     }
   }
 
@@ -393,7 +393,7 @@ function normalizeFilterToStringLiterals(filter: string): string {
 
 /**
  * Extract the key (last segment identifier) from an atomic-format path.
- * Used by `fromDelta` to populate the `key` field of IAtomicChange.
+ * Used by `fromAtom` to populate the `key` field of IAtomicChange.
  */
 export function extractKeyFromAtomicPath(atomicPath: string): string {
   // Walk backwards to find the last segment

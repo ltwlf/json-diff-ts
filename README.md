@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg?logo=buy-me-a-coffee)](https://buymeacoffee.com/leitwolf)
 
-**Deterministic JSON state transitions with key-based array identity.** A TypeScript JSON diff library that computes, applies, and reverts atomic changes using the [JSON Delta](https://github.com/ltwlf/json-delta-format) wire format -- a JSON Patch alternative with stable array paths, built-in undo/redo for JSON, and language-agnostic state synchronization.
+**Deterministic JSON state transitions with key-based array identity.** A TypeScript JSON diff library that computes, applies, and reverts atomic changes using the [JSON Atom](https://github.com/ltwlf/json-atom-format) wire format -- a JSON Patch alternative with stable array paths, built-in undo/redo for JSON, and language-agnostic state synchronization.
 
 Zero dependencies. TypeScript-first. ESM + CommonJS. Trusted by thousands of developers ([500K+ weekly npm downloads](https://www.npmjs.com/package/json-diff-ts)).
 
@@ -32,7 +32,7 @@ This makes diffs fragile -- you can't store them, replay them reliably, or build
 **json-diff-ts solves this with key-based identity.** Array elements are matched by a stable key (`id`, `sku`, or any field), and paths use JSONPath filter expressions that survive insertions, deletions, and reordering:
 
 ```typescript
-import { diffDelta, applyDelta, revertDelta } from 'json-diff-ts';
+import { diffAtom, applyAtom, revertAtom } from 'json-diff-ts';
 
 const before = {
   items: [
@@ -49,14 +49,14 @@ const after = {
   ],
 };
 
-const delta = diffDelta(before, after, { arrayIdentityKeys: { items: 'id' } });
+const atom = diffAtom(before, after, { arrayIdentityKeys: { items: 'id' } });
 ```
 
-The delta tracks _what_ changed, not _where_ it moved:
+The atom tracks _what_ changed, not _where_ it moved:
 
 ```json
 {
-  "format": "json-delta",
+  "format": "json-atom",
   "version": 1,
   "operations": [
     { "op": "replace", "path": "$.items[?(@.id==1)].name", "value": "Widget Pro", "oldValue": "Widget" },
@@ -69,15 +69,15 @@ The delta tracks _what_ changed, not _where_ it moved:
 Apply forward to get the new state, or revert to restore the original:
 
 ```typescript
-// Clone before applying — applyDelta mutates the input object
-const updated  = applyDelta(structuredClone(before), delta);  // updated === after
-const restored = revertDelta(structuredClone(updated), delta); // restored === before
+// Clone before applying — applyAtom mutates the input object
+const updated  = applyAtom(structuredClone(before), atom);  // updated === after
+const restored = revertAtom(structuredClone(updated), atom); // restored === before
 ```
 
 ## Quick Start
 
 ```typescript
-import { diffDelta, applyDelta, revertDelta } from 'json-diff-ts';
+import { diffAtom, applyAtom, revertAtom } from 'json-diff-ts';
 
 const oldObj = {
   items: [
@@ -94,24 +94,24 @@ const newObj = {
   ],
 };
 
-// 1. Compute a delta between two JSON objects
-const delta = diffDelta(oldObj, newObj, {
+// 1. Compute an atom between two JSON objects
+const atom = diffAtom(oldObj, newObj, {
   arrayIdentityKeys: { items: 'id' },   // match array elements by 'id' field
 });
-// delta.operations =>
+// atom.operations =>
 // [
 //   { op: 'replace', path: '$.items[?(@.id==1)].name', value: 'Widget Pro', oldValue: 'Widget' },
 //   { op: 'add', path: '$.items[?(@.id==3)]', value: { id: 3, name: 'Doohickey', price: 4.99 } }
 // ]
 
-// 2. Apply the delta to produce the new state
-const updated = applyDelta(structuredClone(oldObj), delta);
+// 2. Apply the atom to produce the new state
+const updated = applyAtom(structuredClone(oldObj), atom);
 
-// 3. Revert the delta to restore the original state
-const reverted = revertDelta(structuredClone(updated), delta);
+// 3. Revert the atom to restore the original state
+const reverted = revertAtom(structuredClone(updated), atom);
 ```
 
-That's it. `delta` is a plain JSON object you can store in a database, send over HTTP, or consume in any language.
+That's it. `atom` is a plain JSON object you can store in a database, send over HTTP, or consume in any language.
 
 ## Installation
 
@@ -121,58 +121,58 @@ npm install json-diff-ts
 
 ```typescript
 // ESM / TypeScript
-import { diffDelta, applyDelta, revertDelta } from 'json-diff-ts';
+import { diffAtom, applyAtom, revertAtom } from 'json-diff-ts';
 
 // CommonJS
-const { diffDelta, applyDelta, revertDelta } = require('json-diff-ts');
+const { diffAtom, applyAtom, revertAtom } = require('json-diff-ts');
 ```
 
-## What is JSON Delta?
+## What is JSON Atom?
 
-[JSON Delta](https://github.com/ltwlf/json-delta-format) is a specification for representing atomic changes to JSON documents. json-diff-ts is the originating implementation from which the spec was derived.
+[JSON Atom](https://github.com/ltwlf/json-atom-format) is a specification for representing atomic changes to JSON documents. json-diff-ts is the originating implementation from which the spec was derived.
 
 ```text
-json-delta-format  (specification)
+json-atom-format  (specification)
     ├── json-diff-ts      (TypeScript implementation)  ← this package
-    └── json-delta-py     (Python implementation)
+    └── json-atom-py     (Python implementation)
 ```
 
-The specification defines the wire format. Each language implementation produces and consumes compatible deltas.
+The specification defines the wire format. Each language implementation produces and consumes compatible atoms.
 
-A delta is a self-describing JSON document you can store, transmit, and consume in any language:
+An atom is a self-describing JSON document you can store, transmit, and consume in any language:
 
 - **Three operations** -- `add`, `remove`, `replace`. Nothing else to learn.
 - **JSONPath-based paths** -- `$.items[?(@.id==1)].name` identifies elements by key, not index.
 - **Reversible by default** -- every `replace` and `remove` includes `oldValue` for undo.
-- **Self-identifying** -- the `format` field makes deltas discoverable without external context.
+- **Self-identifying** -- the `format` field makes atoms discoverable without external context.
 - **Extension-friendly** -- unknown properties are preserved; `x_`-prefixed properties are future-safe.
 
-### JSON Delta vs JSON Patch (RFC 6902)
+### JSON Atom vs JSON Patch (RFC 6902)
 
 JSON Patch uses JSON Pointer paths like `/items/0` that reference array elements by index. When an element is inserted at position 0, every subsequent path shifts -- `/items/1` now points to what was `/items/0`. This makes stored patches unreliable for JSON change tracking, audit logs, or undo/redo across time.
 
-JSON Delta uses JSONPath filter expressions like `$.items[?(@.id==1)]` that identify elements by a stable key. The path stays valid regardless of insertions, deletions, or reordering.
+JSON Atom uses JSONPath filter expressions like `$.items[?(@.id==1)]` that identify elements by a stable key. The path stays valid regardless of insertions, deletions, or reordering.
 
-| | JSON Delta | JSON Patch (RFC 6902) |
+| | JSON Atom | JSON Patch (RFC 6902) |
 | --- | --- | --- |
 | Path syntax | JSONPath (`$.items[?(@.id==1)]`) | JSON Pointer (`/items/0`) |
 | Array identity | Key-based -- survives reorder | Index-based -- breaks on insert/delete |
 | Reversibility | Built-in `oldValue` | Not supported |
 | Self-describing | `format` field in envelope | No envelope |
-| Specification | [json-delta-format](https://github.com/ltwlf/json-delta-format) | [RFC 6902](https://tools.ietf.org/html/rfc6902) |
+| Specification | [json-atom-format](https://github.com/ltwlf/json-atom-format) | [RFC 6902](https://tools.ietf.org/html/rfc6902) |
 
 ---
 
-## JSON Delta API
+## JSON Atom API
 
-### `diffDelta` -- Compute a Delta
+### `diffAtom` -- Compute an Atom
 
 ```typescript
-const delta = diffDelta(
+const atom = diffAtom(
   { user: { name: 'Alice', role: 'viewer' } },
   { user: { name: 'Alice', role: 'admin' } }
 );
-// delta.operations → [{ op: 'replace', path: '$.user.role', value: 'admin', oldValue: 'viewer' }]
+// atom.operations → [{ op: 'replace', path: '$.user.role', value: 'admin', oldValue: 'viewer' }]
 ```
 
 #### Keyed Arrays
@@ -180,12 +180,12 @@ const delta = diffDelta(
 Match array elements by identity key. Filter paths use canonical typed literals per the spec:
 
 ```typescript
-const delta = diffDelta(
+const atom = diffAtom(
   { users: [{ id: 1, role: 'viewer' }, { id: 2, role: 'editor' }] },
   { users: [{ id: 1, role: 'admin' },  { id: 2, role: 'editor' }] },
   { arrayIdentityKeys: { users: 'id' } }
 );
-// delta.operations → [{ op: 'replace', path: '$.users[?(@.id==1)].role', value: 'admin', oldValue: 'viewer' }]
+// atom.operations → [{ op: 'replace', path: '$.users[?(@.id==1)].role', value: 'admin', oldValue: 'viewer' }]
 ```
 
 #### Non-reversible Mode
@@ -193,140 +193,140 @@ const delta = diffDelta(
 Omit `oldValue` fields when you don't need undo:
 
 ```typescript
-const delta = diffDelta(source, target, { reversible: false });
+const atom = diffAtom(source, target, { reversible: false });
 ```
 
-### `applyDelta` -- Apply a Delta
+### `applyAtom` -- Apply an Atom
 
 Applies operations sequentially. Always use the return value (required for root-level replacements):
 
 ```typescript
-const result = applyDelta(structuredClone(source), delta);
+const result = applyAtom(structuredClone(source), atom);
 ```
 
-### `revertDelta` -- Revert a Delta
+### `revertAtom` -- Revert an Atom
 
 Computes the inverse and applies it. Requires `oldValue` on all `replace` and `remove` operations:
 
 ```typescript
-const original = revertDelta(structuredClone(target), delta);
+const original = revertAtom(structuredClone(target), atom);
 ```
 
-### `invertDelta` -- Compute the Inverse
+### `invertAtom` -- Compute the Inverse
 
-Returns a new delta that undoes the original (spec Section 9.2):
+Returns a new atom that undoes the original (spec Section 9.2):
 
 ```typescript
-const inverse = invertDelta(delta);
+const inverse = invertAtom(atom);
 // add ↔ remove, replace swaps value/oldValue, order reversed
 ```
 
-### `validateDelta` -- Validate Structure
+### `validateAtom` -- Validate Structure
 
 ```typescript
-const { valid, errors } = validateDelta(maybeDelta);
+const { valid, errors } = validateAtom(maybeAtom);
 ```
 
 ### API Reference
 
 | Function | Signature | Description |
 | --- | --- | --- |
-| `diffDelta` | `(oldObj, newObj, options?) => IJsonDelta` | Compute a canonical JSON Delta |
-| `applyDelta` | `(obj, delta) => any` | Apply a delta sequentially. Returns the result |
-| `revertDelta` | `(obj, delta) => any` | Revert a reversible delta |
-| `invertDelta` | `(delta) => IJsonDelta` | Compute the inverse delta |
-| `validateDelta` | `(delta) => { valid, errors }` | Structural validation |
-| `toDelta` | `(changeset, options?) => IJsonDelta` | Bridge: v4 changeset to JSON Delta |
-| `fromDelta` | `(delta) => IAtomicChange[]` | Bridge: JSON Delta to v4 atomic changes |
-| `squashDeltas` | `(source, deltas, options?) => IJsonDelta` | Compact multiple deltas into one net-effect delta |
-| `deltaMap` | `(delta, fn) => IJsonDelta` | Transform each operation in a delta |
-| `deltaStamp` | `(delta, extensions) => IJsonDelta` | Set extension properties on all operations |
-| `deltaGroupBy` | `(delta, keyFn) => Record<string, IJsonDelta>` | Group operations into sub-deltas |
-| `operationSpecDict` | `(op) => IDeltaOperation` | Strip extension properties from operation |
+| `diffAtom` | `(oldObj, newObj, options?) => IJsonAtom` | Compute a canonical JSON Atom |
+| `applyAtom` | `(obj, atom) => any` | Apply an atom sequentially. Returns the result |
+| `revertAtom` | `(obj, atom) => any` | Revert a reversible atom |
+| `invertAtom` | `(atom) => IJsonAtom` | Compute the inverse atom |
+| `validateAtom` | `(atom) => { valid, errors }` | Structural validation |
+| `toAtom` | `(changeset, options?) => IJsonAtom` | Bridge: v4 changeset to JSON Atom |
+| `fromAtom` | `(atom) => IAtomicChange[]` | Bridge: JSON Atom to v4 atomic changes |
+| `squashAtoms` | `(source, atoms, options?) => IJsonAtom` | Compact multiple atoms into one net-effect atom |
+| `atomMap` | `(atom, fn) => IJsonAtom` | Transform each operation in an atom |
+| `atomStamp` | `(atom, extensions) => IJsonAtom` | Set extension properties on all operations |
+| `atomGroupBy` | `(atom, keyFn) => Record<string, IJsonAtom>` | Group operations into sub-atoms |
+| `operationSpecDict` | `(op) => IAtomOperation` | Strip extension properties from operation |
 | `operationExtensions` | `(op) => Record<string, any>` | Get extension properties from operation |
-| `deltaSpecDict` | `(delta) => IJsonDelta` | Strip all extensions from delta |
-| `deltaExtensions` | `(delta) => Record<string, any>` | Get envelope extensions from delta |
+| `atomSpecDict` | `(atom) => IJsonAtom` | Strip all extensions from atom |
+| `atomExtensions` | `(atom) => Record<string, any>` | Get envelope extensions from atom |
 | `leafProperty` | `(op) => string \| null` | Terminal property name from operation path |
 
-### DeltaOptions
+### AtomOptions
 
 Extends the base `Options` interface:
 
 ```typescript
-interface DeltaOptions extends Options {
+interface AtomOptions extends Options {
   reversible?: boolean;       // Include oldValue for undo. Default: true
   arrayIdentityKeys?: Record<string, string | FunctionKey>;
   keysToSkip?: readonly string[];
 }
 ```
 
-### Delta Workflow Helpers
+### Atom Workflow Helpers
 
-Transform, inspect, and compact deltas for workflow automation.
+Transform, inspect, and compact atoms for workflow automation.
 
-#### `squashDeltas` -- Compact Multiple Deltas
+#### `squashAtoms` -- Compact Multiple Atoms
 
-Combine a sequence of deltas into a single net-effect delta. Useful for compacting audit logs or collapsing undo history:
+Combine a sequence of atoms into a single net-effect atom. Useful for compacting audit logs or collapsing undo history:
 
 ```typescript
-import { diffDelta, applyDelta, squashDeltas } from 'json-diff-ts';
+import { diffAtom, applyAtom, squashAtoms } from 'json-diff-ts';
 
 const source = { name: 'Alice', role: 'viewer' };
-const d1 = diffDelta(source, { name: 'Bob', role: 'viewer' });
-const d2 = diffDelta({ name: 'Bob', role: 'viewer' }, { name: 'Bob', role: 'admin' });
+const d1 = diffAtom(source, { name: 'Bob', role: 'viewer' });
+const d2 = diffAtom({ name: 'Bob', role: 'viewer' }, { name: 'Bob', role: 'admin' });
 
-const squashed = squashDeltas(source, [d1, d2]);
+const squashed = squashAtoms(source, [d1, d2]);
 // squashed.operations => [
 //   { op: 'replace', path: '$.name', value: 'Bob', oldValue: 'Alice' },
 //   { op: 'replace', path: '$.role', value: 'admin', oldValue: 'viewer' }
 // ]
 
-// Verify: applying the squashed delta equals applying both sequentially
-const result = applyDelta(structuredClone(source), squashed);
+// Verify: applying the squashed atom equals applying both sequentially
+const result = applyAtom(structuredClone(source), squashed);
 // result => { name: 'Bob', role: 'admin' }
 ```
 
 Options: `reversible`, `arrayIdentityKeys`, `target` (pre-computed final state), `verifyTarget` (default: true).
 
-#### `deltaMap` / `deltaStamp` / `deltaGroupBy` -- Delta Transformations
+#### `atomMap` / `atomStamp` / `atomGroupBy` -- Atom Transformations
 
-All transforms are immutable — they return new deltas without modifying the original:
+All transforms are immutable — they return new atoms without modifying the original:
 
 ```typescript
-import { diffDelta, deltaMap, deltaStamp, deltaGroupBy } from 'json-diff-ts';
+import { diffAtom, atomMap, atomStamp, atomGroupBy } from 'json-diff-ts';
 
-const delta = diffDelta(
+const atom = diffAtom(
   { name: 'Alice', age: 30, role: 'viewer' },
   { name: 'Bob', age: 31, status: 'active' }
 );
 
 // Stamp metadata onto every operation
-const stamped = deltaStamp(delta, { x_author: 'system', x_ts: Date.now() });
+const stamped = atomStamp(atom, { x_author: 'system', x_ts: Date.now() });
 
 // Transform operations
-const prefixed = deltaMap(delta, (op) => ({
+const prefixed = atomMap(atom, (op) => ({
   ...op,
   path: op.path.replace('$', '$.data'),
 }));
 
 // Group by operation type
-const groups = deltaGroupBy(delta, (op) => op.op);
-// groups => { replace: IJsonDelta, add: IJsonDelta, remove: IJsonDelta }
+const groups = atomGroupBy(atom, (op) => op.op);
+// groups => { replace: IJsonAtom, add: IJsonAtom, remove: IJsonAtom }
 ```
 
-#### `operationSpecDict` / `deltaSpecDict` -- Spec Introspection
+#### `operationSpecDict` / `atomSpecDict` -- Spec Introspection
 
 Separate spec-defined fields from extension properties:
 
 ```typescript
-import { operationSpecDict, operationExtensions, deltaSpecDict } from 'json-diff-ts';
+import { operationSpecDict, operationExtensions, atomSpecDict } from 'json-diff-ts';
 
 const op = { op: 'replace', path: '$.name', value: 'Bob', x_author: 'system' };
 operationSpecDict(op);    // { op: 'replace', path: '$.name', value: 'Bob' }
 operationExtensions(op);  // { x_author: 'system' }
 
-// Strip all extensions from a delta
-const clean = deltaSpecDict(delta);
+// Strip all extensions from an atom
+const clean = atomSpecDict(atom);
 ```
 
 #### `leafProperty` -- Path Introspection
@@ -385,15 +385,15 @@ const all = comparisonToFlatList(result, { includeUnchanged: true });
 
 ### Audit Log
 
-Store every change to a document as a reversible delta. Each entry records who changed what, when, and can be replayed or reverted independently -- a complete JSON change tracking system:
+Store every change to a document as a reversible atom. Each entry records who changed what, when, and can be replayed or reverted independently -- a complete JSON change tracking system:
 
 ```typescript
-import { diffDelta, applyDelta, revertDelta, IJsonDelta } from 'json-diff-ts';
+import { diffAtom, applyAtom, revertAtom, IJsonAtom } from 'json-diff-ts';
 
 interface AuditEntry {
   timestamp: string;
   userId: string;
-  delta: IJsonDelta;
+  atom: IJsonAtom;
 }
 
 const auditLog: AuditEntry[] = [];
@@ -407,13 +407,13 @@ let doc = {
 };
 
 function updateDocument(newDoc: typeof doc, userId: string) {
-  const delta = diffDelta(doc, newDoc, {
+  const atom = diffAtom(doc, newDoc, {
     arrayIdentityKeys: { items: 'id' },
   });
 
-  if (delta.operations.length > 0) {
-    auditLog.push({ timestamp: new Date().toISOString(), userId, delta });
-    doc = applyDelta(structuredClone(doc), delta);
+  if (atom.operations.length > 0) {
+    auditLog.push({ timestamp: new Date().toISOString(), userId, atom });
+    doc = applyAtom(structuredClone(doc), atom);
   }
 
   return doc;
@@ -423,7 +423,7 @@ function updateDocument(newDoc: typeof doc, userId: string) {
 function undo(): typeof doc {
   const last = auditLog.pop();
   if (!last) return doc;
-  doc = revertDelta(structuredClone(doc), last.delta);
+  doc = revertAtom(structuredClone(doc), last.atom);
   return doc;
 }
 
@@ -432,50 +432,50 @@ updateDocument(
   { ...doc, status: 'active', items: [{ id: 1, task: 'Design', done: true }, ...doc.items.slice(1)] },
   'alice'
 );
-// auditLog[0].delta.operations =>
+// auditLog[0].atom.operations =>
 // [
 //   { op: 'replace', path: '$.status', value: 'active', oldValue: 'draft' },
 //   { op: 'replace', path: '$.items[?(@.id==1)].done', value: true, oldValue: false }
 // ]
 ```
 
-Because every delta is self-describing JSON, your audit log is queryable, storable in any database, and readable from any language.
+Because every atom is self-describing JSON, your audit log is queryable, storable in any database, and readable from any language.
 
 ### Undo / Redo Stack
 
-Build undo/redo for any JSON state object. Deltas are small (only changed fields), reversible, and serializable:
+Build undo/redo for any JSON state object. Atoms are small (only changed fields), reversible, and serializable:
 
 ```typescript
-import { diffDelta, applyDelta, revertDelta, IJsonDelta } from 'json-diff-ts';
+import { diffAtom, applyAtom, revertAtom, IJsonAtom } from 'json-diff-ts';
 
 class UndoManager<T extends object> {
-  private undoStack: IJsonDelta[] = [];
-  private redoStack: IJsonDelta[] = [];
+  private undoStack: IJsonAtom[] = [];
+  private redoStack: IJsonAtom[] = [];
 
   constructor(private state: T) {}
 
   apply(newState: T): T {
-    const delta = diffDelta(this.state, newState);
-    if (delta.operations.length === 0) return this.state;
-    this.undoStack.push(delta);
+    const atom = diffAtom(this.state, newState);
+    if (atom.operations.length === 0) return this.state;
+    this.undoStack.push(atom);
     this.redoStack = [];
-    this.state = applyDelta(structuredClone(this.state), delta);
+    this.state = applyAtom(structuredClone(this.state), atom);
     return this.state;
   }
 
   undo(): T {
-    const delta = this.undoStack.pop();
-    if (!delta) return this.state;
-    this.redoStack.push(delta);
-    this.state = revertDelta(structuredClone(this.state), delta);
+    const atom = this.undoStack.pop();
+    if (!atom) return this.state;
+    this.redoStack.push(atom);
+    this.state = revertAtom(structuredClone(this.state), atom);
     return this.state;
   }
 
   redo(): T {
-    const delta = this.redoStack.pop();
-    if (!delta) return this.state;
-    this.undoStack.push(delta);
-    this.state = applyDelta(structuredClone(this.state), delta);
+    const atom = this.redoStack.pop();
+    if (!atom) return this.state;
+    this.undoStack.push(atom);
+    this.state = applyAtom(structuredClone(this.state), atom);
     return this.state;
   }
 }
@@ -483,55 +483,55 @@ class UndoManager<T extends object> {
 
 ### Data Synchronization
 
-Send only what changed between client and server. Deltas are compact -- a single field change in a 10KB document produces a few bytes of delta, making state synchronization efficient over the wire:
+Send only what changed between client and server. Atoms are compact -- a single field change in a 10KB document produces a few bytes of atom, making state synchronization efficient over the wire:
 
 ```typescript
-import { diffDelta, applyDelta, validateDelta } from 'json-diff-ts';
+import { diffAtom, applyAtom, validateAtom } from 'json-diff-ts';
 
-// Client side: compute and send delta
-const delta = diffDelta(localState, updatedState, {
+// Client side: compute and send atom
+const atom = diffAtom(localState, updatedState, {
   arrayIdentityKeys: { records: 'id' },
 });
 await fetch('/api/sync', {
   method: 'POST',
-  body: JSON.stringify(delta),
+  body: JSON.stringify(atom),
 });
 
 // Server side: validate and apply
-const result = validateDelta(req.body);
+const result = validateAtom(req.body);
 if (!result.valid) return res.status(400).json(result.errors);
 // ⚠️ In production, sanitize paths/values to prevent prototype pollution
 //    (e.g. reject paths containing "__proto__" or "constructor")
-currentState = applyDelta(structuredClone(currentState), req.body);
+currentState = applyAtom(structuredClone(currentState), req.body);
 ```
 
 ---
 
-## Bridge: v4 Changeset <-> JSON Delta
+## Bridge: v4 Changeset <-> JSON Atom
 
-Convert between the legacy internal format and JSON Delta:
+Convert between the legacy internal format and JSON Atom:
 
 ```typescript
-import { diff, toDelta, fromDelta, unatomizeChangeset } from 'json-diff-ts';
+import { diff, toAtom, fromAtom, unatomizeChangeset } from 'json-diff-ts';
 
-// v4 changeset → JSON Delta
+// v4 changeset → JSON Atom
 const changeset = diff(source, target, { arrayIdentityKeys: { items: 'id' } });
-const delta = toDelta(changeset);
+const atom = toAtom(changeset);
 
-// JSON Delta → v4 atomic changes
-const atoms = fromDelta(delta);
+// JSON Atom → v4 atomic changes
+const atoms = fromAtom(atom);
 
 // v4 atomic changes → hierarchical changeset (if needed)
 const cs = unatomizeChangeset(atoms);
 ```
 
-**Note:** `toDelta` is a best-effort bridge. Filter literals are always string-quoted (e.g., `[?(@.id=='42')]` instead of canonical `[?(@.id==42)]`). Use `diffDelta()` for fully canonical output.
+**Note:** `toAtom` is a best-effort bridge. Filter literals are always string-quoted (e.g., `[?(@.id=='42')]` instead of canonical `[?(@.id==42)]`). Use `diffAtom()` for fully canonical output.
 
 ---
 
 ## Legacy Changeset API (v4 Compatibility)
 
-All v4 APIs remain fully supported. Existing code continues to work without changes. For new projects, prefer the JSON Delta API above.
+All v4 APIs remain fully supported. Existing code continues to work without changes. For new projects, prefer the JSON Atom API above.
 
 ### `diff`
 
@@ -659,8 +659,8 @@ interface Options {
 ## Migration from v4
 
 1. **No action required** -- all v4 APIs work identically in v5.
-2. **Adopt JSON Delta** -- use `diffDelta()` / `applyDelta()` for new code.
-3. **Bridge existing data** -- `toDelta()` / `fromDelta()` for interop with stored v4 changesets.
+2. **Adopt JSON Atom** -- use `diffAtom()` / `applyAtom()` for new code.
+3. **Bridge existing data** -- `toAtom()` / `fromAtom()` for interop with stored v4 changesets.
 4. **Rename `embeddedObjKeys` to `arrayIdentityKeys`** -- the old name still works, but `arrayIdentityKeys` is the preferred name going forward.
 5. Both formats coexist. No forced migration.
 
@@ -675,13 +675,13 @@ interface Options {
 | Dependencies | Zero | Few | Many | Varies |
 | ESM Support | Native | CJS only | CJS only | Varies |
 | Array Identity | Key-based | Index only | Configurable | Index only |
-| Wire Format | JSON Delta (standardized) | Proprietary | Proprietary | JSON Pointer |
+| Wire Format | JSON Atom (standardized) | Proprietary | Proprietary | JSON Pointer |
 | Reversibility | Built-in (`oldValue`) | Manual | Plugin | Not built-in |
 
 ## FAQ
 
-**Q: How does JSON Delta compare to JSON Patch (RFC 6902)?**
-JSON Patch uses JSON Pointer (`/items/0`) for paths, which breaks when array elements are inserted, deleted, or reordered. JSON Delta uses JSONPath filter expressions (`$.items[?(@.id==1)]`) for stable, key-based identity. JSON Delta also supports built-in reversibility via `oldValue`.
+**Q: How does JSON Atom compare to JSON Patch (RFC 6902)?**
+JSON Patch uses JSON Pointer (`/items/0`) for paths, which breaks when array elements are inserted, deleted, or reordered. JSON Atom uses JSONPath filter expressions (`$.items[?(@.id==1)]`) for stable, key-based identity. JSON Atom also supports built-in reversibility via `oldValue`.
 
 **Q: Can I use this with React / Vue / Angular?**
 Yes. json-diff-ts works in any JavaScript runtime -- browsers, Node.js, Deno, Bun, edge workers.
@@ -689,8 +689,8 @@ Yes. json-diff-ts works in any JavaScript runtime -- browsers, Node.js, Deno, Bu
 **Q: Is it suitable for large objects?**
 Yes. The library handles large, deeply nested JSON structures efficiently with zero dependencies and a ~6KB gzipped footprint.
 
-**Q: Can I use the v4 API alongside JSON Delta?**
-Yes. Both APIs coexist. Use `toDelta()` / `fromDelta()` to convert between formats.
+**Q: Can I use the v4 API alongside JSON Atom?**
+Yes. Both APIs coexist. Use `toAtom()` / `fromAtom()` to convert between formats.
 
 **Q: What about arrays of primitives?**
 Use `$value` as the identity key: `{ arrayIdentityKeys: { tags: '$value' } }`. Elements are matched by value identity.
@@ -700,14 +700,14 @@ Use `$value` as the identity key: `{ arrayIdentityKeys: { tags: '$value' } }`. E
 ## Release Notes
 
 - **v5.0.0-alpha.2:**
-  - Delta workflow helpers: `squashDeltas`, `deltaMap`, `deltaStamp`, `deltaGroupBy`
-  - Delta/operation introspection: `operationSpecDict`, `operationExtensions`, `deltaSpecDict`, `deltaExtensions`, `leafProperty`
+  - Atom workflow helpers: `squashAtoms`, `atomMap`, `atomStamp`, `atomGroupBy`
+  - Atom/operation introspection: `operationSpecDict`, `operationExtensions`, `atomSpecDict`, `atomExtensions`, `leafProperty`
   - Comparison serialization: `comparisonToDict`, `comparisonToFlatList`
 
 - **v5.0.0-alpha.0:**
-  - JSON Delta API: `diffDelta`, `applyDelta`, `revertDelta`, `invertDelta`, `toDelta`, `fromDelta`, `validateDelta`
+  - JSON Atom API: `diffAtom`, `applyAtom`, `revertAtom`, `invertAtom`, `toAtom`, `fromAtom`, `validateAtom`
   - Canonical path production with typed filter literals
-  - Conformance with the [JSON Delta Specification](https://github.com/ltwlf/json-delta-format) v0
+  - Conformance with the [JSON Atom Specification](https://github.com/ltwlf/json-atom-format) v0
   - Renamed `embeddedObjKeys` to `arrayIdentityKeys` (old name still works as deprecated alias)
   - All v4 APIs preserved unchanged
 

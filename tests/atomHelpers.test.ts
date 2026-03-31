@@ -1,15 +1,15 @@
 import {
   operationSpecDict,
   operationExtensions,
-  deltaSpecDict,
-  deltaExtensions,
+  atomSpecDict,
+  atomExtensions,
   leafProperty,
-  deltaMap,
-  deltaStamp,
-  deltaGroupBy,
-  squashDeltas,
-} from '../src/deltaHelpers';
-import { diffDelta, applyDelta, IJsonDelta, IDeltaOperation } from '../src/jsonDelta';
+  atomMap,
+  atomStamp,
+  atomGroupBy,
+  squashAtoms,
+} from '../src/atomHelpers';
+import { diffAtom, applyAtom, IJsonAtom, IAtomOperation } from '../src/jsonAtom';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -17,18 +17,18 @@ function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
-function makeDelta(
-  operations: IDeltaOperation[],
+function makeAtom(
+  operations: IAtomOperation[],
   extras?: Record<string, any>
-): IJsonDelta {
-  return { format: 'json-delta', version: 1, operations, ...extras };
+): IJsonAtom {
+  return { format: 'json-atom', version: 1, operations, ...extras };
 }
 
 // ─── operationSpecDict ─────────────────────────────────────────────────────
 
 describe('operationSpecDict', () => {
   it('strips extension properties', () => {
-    const op: IDeltaOperation = {
+    const op: IAtomOperation = {
       op: 'replace',
       path: '$.name',
       value: 'Bob',
@@ -45,21 +45,21 @@ describe('operationSpecDict', () => {
   });
 
   it('handles add op (no oldValue)', () => {
-    const op: IDeltaOperation = { op: 'add', path: '$.age', value: 30 };
+    const op: IAtomOperation = { op: 'add', path: '$.age', value: 30 };
     const result = operationSpecDict(op);
     expect(result).toEqual({ op: 'add', path: '$.age', value: 30 });
     expect('oldValue' in result).toBe(false);
   });
 
   it('handles remove op (no value)', () => {
-    const op: IDeltaOperation = { op: 'remove', path: '$.age', oldValue: 30 };
+    const op: IAtomOperation = { op: 'remove', path: '$.age', oldValue: 30 };
     const result = operationSpecDict(op);
     expect(result).toEqual({ op: 'remove', path: '$.age', oldValue: 30 });
     expect('value' in result).toBe(false);
   });
 
   it('omits absent keys from result', () => {
-    const op: IDeltaOperation = { op: 'remove', path: '$.x' };
+    const op: IAtomOperation = { op: 'remove', path: '$.x' };
     const result = operationSpecDict(op);
     expect('value' in result).toBe(false);
     expect('oldValue' in result).toBe(false);
@@ -70,7 +70,7 @@ describe('operationSpecDict', () => {
 
 describe('operationExtensions', () => {
   it('returns non-spec keys', () => {
-    const op: IDeltaOperation = {
+    const op: IAtomOperation = {
       op: 'replace',
       path: '$.name',
       value: 'Bob',
@@ -81,12 +81,12 @@ describe('operationExtensions', () => {
   });
 
   it('returns empty object when no extensions', () => {
-    const op: IDeltaOperation = { op: 'add', path: '$.name', value: 'Bob' };
+    const op: IAtomOperation = { op: 'add', path: '$.name', value: 'Bob' };
     expect(operationExtensions(op)).toEqual({});
   });
 
   it('spec + extensions partition all keys', () => {
-    const op: IDeltaOperation = {
+    const op: IAtomOperation = {
       op: 'replace',
       path: '$.name',
       value: 'Bob',
@@ -97,38 +97,38 @@ describe('operationExtensions', () => {
   });
 });
 
-// ─── deltaSpecDict ─────────────────────────────────────────────────────────
+// ─── atomSpecDict ─────────────────────────────────────────────────────────
 
-describe('deltaSpecDict', () => {
+describe('atomSpecDict', () => {
   it('strips envelope and operation extensions', () => {
-    const delta = makeDelta(
+    const atom = makeAtom(
       [{ op: 'replace', path: '$.name', value: 'Bob', x_author: 'sys' }],
       { x_metadata: { ts: 1 } }
     );
-    expect(deltaSpecDict(delta)).toEqual({
-      format: 'json-delta',
+    expect(atomSpecDict(atom)).toEqual({
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$.name', value: 'Bob' }],
     });
   });
 
-  it('preserves spec-only delta as-is', () => {
-    const delta = makeDelta([{ op: 'add', path: '$.x', value: 1 }]);
-    expect(deltaSpecDict(delta)).toEqual(delta);
+  it('preserves spec-only atom as-is', () => {
+    const atom = makeAtom([{ op: 'add', path: '$.x', value: 1 }]);
+    expect(atomSpecDict(atom)).toEqual(atom);
   });
 });
 
-// ─── deltaExtensions ───────────────────────────────────────────────────────
+// ─── atomExtensions ───────────────────────────────────────────────────────
 
-describe('deltaExtensions', () => {
+describe('atomExtensions', () => {
   it('returns non-spec envelope keys', () => {
-    const delta = makeDelta([], { x_source: 'api', x_ts: 42 });
-    expect(deltaExtensions(delta)).toEqual({ x_source: 'api', x_ts: 42 });
+    const atom = makeAtom([], { x_source: 'api', x_ts: 42 });
+    expect(atomExtensions(atom)).toEqual({ x_source: 'api', x_ts: 42 });
   });
 
   it('returns empty object when no extensions', () => {
-    const delta = makeDelta([]);
-    expect(deltaExtensions(delta)).toEqual({});
+    const atom = makeAtom([]);
+    expect(atomExtensions(atom)).toEqual({});
   });
 });
 
@@ -160,57 +160,57 @@ describe('leafProperty', () => {
   });
 });
 
-// ─── deltaMap ──────────────────────────────────────────────────────────────
+// ─── atomMap ──────────────────────────────────────────────────────────────
 
-describe('deltaMap', () => {
+describe('atomMap', () => {
   it('transforms operations', () => {
-    const delta = makeDelta([
+    const atom = makeAtom([
       { op: 'replace', path: '$.a', value: 1 },
       { op: 'add', path: '$.b', value: 2 },
     ]);
-    const result = deltaMap(delta, (op) => ({ ...op, x_mapped: true }));
+    const result = atomMap(atom, (op) => ({ ...op, x_mapped: true }));
     expect(result.operations).toHaveLength(2);
     expect(result.operations[0].x_mapped).toBe(true);
     expect(result.operations[1].x_mapped).toBe(true);
   });
 
   it('preserves envelope properties', () => {
-    const delta = makeDelta(
+    const atom = makeAtom(
       [{ op: 'add', path: '$.x', value: 1 }],
       { x_source: 'test' }
     );
-    const result = deltaMap(delta, (op) => op);
+    const result = atomMap(atom, (op) => op);
     expect(result.x_source).toBe('test');
-    expect(result.format).toBe('json-delta');
+    expect(result.format).toBe('json-atom');
   });
 
-  it('does not mutate the original delta', () => {
-    const delta = makeDelta([{ op: 'add', path: '$.x', value: 1 }]);
-    const original = deepClone(delta);
-    deltaMap(delta, (op) => ({ ...op, x_added: true }));
-    expect(delta).toEqual(original);
+  it('does not mutate the original atom', () => {
+    const atom = makeAtom([{ op: 'add', path: '$.x', value: 1 }]);
+    const original = deepClone(atom);
+    atomMap(atom, (op) => ({ ...op, x_added: true }));
+    expect(atom).toEqual(original);
   });
 
   it('passes index to callback', () => {
-    const delta = makeDelta([
+    const atom = makeAtom([
       { op: 'add', path: '$.a', value: 1 },
       { op: 'add', path: '$.b', value: 2 },
     ]);
     const indices: number[] = [];
-    deltaMap(delta, (op, i) => { indices.push(i); return op; });
+    atomMap(atom, (op, i) => { indices.push(i); return op; });
     expect(indices).toEqual([0, 1]);
   });
 });
 
-// ─── deltaStamp ────────────────────────────────────────────────────────────
+// ─── atomStamp ────────────────────────────────────────────────────────────
 
-describe('deltaStamp', () => {
+describe('atomStamp', () => {
   it('sets extensions on all operations', () => {
-    const delta = makeDelta([
+    const atom = makeAtom([
       { op: 'replace', path: '$.a', value: 1 },
       { op: 'add', path: '$.b', value: 2 },
     ]);
-    const result = deltaStamp(delta, { x_batch: 'b1', x_ts: 99 });
+    const result = atomStamp(atom, { x_batch: 'b1', x_ts: 99 });
     for (const op of result.operations) {
       expect(op.x_batch).toBe('b1');
       expect(op.x_ts).toBe(99);
@@ -218,80 +218,80 @@ describe('deltaStamp', () => {
   });
 
   it('does not mutate the original', () => {
-    const delta = makeDelta([{ op: 'add', path: '$.x', value: 1 }]);
-    const original = deepClone(delta);
-    deltaStamp(delta, { x_tag: 'test' });
-    expect(delta).toEqual(original);
+    const atom = makeAtom([{ op: 'add', path: '$.x', value: 1 }]);
+    const original = deepClone(atom);
+    atomStamp(atom, { x_tag: 'test' });
+    expect(atom).toEqual(original);
   });
 
   it('preserves envelope extensions', () => {
-    const delta = makeDelta(
+    const atom = makeAtom(
       [{ op: 'add', path: '$.x', value: 1 }],
       { x_source: 'api' }
     );
-    const result = deltaStamp(delta, { x_tag: 'v1' });
+    const result = atomStamp(atom, { x_tag: 'v1' });
     expect(result.x_source).toBe('api');
   });
 });
 
-// ─── deltaGroupBy ──────────────────────────────────────────────────────────
+// ─── atomGroupBy ──────────────────────────────────────────────────────────
 
-describe('deltaGroupBy', () => {
+describe('atomGroupBy', () => {
   it('groups by operation type', () => {
-    const delta = makeDelta([
+    const atom = makeAtom([
       { op: 'add', path: '$.a', value: 1 },
       { op: 'replace', path: '$.b', value: 2, oldValue: 1 },
       { op: 'add', path: '$.c', value: 3 },
     ]);
-    const groups = deltaGroupBy(delta, (op) => op.op);
+    const groups = atomGroupBy(atom, (op) => op.op);
     expect(Object.keys(groups).sort((a, b) => a.localeCompare(b))).toEqual(['add', 'replace']);
     expect(groups.add.operations).toHaveLength(2);
     expect(groups.replace.operations).toHaveLength(1);
   });
 
-  it('preserves envelope in each sub-delta', () => {
-    const delta = makeDelta(
+  it('preserves envelope in each sub-atom', () => {
+    const atom = makeAtom(
       [
         { op: 'add', path: '$.a', value: 1 },
         { op: 'remove', path: '$.b', oldValue: 2 },
       ],
       { x_source: 'test' }
     );
-    const groups = deltaGroupBy(delta, (op) => op.op);
-    expect(groups.add.format).toBe('json-delta');
+    const groups = atomGroupBy(atom, (op) => op.op);
+    expect(groups.add.format).toBe('json-atom');
     expect(groups.add.version).toBe(1);
     expect(groups.add.x_source).toBe('test');
     expect(groups.remove.x_source).toBe('test');
   });
 
-  it('returns empty record for empty delta', () => {
-    const delta = makeDelta([]);
-    expect(deltaGroupBy(delta, (op) => op.op)).toEqual({});
+  it('returns empty record for empty atom', () => {
+    const atom = makeAtom([]);
+    expect(atomGroupBy(atom, (op) => op.op)).toEqual({});
   });
 
   it('returns single group when all ops have same key', () => {
-    const delta = makeDelta([
+    const atom = makeAtom([
       { op: 'add', path: '$.a', value: 1 },
       { op: 'add', path: '$.b', value: 2 },
     ]);
-    const groups = deltaGroupBy(delta, (op) => op.op);
+    const groups = atomGroupBy(atom, (op) => op.op);
     expect(Object.keys(groups)).toEqual(['add']);
     expect(groups.add.operations).toHaveLength(2);
   });
 });
 
-// ─── squashDeltas ──────────────────────────────────────────────────────────
+// ─── squashAtoms ──────────────────────────────────────────────────────────
 
-describe('squashDeltas', () => {
+describe('squashAtoms', () => {
   const source = { name: 'Alice', age: 30, role: 'viewer' };
 
   it('squashes two successive changes', () => {
-    const d1 = diffDelta(source, { ...source, name: 'Bob' });
-    const d2 = diffDelta(
+    const d1 = diffAtom(source, { ...source, name: 'Bob' });
+    const d2 = diffAtom(
       { ...source, name: 'Bob' },
       { ...source, name: 'Bob', role: 'admin' }
     );
-    const squashed = squashDeltas(source, [d1, d2]);
+    const squashed = squashAtoms(source, [d1, d2]);
     expect(squashed.operations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ op: 'replace', path: '$.name', value: 'Bob' }),
@@ -302,21 +302,21 @@ describe('squashDeltas', () => {
 
   it('cancels add then remove', () => {
     const intermediate = { ...source, newProp: 'hello' };
-    const d1 = diffDelta(source, intermediate);
-    const d2 = diffDelta(intermediate, source);
-    const squashed = squashDeltas(source, [d1, d2]);
+    const d1 = diffAtom(source, intermediate);
+    const d2 = diffAtom(intermediate, source);
+    const squashed = squashAtoms(source, [d1, d2]);
     expect(squashed.operations).toHaveLength(0);
   });
 
-  it('handles empty deltas array', () => {
-    const squashed = squashDeltas(source, []);
+  it('handles empty atoms array', () => {
+    const squashed = squashAtoms(source, []);
     expect(squashed.operations).toHaveLength(0);
   });
 
-  it('handles single delta', () => {
-    const d1 = diffDelta(source, { ...source, age: 31 });
-    const squashed = squashDeltas(source, [d1]);
-    const applied = applyDelta(deepClone(source), squashed);
+  it('handles single atom', () => {
+    const d1 = diffAtom(source, { ...source, age: 31 });
+    const squashed = squashAtoms(source, [d1]);
+    const applied = applyAtom(deepClone(source), squashed);
     expect(applied).toEqual({ ...source, age: 31 });
   });
 
@@ -326,47 +326,47 @@ describe('squashDeltas', () => {
     const mid = { items: [{ id: 1, v: 'x' }, { id: 2, v: 'b' }] };
     const end = { items: [{ id: 1, v: 'x' }, { id: 2, v: 'y' }] };
 
-    const d1 = diffDelta(src, mid, opts);
-    const d2 = diffDelta(mid, end, opts);
-    const squashed = squashDeltas(src, [d1, d2], opts);
-    const applied = applyDelta(deepClone(src), squashed);
+    const d1 = diffAtom(src, mid, opts);
+    const d2 = diffAtom(mid, end, opts);
+    const squashed = squashAtoms(src, [d1, d2], opts);
+    const applied = applyAtom(deepClone(src), squashed);
     expect(applied).toEqual(end);
   });
 
   it('merges envelope extensions (last-wins)', () => {
-    const d1 = makeDelta(
+    const d1 = makeAtom(
       [{ op: 'replace', path: '$.name', value: 'Bob', oldValue: 'Alice' }],
       { x_batch: 'b1', x_source: 'first' }
     );
-    const d2 = makeDelta(
+    const d2 = makeAtom(
       [{ op: 'replace', path: '$.name', value: 'Carol', oldValue: 'Bob' }],
       { x_batch: 'b2' }
     );
-    const squashed = squashDeltas(source, [d1, d2]);
+    const squashed = squashAtoms(source, [d1, d2]);
     expect(squashed.x_batch).toBe('b2');
     expect(squashed.x_source).toBe('first');
   });
 
   it('supports direct source→target compaction', () => {
     const target = { ...source, name: 'Zara', age: 99 };
-    const squashed = squashDeltas(source, [], { target });
-    const applied = applyDelta(deepClone(source), squashed);
+    const squashed = squashAtoms(source, [], { target });
+    const applied = applyAtom(deepClone(source), squashed);
     expect(applied).toEqual(target);
   });
 
   it('verifyTarget throws on mismatch', () => {
-    const d1 = diffDelta(source, { ...source, name: 'Bob' });
+    const d1 = diffAtom(source, { ...source, name: 'Bob' });
     const wrongTarget = { ...source, name: 'WRONG' };
     expect(() =>
-      squashDeltas(source, [d1], { target: wrongTarget, verifyTarget: true })
+      squashAtoms(source, [d1], { target: wrongTarget, verifyTarget: true })
     ).toThrow(/does not match/);
   });
 
   it('verifyTarget false skips check', () => {
-    const d1 = diffDelta(source, { ...source, name: 'Bob' });
+    const d1 = diffAtom(source, { ...source, name: 'Bob' });
     const wrongTarget = { ...source, name: 'WRONG' };
     // Should not throw — uses the target as-is
-    const squashed = squashDeltas(source, [d1], { target: wrongTarget, verifyTarget: false });
+    const squashed = squashAtoms(source, [d1], { target: wrongTarget, verifyTarget: false });
     expect(squashed.operations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ op: 'replace', path: '$.name', value: 'WRONG' }),
@@ -375,8 +375,8 @@ describe('squashDeltas', () => {
   });
 
   it('reversible false omits oldValue', () => {
-    const d1 = diffDelta(source, { ...source, name: 'Bob' });
-    const squashed = squashDeltas(source, [d1], { reversible: false });
+    const d1 = diffAtom(source, { ...source, name: 'Bob' });
+    const squashed = squashAtoms(source, [d1], { reversible: false });
     for (const op of squashed.operations) {
       expect('oldValue' in op).toBe(false);
     }
@@ -385,12 +385,12 @@ describe('squashDeltas', () => {
   it('round-trip: squash equals sequential apply', () => {
     const mid = { ...source, name: 'Bob', age: 31 };
     const end = { ...source, name: 'Carol', age: 31, role: 'admin' };
-    const d1 = diffDelta(source, mid);
-    const d2 = diffDelta(mid, end);
+    const d1 = diffAtom(source, mid);
+    const d2 = diffAtom(mid, end);
 
-    const squashed = squashDeltas(source, [d1, d2]);
-    const viaSquash = applyDelta(deepClone(source), squashed);
-    const viaSequential = applyDelta(applyDelta(deepClone(source), d1), d2);
+    const squashed = squashAtoms(source, [d1, d2]);
+    const viaSquash = applyAtom(deepClone(source), squashed);
+    const viaSequential = applyAtom(applyAtom(deepClone(source), d1), d2);
     expect(viaSquash).toEqual(viaSequential);
   });
 });

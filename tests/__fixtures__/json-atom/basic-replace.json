@@ -9,8 +9,8 @@
     "name": "Bob",
     "age": 30
   },
-  "delta": {
-    "format": "json-delta",
+  "atom": {
+    "format": "json-atom",
     "version": 1,
     "operations": [
       {

@@ -1,13 +1,13 @@
 import {
-  diffDelta,
-  toDelta,
-  fromDelta,
-  applyDelta,
-  revertDelta,
-  invertDelta,
-  validateDelta,
-  IJsonDelta,
-} from '../src/jsonDelta';
+  diffAtom,
+  toAtom,
+  fromAtom,
+  applyAtom,
+  revertAtom,
+  invertAtom,
+  validateAtom,
+  IJsonAtom,
+} from '../src/jsonAtom';
 import {
   diff,
   atomizeChangeset,
@@ -22,7 +22,7 @@ import * as path from 'path';
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function loadFixture(name: string): any {
-  const filePath = path.join(__dirname, '__fixtures__', 'json-delta', `${name}.json`);
+  const filePath = path.join(__dirname, '__fixtures__', 'json-atom', `${name}.json`);
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
@@ -30,59 +30,59 @@ function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
-// ─── validateDelta ──────────────────────────────────────────────────────────
+// ─── validateAtom ──────────────────────────────────────────────────────────
 
-describe('validateDelta', () => {
-  it('validates a correct delta', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+describe('validateAtom', () => {
+  it('validates a correct atom', () => {
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$.name', value: 'Bob', oldValue: 'Alice' }],
     };
-    expect(validateDelta(delta)).toEqual({ valid: true, errors: [] });
+    expect(validateAtom(atom)).toEqual({ valid: true, errors: [] });
   });
 
-  it('validates delta with x_ extension properties', () => {
-    const delta = {
-      format: 'json-delta',
+  it('validates atom with x_ extension properties', () => {
+    const atom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$.name', value: 'Bob', x_author: 'system' }],
       x_metadata: { timestamp: 123 },
     };
-    expect(validateDelta(delta)).toEqual({ valid: true, errors: [] });
+    expect(validateAtom(atom)).toEqual({ valid: true, errors: [] });
   });
 
-  it('validates delta with empty operations', () => {
-    const delta = { format: 'json-delta', version: 1, operations: [] as any[] };
-    expect(validateDelta(delta)).toEqual({ valid: true, errors: [] });
+  it('validates atom with empty operations', () => {
+    const atom = { format: 'json-atom', version: 1, operations: [] as any[] };
+    expect(validateAtom(atom)).toEqual({ valid: true, errors: [] });
   });
 
   it('rejects missing format', () => {
-    const result = validateDelta({ version: 1, operations: [] });
+    const result = validateAtom({ version: 1, operations: [] });
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toMatch(/format/);
   });
 
   it('rejects wrong format', () => {
-    const result = validateDelta({ format: 'json-patch', version: 1, operations: [] });
+    const result = validateAtom({ format: 'json-patch', version: 1, operations: [] });
     expect(result.valid).toBe(false);
   });
 
   it('rejects missing version', () => {
-    const result = validateDelta({ format: 'json-delta', operations: [] });
+    const result = validateAtom({ format: 'json-atom', operations: [] });
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toMatch(/version/);
   });
 
   it('rejects missing operations', () => {
-    const result = validateDelta({ format: 'json-delta', version: 1 });
+    const result = validateAtom({ format: 'json-atom', version: 1 });
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toMatch(/operations/);
   });
 
   it('rejects invalid op', () => {
-    const result = validateDelta({
-      format: 'json-delta',
+    const result = validateAtom({
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'move', path: '$.x' }],
     });
@@ -90,8 +90,8 @@ describe('validateDelta', () => {
   });
 
   it('rejects add with oldValue', () => {
-    const result = validateDelta({
-      format: 'json-delta',
+    const result = validateAtom({
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'add', path: '$.x', value: 1, oldValue: 0 }],
     });
@@ -99,8 +99,8 @@ describe('validateDelta', () => {
   });
 
   it('rejects remove with value', () => {
-    const result = validateDelta({
-      format: 'json-delta',
+    const result = validateAtom({
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'remove', path: '$.x', value: 1 }],
     });
@@ -108,8 +108,8 @@ describe('validateDelta', () => {
   });
 
   it('rejects add without value', () => {
-    const result = validateDelta({
-      format: 'json-delta',
+    const result = validateAtom({
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'add', path: '$.x' }],
     });
@@ -117,8 +117,8 @@ describe('validateDelta', () => {
   });
 
   it('rejects replace without value', () => {
-    const result = validateDelta({
-      format: 'json-delta',
+    const result = validateAtom({
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$.x', oldValue: 1 }],
     });
@@ -126,14 +126,14 @@ describe('validateDelta', () => {
   });
 
   it('rejects non-object', () => {
-    expect(validateDelta(null).valid).toBe(false);
-    expect(validateDelta('string').valid).toBe(false);
-    expect(validateDelta(42).valid).toBe(false);
+    expect(validateAtom(null).valid).toBe(false);
+    expect(validateAtom('string').valid).toBe(false);
+    expect(validateAtom(42).valid).toBe(false);
   });
 
   it('rejects non-object operation entries', () => {
-    const result = validateDelta({
-      format: 'json-delta',
+    const result = validateAtom({
+      format: 'json-atom',
       version: 1,
       operations: [null, 'not-an-object'],
     });
@@ -142,8 +142,8 @@ describe('validateDelta', () => {
   });
 
   it('rejects operation with non-string path', () => {
-    const result = validateDelta({
-      format: 'json-delta',
+    const result = validateAtom({
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'add', path: 123, value: 'x' }],
     });
@@ -152,50 +152,50 @@ describe('validateDelta', () => {
   });
 });
 
-// ─── diffDelta ──────────────────────────────────────────────────────────────
+// ─── diffAtom ──────────────────────────────────────────────────────────────
 
-describe('diffDelta', () => {
+describe('diffAtom', () => {
   it('produces empty operations for identical objects', () => {
     const obj = { a: 1, b: 'hello' };
-    const delta = diffDelta(obj, deepClone(obj));
-    expect(delta.format).toBe('json-delta');
-    expect(delta.version).toBe(1);
-    expect(delta.operations).toEqual([]);
+    const atom = diffAtom(obj, deepClone(obj));
+    expect(atom.format).toBe('json-atom');
+    expect(atom.version).toBe(1);
+    expect(atom.operations).toEqual([]);
   });
 
   it('detects simple property replace', () => {
-    const delta = diffDelta({ name: 'Alice' }, { name: 'Bob' });
-    expect(delta.operations).toEqual([
+    const atom = diffAtom({ name: 'Alice' }, { name: 'Bob' });
+    expect(atom.operations).toEqual([
       { op: 'replace', path: '$.name', value: 'Bob', oldValue: 'Alice' },
     ]);
   });
 
   it('detects property add', () => {
-    const delta = diffDelta({ a: 1 }, { a: 1, b: 2 });
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0]).toEqual({ op: 'add', path: '$.b', value: 2 });
+    const atom = diffAtom({ a: 1 }, { a: 1, b: 2 });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0]).toEqual({ op: 'add', path: '$.b', value: 2 });
   });
 
   it('detects property remove', () => {
-    const delta = diffDelta({ a: 1, b: 2 }, { a: 1 });
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0]).toMatchObject({ op: 'remove', path: '$.b', oldValue: 2 });
+    const atom = diffAtom({ a: 1, b: 2 }, { a: 1 });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0]).toMatchObject({ op: 'remove', path: '$.b', oldValue: 2 });
   });
 
   it('handles nested object changes', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { user: { name: 'Alice', address: { city: 'Portland' } } },
       { user: { name: 'Alice', address: { city: 'Seattle' } } }
     );
-    expect(delta.operations).toEqual([
+    expect(atom.operations).toEqual([
       { op: 'replace', path: '$.user.address.city', value: 'Seattle', oldValue: 'Portland' },
     ]);
   });
 
   it('handles arrays with $index (default)', () => {
-    const delta = diffDelta({ items: [1, 2, 3] }, { items: [1, 2, 4] });
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0]).toMatchObject({
+    const atom = diffAtom({ items: [1, 2, 3] }, { items: [1, 2, 4] });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0]).toMatchObject({
       op: 'replace',
       path: '$.items[2]',
       value: 4,
@@ -204,35 +204,35 @@ describe('diffDelta', () => {
   });
 
   it('handles arrays with named key (string IDs)', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { items: [{ id: '1', name: 'Widget' }] },
       { items: [{ id: '1', name: 'Gadget' }] },
       { embeddedObjKeys: { items: 'id' } }
     );
-    expect(delta.operations).toEqual([
+    expect(atom.operations).toEqual([
       { op: 'replace', path: "$.items[?(@.id=='1')].name", value: 'Gadget', oldValue: 'Widget' },
     ]);
   });
 
   it('handles arrays with named key (numeric IDs) — canonical typed literals', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { items: [{ id: 1, name: 'Widget' }] },
       { items: [{ id: 1, name: 'Gadget' }] },
       { embeddedObjKeys: { items: 'id' } }
     );
-    expect(delta.operations).toEqual([
+    expect(atom.operations).toEqual([
       { op: 'replace', path: '$.items[?(@.id==1)].name', value: 'Gadget', oldValue: 'Widget' },
     ]);
   });
 
   it('handles keyed array add and remove', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { items: [{ id: '1', name: 'Widget' }] },
       { items: [{ id: '1', name: 'Widget' }, { id: '2', name: 'Gadget' }] },
       { embeddedObjKeys: { items: 'id' } }
     );
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0]).toMatchObject({
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0]).toMatchObject({
       op: 'add',
       path: "$.items[?(@.id=='2')]",
       value: { id: '2', name: 'Gadget' },
@@ -240,36 +240,36 @@ describe('diffDelta', () => {
   });
 
   it('handles $value arrays with string values', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { tags: ['urgent', 'review'] },
       { tags: ['urgent', 'draft'] },
       { embeddedObjKeys: { tags: '$value' } }
     );
-    expect(delta.operations).toHaveLength(2);
+    expect(atom.operations).toHaveLength(2);
     // Remove 'review' and add 'draft'
-    const removeOp = delta.operations.find(op => op.op === 'remove');
-    const addOp = delta.operations.find(op => op.op === 'add');
+    const removeOp = atom.operations.find(op => op.op === 'remove');
+    const addOp = atom.operations.find(op => op.op === 'add');
     expect(removeOp?.path).toBe("$.tags[?(@=='review')]");
     expect(addOp?.path).toBe("$.tags[?(@=='draft')]");
   });
 
   it('handles $value arrays with numeric values', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { scores: [10, 20, 30] },
       { scores: [10, 25, 30] },
       { embeddedObjKeys: { scores: '$value' } }
     );
-    expect(delta.operations).toHaveLength(2);
-    const removeOp = delta.operations.find(op => op.op === 'remove');
-    const addOp = delta.operations.find(op => op.op === 'add');
+    expect(atom.operations).toHaveLength(2);
+    const removeOp = atom.operations.find(op => op.op === 'remove');
+    const addOp = atom.operations.find(op => op.op === 'add');
     expect(removeOp?.path).toBe('$.scores[?(@==20)]');
     expect(addOp?.path).toBe('$.scores[?(@==25)]');
   });
 
   it('type changes produce single replace (not REMOVE+ADD)', () => {
-    const delta = diffDelta({ a: 'hello' }, { a: 42 });
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0]).toMatchObject({
+    const atom = diffAtom({ a: 'hello' }, { a: 42 });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0]).toMatchObject({
       op: 'replace',
       path: '$.a',
       value: 42,
@@ -278,9 +278,9 @@ describe('diffDelta', () => {
   });
 
   it('Object→Array type change produces single replace', () => {
-    const delta = diffDelta({ a: { x: 1 } }, { a: [1, 2] });
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0]).toMatchObject({
+    const atom = diffAtom({ a: { x: 1 } }, { a: [1, 2] });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0]).toMatchObject({
       op: 'replace',
       path: '$.a',
       value: [1, 2],
@@ -289,18 +289,18 @@ describe('diffDelta', () => {
   });
 
   it('Array→Object type change produces single replace', () => {
-    const delta = diffDelta({ a: [1, 2] }, { a: { x: 1 } });
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0]).toMatchObject({
+    const atom = diffAtom({ a: [1, 2] }, { a: { x: 1 } });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0]).toMatchObject({
       op: 'replace',
       path: '$.a',
     });
   });
 
   it('null→Object produces single replace', () => {
-    const delta = diffDelta({ a: null }, { a: { x: 1 } });
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0]).toMatchObject({
+    const atom = diffAtom({ a: null }, { a: { x: 1 } });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0]).toMatchObject({
       op: 'replace',
       path: '$.a',
       value: { x: 1 },
@@ -309,9 +309,9 @@ describe('diffDelta', () => {
   });
 
   it('replace with null value', () => {
-    const delta = diffDelta({ a: 42 }, { a: null });
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0]).toMatchObject({
+    const atom = diffAtom({ a: 42 }, { a: null });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0]).toMatchObject({
       op: 'replace',
       path: '$.a',
       value: null,
@@ -320,25 +320,25 @@ describe('diffDelta', () => {
   });
 
   it('omits oldValue when reversible is false', () => {
-    const delta = diffDelta({ name: 'Alice' }, { name: 'Bob' }, { reversible: false });
-    expect(delta.operations[0]).toEqual({ op: 'replace', path: '$.name', value: 'Bob' });
-    expect(delta.operations[0]).not.toHaveProperty('oldValue');
+    const atom = diffAtom({ name: 'Alice' }, { name: 'Bob' }, { reversible: false });
+    expect(atom.operations[0]).toEqual({ op: 'replace', path: '$.name', value: 'Bob' });
+    expect(atom.operations[0]).not.toHaveProperty('oldValue');
   });
 
   it('passes keysToSkip through', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { a: 1, b: 2, c: 3 },
       { a: 10, b: 20, c: 30 },
       { keysToSkip: ['b'] }
     );
-    const paths = delta.operations.map(op => op.path);
+    const paths = atom.operations.map(op => op.path);
     expect(paths).toContain('$.a');
     expect(paths).toContain('$.c');
     expect(paths).not.toContain('$.b');
   });
 
   it('handles function keys with canonical typed literals', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { items: [{ id: 1, name: 'Widget' }] },
       { items: [{ id: 1, name: 'Gadget' }] },
       {
@@ -348,12 +348,12 @@ describe('diffDelta', () => {
         },
       }
     );
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0].path).toBe('$.items[?(@.id==1)].name');
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].path).toBe('$.items[?(@.id==1)].name');
   });
 
   it('handles function keys with add operations', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { items: [{ id: 1, name: 'Widget' }] },
       { items: [{ id: 1, name: 'Widget' }, { id: 2, name: 'Gadget' }] },
       {
@@ -363,13 +363,13 @@ describe('diffDelta', () => {
         },
       }
     );
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0].op).toBe('add');
-    expect(delta.operations[0].path).toBe('$.items[?(@.id==2)]');
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].op).toBe('add');
+    expect(atom.operations[0].path).toBe('$.items[?(@.id==2)]');
   });
 
   it('handles function keys with remove operations', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { items: [{ id: 1, name: 'Widget' }, { id: 2, name: 'Gadget' }] },
       { items: [{ id: 1, name: 'Widget' }] },
       {
@@ -379,58 +379,58 @@ describe('diffDelta', () => {
         },
       }
     );
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0].op).toBe('remove');
-    expect(delta.operations[0].path).toBe('$.items[?(@.id==2)]');
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].op).toBe('remove');
+    expect(atom.operations[0].path).toBe('$.items[?(@.id==2)]');
   });
 
   it('handles nested property names with dots (bracket notation)', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { 'a.b': 1 },
       { 'a.b': 2 }
     );
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0].path).toBe("$['a.b']");
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].path).toBe("$['a.b']");
   });
 
   it('handles deep path in $index arrays', () => {
-    const delta = diffDelta(
+    const atom = diffAtom(
       { items: [{ name: 'Widget', color: 'red' }] },
       { items: [{ name: 'Widget', color: 'blue' }] }
     );
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0].path).toBe('$.items[0].color');
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].path).toBe('$.items[0].color');
   });
 });
 
-// ─── toDelta ────────────────────────────────────────────────────────────────
+// ─── toAtom ────────────────────────────────────────────────────────────────
 
-describe('toDelta', () => {
-  it('converts hierarchical Changeset to delta', () => {
+describe('toAtom', () => {
+  it('converts hierarchical Changeset to atom', () => {
     const changeset = diff({ name: 'Alice' }, { name: 'Bob' });
-    const delta = toDelta(changeset);
-    expect(delta.format).toBe('json-delta');
-    expect(delta.version).toBe(1);
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0].op).toBe('replace');
-    expect(delta.operations[0].value).toBe('Bob');
+    const atom = toAtom(changeset);
+    expect(atom.format).toBe('json-atom');
+    expect(atom.version).toBe(1);
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].op).toBe('replace');
+    expect(atom.operations[0].value).toBe('Bob');
   });
 
-  it('converts flat IAtomicChange[] to delta', () => {
+  it('converts flat IAtomicChange[] to atom', () => {
     const changeset = diff({ name: 'Alice' }, { name: 'Bob' });
     const atoms = atomizeChangeset(changeset);
-    const delta = toDelta(atoms);
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0].op).toBe('replace');
+    const atom = toAtom(atoms);
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].op).toBe('replace');
   });
 
   it('merges REMOVE+ADD pairs into single replace', () => {
     const changeset = diff({ a: 'hello' }, { a: 42 }, { treatTypeChangeAsReplace: true });
-    const delta = toDelta(changeset);
+    const atom = toAtom(changeset);
     // Should be a single replace, not separate remove+add
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0].op).toBe('replace');
-    expect(delta.operations[0].value).toBe(42);
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].op).toBe('replace');
+    expect(atom.operations[0].value).toBe(42);
   });
 
   it('canonicalizes paths (bracket quotes)', () => {
@@ -442,8 +442,8 @@ describe('toDelta', () => {
       value: 2,
       oldValue: 1,
     }];
-    const delta = toDelta(atoms);
-    expect(delta.operations[0].path).toBe("$['a.b']");
+    const atom = toAtom(atoms);
+    expect(atom.operations[0].path).toBe("$['a.b']");
   });
 
   it('normalizes root operations ($.$root → $)', () => {
@@ -455,29 +455,29 @@ describe('toDelta', () => {
       value: 'new',
       oldValue: 'old',
     }];
-    const delta = toDelta(atoms);
-    expect(delta.operations[0].path).toBe('$');
+    const atom = toAtom(atoms);
+    expect(atom.operations[0].path).toBe('$');
   });
 
   it('handles empty changeset', () => {
-    const delta = toDelta([]);
-    expect(delta.operations).toEqual([]);
+    const atom = toAtom([]);
+    expect(atom.operations).toEqual([]);
   });
 });
 
-// ─── fromDelta ──────────────────────────────────────────────────────────────
+// ─── fromAtom ──────────────────────────────────────────────────────────────
 
-describe('fromDelta', () => {
+describe('fromAtom', () => {
   it('returns IAtomicChange[] with correct 1:1 mapping', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [
         { op: 'replace', path: '$.name', value: 'Bob', oldValue: 'Alice' },
         { op: 'add', path: '$.age', value: 30 },
       ],
     };
-    const atoms = fromDelta(delta);
+    const atoms = fromAtom(atom);
     expect(atoms).toHaveLength(2);
     expect(atoms[0].type).toBe(Operation.UPDATE);
     expect(atoms[0].key).toBe('name');
@@ -490,42 +490,42 @@ describe('fromDelta', () => {
   });
 
   it('converts remove op correctly (oldValue → value)', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'remove', path: '$.x', oldValue: 42 }],
     };
-    const atoms = fromDelta(delta);
+    const atoms = fromAtom(atom);
     expect(atoms[0].type).toBe(Operation.REMOVE);
     expect(atoms[0].value).toBe(42);
   });
 
   it('normalizes root path ($ → $.$root)', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$', value: { new: true }, oldValue: { old: true } }],
     };
-    const atoms = fromDelta(delta);
+    const atoms = fromAtom(atom);
     expect(atoms[0].path).toBe('$.$root');
     expect(atoms[0].key).toBe('$root');
   });
 
   it('normalizes non-string filter literals to string-quoted', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$.items[?(@.id==42)].name', value: 'X', oldValue: 'Y' }],
     };
-    const atoms = fromDelta(delta);
+    const atoms = fromAtom(atom);
     expect(atoms[0].path).toBe("$.items[?(@.id=='42')].name");
   });
 
-  it('round-trips: diffDelta → fromDelta → unatomize → applyChangeset', () => {
+  it('round-trips: diffAtom → fromAtom → unatomize → applyChangeset', () => {
     const source = { name: 'Alice', age: 30, active: true };
     const target = { name: 'Bob', age: 30, active: false };
-    const delta = diffDelta(source, target);
-    const atoms = fromDelta(delta);
+    const atom = diffAtom(source, target);
+    const atoms = fromAtom(atom);
     const changeset = unatomizeChangeset(atoms);
     const result = deepClone(source);
     applyChangeset(result, changeset);
@@ -533,8 +533,8 @@ describe('fromDelta', () => {
   });
 
   it('derives valueType from value', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [
         { op: 'add', path: '$.s', value: 'hello' },
@@ -545,7 +545,7 @@ describe('fromDelta', () => {
         { op: 'add', path: '$.null', value: null },
       ],
     };
-    const atoms = fromDelta(delta);
+    const atoms = fromAtom(atom);
     expect(atoms[0].valueType).toBe('String');
     expect(atoms[1].valueType).toBe('Number');
     expect(atoms[2].valueType).toBe('Boolean');
@@ -554,38 +554,38 @@ describe('fromDelta', () => {
     expect(atoms[5].valueType).toBe(null);
   });
 
-  it('throws on invalid delta', () => {
-    expect(() => fromDelta({ format: 'wrong' } as any)).toThrow(/Invalid delta/);
+  it('throws on invalid atom', () => {
+    expect(() => fromAtom({ format: 'wrong' } as any)).toThrow(/Invalid atom/);
   });
 });
 
-// ─── applyDelta ─────────────────────────────────────────────────────────────
+// ─── applyAtom ─────────────────────────────────────────────────────────────
 
-describe('applyDelta', () => {
+describe('applyAtom', () => {
   it('applies simple property changes', () => {
     const obj = { name: 'Alice', age: 30 };
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [
         { op: 'replace', path: '$.name', value: 'Bob', oldValue: 'Alice' },
       ],
     };
-    const result = applyDelta(obj, delta);
+    const result = applyAtom(obj, atom);
     expect(result).toEqual({ name: 'Bob', age: 30 });
   });
 
   it('applies add and remove', () => {
     const obj = { a: 1, b: 2 };
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [
         { op: 'remove', path: '$.b', oldValue: 2 },
         { op: 'add', path: '$.c', value: 3 },
       ],
     };
-    const result = applyDelta(obj, delta);
+    const result = applyAtom(obj, atom);
     expect(result).toEqual({ a: 1, c: 3 });
   });
 
@@ -596,20 +596,20 @@ describe('applyDelta', () => {
         { id: '2', name: 'Gadget', price: 20 },
       ],
     };
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [
         { op: 'replace', path: "$.items[?(@.id=='1')].name", value: 'Widget Pro', oldValue: 'Widget' },
       ],
     };
-    const result = applyDelta(obj, delta);
+    const result = applyAtom(obj, atom);
     expect(result.items[0].name).toBe('Widget Pro');
   });
 
   it('applies root add (from null)', () => {
-    const result = applyDelta(null, {
-      format: 'json-delta',
+    const result = applyAtom(null, {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'add', path: '$', value: { hello: 'world' } }],
     });
@@ -617,8 +617,8 @@ describe('applyDelta', () => {
   });
 
   it('applies root remove (to null)', () => {
-    const result = applyDelta({ hello: 'world' }, {
-      format: 'json-delta',
+    const result = applyAtom({ hello: 'world' }, {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'remove', path: '$', oldValue: { hello: 'world' } }],
     });
@@ -626,10 +626,10 @@ describe('applyDelta', () => {
   });
 
   it('applies root replace', () => {
-    const result = applyDelta(
+    const result = applyAtom(
       { old: true },
       {
-        format: 'json-delta',
+        format: 'json-atom',
         version: 1,
         operations: [{ op: 'replace', path: '$', value: { new: true }, oldValue: { old: true } }],
       }
@@ -638,10 +638,10 @@ describe('applyDelta', () => {
   });
 
   it('root replace with primitive returns new value', () => {
-    const result = applyDelta(
+    const result = applyAtom(
       'old',
       {
-        format: 'json-delta',
+        format: 'json-atom',
         version: 1,
         operations: [{ op: 'replace', path: '$', value: 'new', oldValue: 'old' }],
       }
@@ -649,15 +649,15 @@ describe('applyDelta', () => {
     expect(result).toBe('new');
   });
 
-  it('throws on invalid delta', () => {
-    expect(() => applyDelta({}, { format: 'wrong' } as any)).toThrow();
+  it('throws on invalid atom', () => {
+    expect(() => applyAtom({}, { format: 'wrong' } as any)).toThrow();
   });
 
   it('root replace object with array returns array', () => {
-    const result = applyDelta(
+    const result = applyAtom(
       { old: true },
       {
-        format: 'json-delta',
+        format: 'json-atom',
         version: 1,
         operations: [{ op: 'replace', path: '$', value: [1, 2, 3], oldValue: { old: true } }],
       }
@@ -667,10 +667,10 @@ describe('applyDelta', () => {
   });
 
   it('root replace array with object returns plain object', () => {
-    const result = applyDelta(
+    const result = applyAtom(
       [1, 2, 3],
       {
-        format: 'json-delta',
+        format: 'json-atom',
         version: 1,
         operations: [{ op: 'replace', path: '$', value: { new: true }, oldValue: [1, 2, 3] }],
       }
@@ -680,10 +680,10 @@ describe('applyDelta', () => {
   });
 
   it('root replace array with array returns new array', () => {
-    const result = applyDelta(
+    const result = applyAtom(
       [1, 2],
       {
-        format: 'json-delta',
+        format: 'json-atom',
         version: 1,
         operations: [{ op: 'replace', path: '$', value: [3, 4, 5], oldValue: [1, 2] }],
       }
@@ -696,149 +696,149 @@ describe('applyDelta', () => {
     const obj = { items: ['a', 'b', 'c'] };
     // Remove index 1, then the array becomes ['a', 'c']
     // Then replace index 1 (which is now 'c') with 'd'
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [
         { op: 'remove', path: '$.items[1]', oldValue: 'b' },
         { op: 'replace', path: '$.items[1]', value: 'd', oldValue: 'c' },
       ],
     };
-    const result = applyDelta(obj, delta);
+    const result = applyAtom(obj, atom);
     expect(result.items).toEqual(['a', 'd']);
   });
 });
 
-// ─── revertDelta ────────────────────────────────────────────────────────────
+// ─── revertAtom ────────────────────────────────────────────────────────────
 
-describe('revertDelta', () => {
-  it('full round-trip: source → applyDelta → revertDelta == source', () => {
+describe('revertAtom', () => {
+  it('full round-trip: source → applyAtom → revertAtom == source', () => {
     const source = { name: 'Alice', age: 30, tags: ['admin'] };
     const target = { name: 'Bob', age: 31, tags: ['admin', 'user'] };
-    const delta = diffDelta(source, target, { embeddedObjKeys: { tags: '$value' } });
+    const atom = diffAtom(source, target, { embeddedObjKeys: { tags: '$value' } });
 
-    const applied = applyDelta(deepClone(source), delta);
+    const applied = applyAtom(deepClone(source), atom);
     expect(applied).toEqual(target);
 
-    const reverted = revertDelta(deepClone(applied), delta);
+    const reverted = revertAtom(deepClone(applied), atom);
     expect(reverted).toEqual(source);
   });
 
-  it('throws on non-reversible delta (missing oldValue)', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+  it('throws on non-reversible atom (missing oldValue)', () => {
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$.name', value: 'Bob' }],
     };
-    expect(() => revertDelta({ name: 'Alice' }, delta)).toThrow(/not reversible/);
+    expect(() => revertAtom({ name: 'Alice' }, atom)).toThrow(/not reversible/);
   });
 });
 
-// ─── invertDelta ────────────────────────────────────────────────────────────
+// ─── invertAtom ────────────────────────────────────────────────────────────
 
-describe('invertDelta', () => {
+describe('invertAtom', () => {
   it('inverts add → remove', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'add', path: '$.x', value: 42 }],
     };
-    const inverse = invertDelta(delta);
+    const inverse = invertAtom(atom);
     expect(inverse.operations).toEqual([{ op: 'remove', path: '$.x', oldValue: 42 }]);
   });
 
   it('inverts remove → add', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'remove', path: '$.x', oldValue: 42 }],
     };
-    const inverse = invertDelta(delta);
+    const inverse = invertAtom(atom);
     expect(inverse.operations).toEqual([{ op: 'add', path: '$.x', value: 42 }]);
   });
 
   it('inverts replace (swaps value and oldValue)', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$.name', value: 'Bob', oldValue: 'Alice' }],
     };
-    const inverse = invertDelta(delta);
+    const inverse = invertAtom(atom);
     expect(inverse.operations).toEqual([
       { op: 'replace', path: '$.name', value: 'Alice', oldValue: 'Bob' },
     ]);
   });
 
   it('reverses operation order', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [
         { op: 'add', path: '$.a', value: 1 },
         { op: 'add', path: '$.b', value: 2 },
       ],
     };
-    const inverse = invertDelta(delta);
+    const inverse = invertAtom(atom);
     expect(inverse.operations[0].path).toBe('$.b');
     expect(inverse.operations[1].path).toBe('$.a');
   });
 
   it('throws when replace missing oldValue', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$.x', value: 42 }],
     };
-    expect(() => invertDelta(delta)).toThrow(/not reversible/);
+    expect(() => invertAtom(atom)).toThrow(/not reversible/);
   });
 
   it('throws when remove missing oldValue', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'remove', path: '$.x' }],
     };
-    expect(() => invertDelta(delta)).toThrow(/not reversible/);
+    expect(() => invertAtom(atom)).toThrow(/not reversible/);
   });
 
   it('preserves envelope extension properties', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'add', path: '$.x', value: 1 }],
       x_source: 'test',
     };
-    const inverse = invertDelta(delta);
+    const inverse = invertAtom(atom);
     expect(inverse.x_source).toBe('test');
-    expect(inverse.format).toBe('json-delta');
+    expect(inverse.format).toBe('json-atom');
   });
 
   it('preserves operation-level extension properties', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'add', path: '$.x', value: 1, x_author: 'alice' }],
     };
-    const inverse = invertDelta(delta);
+    const inverse = invertAtom(atom);
     expect(inverse.operations[0].x_author).toBe('alice');
   });
 
-  it('throws on invalid delta input', () => {
-    expect(() => invertDelta({ format: 'wrong' } as any)).toThrow(/Invalid delta/);
+  it('throws on invalid atom input', () => {
+    expect(() => invertAtom({ format: 'wrong' } as any)).toThrow(/Invalid atom/);
   });
 });
 
 // ─── Extension property preservation ────────────────────────────────────────
 
 describe('extension property preservation', () => {
-  it('applyDelta ignores extension properties without error', () => {
-    const delta: IJsonDelta = {
-      format: 'json-delta',
+  it('applyAtom ignores extension properties without error', () => {
+    const atom: IJsonAtom = {
+      format: 'json-atom',
       version: 1,
       operations: [{ op: 'replace', path: '$.name', value: 'Bob', oldValue: 'Alice', x_reason: 'rename' }],
       x_metadata: { ts: 123 },
     };
-    const result = applyDelta({ name: 'Alice' }, delta);
+    const result = applyAtom({ name: 'Alice' }, atom);
     expect(result).toEqual({ name: 'Bob' });
   });
 });
@@ -849,20 +849,20 @@ describe('conformance fixtures', () => {
   describe('basic-replace', () => {
     const fixture = loadFixture('basic-replace');
 
-    it('Level 1: applyDelta(source, delta) == target', () => {
-      const result = applyDelta(deepClone(fixture.source), fixture.delta);
+    it('Level 1: applyAtom(source, atom) == target', () => {
+      const result = applyAtom(deepClone(fixture.source), fixture.atom);
       expect(result).toEqual(fixture.target);
     });
 
-    it('Level 2: applyDelta(target, inverse(delta)) == source', () => {
-      const inverse = invertDelta(fixture.delta);
-      const result = applyDelta(deepClone(fixture.target), inverse);
+    it('Level 2: applyAtom(target, inverse(atom)) == source', () => {
+      const inverse = invertAtom(fixture.atom);
+      const result = applyAtom(deepClone(fixture.target), inverse);
       expect(result).toEqual(fixture.source);
     });
 
-    it('diffDelta produces equivalent delta (verified by apply)', () => {
-      const computed = diffDelta(fixture.source, fixture.target);
-      const result = applyDelta(deepClone(fixture.source), computed);
+    it('diffAtom produces equivalent atom (verified by apply)', () => {
+      const computed = diffAtom(fixture.source, fixture.target);
+      const result = applyAtom(deepClone(fixture.source), computed);
       expect(result).toEqual(fixture.target);
     });
   });
@@ -870,23 +870,23 @@ describe('conformance fixtures', () => {
   describe('keyed-array-update', () => {
     const fixture = loadFixture('keyed-array-update');
 
-    it('Level 1: applyDelta(source, delta) == target', () => {
-      const result = applyDelta(deepClone(fixture.source), fixture.delta);
+    it('Level 1: applyAtom(source, atom) == target', () => {
+      const result = applyAtom(deepClone(fixture.source), fixture.atom);
       expect(result).toEqual(fixture.target);
     });
 
-    it('Level 2: applyDelta(target, inverse(delta)) == source', () => {
-      const inverse = invertDelta(fixture.delta);
-      const result = applyDelta(deepClone(fixture.target), inverse);
+    it('Level 2: applyAtom(target, inverse(atom)) == source', () => {
+      const inverse = invertAtom(fixture.atom);
+      const result = applyAtom(deepClone(fixture.target), inverse);
       expect(result).toEqual(fixture.source);
     });
 
-    it('diffDelta produces equivalent delta (verified by apply)', () => {
+    it('diffAtom produces equivalent atom (verified by apply)', () => {
       const opts = {
         embeddedObjKeys: fixture.computeHints?.arrayKeys || {},
       };
-      const computed = diffDelta(fixture.source, fixture.target, opts);
-      const result = applyDelta(deepClone(fixture.source), computed);
+      const computed = diffAtom(fixture.source, fixture.target, opts);
+      const result = applyAtom(deepClone(fixture.source), computed);
       expect(result).toEqual(fixture.target);
     });
   });
@@ -905,9 +905,9 @@ describe('integration round-trips', () => {
       settings: { theme: 'dark' },
       newField: true,
     };
-    const delta = diffDelta(source, target);
-    expect(applyDelta(deepClone(source), delta)).toEqual(target);
-    expect(revertDelta(deepClone(target), delta)).toEqual(source);
+    const atom = diffAtom(source, target);
+    expect(applyAtom(deepClone(source), atom)).toEqual(target);
+    expect(revertAtom(deepClone(target), atom)).toEqual(source);
   });
 
   it('keyed arrays with deep property changes', () => {
@@ -923,26 +923,26 @@ describe('integration round-trips', () => {
         { id: 2, name: 'Gadget', details: { color: 'blue' } },
       ],
     };
-    const delta = diffDelta(source, target, { embeddedObjKeys: { items: 'id' } });
-    expect(delta.operations).toHaveLength(1);
-    expect(delta.operations[0].path).toBe('$.items[?(@.id==1)].details.color');
-    expect(applyDelta(deepClone(source), delta)).toEqual(target);
-    expect(revertDelta(deepClone(target), delta)).toEqual(source);
+    const atom = diffAtom(source, target, { embeddedObjKeys: { items: 'id' } });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].path).toBe('$.items[?(@.id==1)].details.color');
+    expect(applyAtom(deepClone(source), atom)).toEqual(target);
+    expect(revertAtom(deepClone(target), atom)).toEqual(source);
   });
 
-  it('toDelta bridge: diff → toDelta → applyDelta', () => {
+  it('toAtom bridge: diff → toAtom → applyAtom', () => {
     const source = { a: 1, b: 'hello' };
     const target = { a: 2, b: 'world', c: true };
     const changeset = diff(source, target);
-    const delta = toDelta(changeset);
-    expect(applyDelta(deepClone(source), delta)).toEqual(target);
+    const atom = toAtom(changeset);
+    expect(applyAtom(deepClone(source), atom)).toEqual(target);
   });
 
-  it('fromDelta bridge: diffDelta → fromDelta → unatomize → apply', () => {
+  it('fromAtom bridge: diffAtom → fromAtom → unatomize → apply', () => {
     const source = { x: 10, y: 20 };
     const target = { x: 10, y: 30, z: 40 };
-    const delta = diffDelta(source, target);
-    const atoms = fromDelta(delta);
+    const atom = diffAtom(source, target);
+    const atoms = fromAtom(atom);
     const changeset = unatomizeChangeset(atoms);
     const result = deepClone(source);
     applyChangeset(result, changeset);

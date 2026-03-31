@@ -1,12 +1,12 @@
 import {
-  parseDeltaPath,
-  buildDeltaPath,
+  parseAtomPath,
+  buildAtomPath,
   formatFilterLiteral,
   parseFilterLiteral,
-  atomicPathToDeltaPath,
-  deltaPathToAtomicPath,
+  atomicPathToAtomPath,
+  atomPathToAtomicPath,
   extractKeyFromAtomicPath,
-} from '../src/deltaPath';
+} from '../src/atomPath';
 
 describe('formatFilterLiteral', () => {
   it('formats string values with single quotes', () => {
@@ -109,20 +109,20 @@ describe('parseFilterLiteral', () => {
   });
 });
 
-describe('parseDeltaPath', () => {
+describe('parseAtomPath', () => {
   it('parses root-only path', () => {
-    expect(parseDeltaPath('$')).toEqual([{ type: 'root' }]);
+    expect(parseAtomPath('$')).toEqual([{ type: 'root' }]);
   });
 
   it('parses dot property', () => {
-    expect(parseDeltaPath('$.name')).toEqual([
+    expect(parseAtomPath('$.name')).toEqual([
       { type: 'root' },
       { type: 'property', name: 'name' },
     ]);
   });
 
   it('parses chained dot properties', () => {
-    expect(parseDeltaPath('$.user.address.city')).toEqual([
+    expect(parseAtomPath('$.user.address.city')).toEqual([
       { type: 'root' },
       { type: 'property', name: 'user' },
       { type: 'property', name: 'address' },
@@ -131,21 +131,21 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses bracket property', () => {
-    expect(parseDeltaPath("$['a.b']")).toEqual([
+    expect(parseAtomPath("$['a.b']")).toEqual([
       { type: 'root' },
       { type: 'property', name: 'a.b' },
     ]);
   });
 
   it('parses bracket property with escaped quotes', () => {
-    expect(parseDeltaPath("$['O''Brien']")).toEqual([
+    expect(parseAtomPath("$['O''Brien']")).toEqual([
       { type: 'root' },
       { type: 'property', name: "O'Brien" },
     ]);
   });
 
   it('parses array index', () => {
-    expect(parseDeltaPath('$.items[0]')).toEqual([
+    expect(parseAtomPath('$.items[0]')).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'index', index: 0 },
@@ -153,7 +153,7 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses key filter with dot property and number', () => {
-    expect(parseDeltaPath('$.items[?(@.id==42)]')).toEqual([
+    expect(parseAtomPath('$.items[?(@.id==42)]')).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'id', value: 42 },
@@ -161,7 +161,7 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses key filter with string literal', () => {
-    expect(parseDeltaPath("$.items[?(@.name=='Widget')]")).toEqual([
+    expect(parseAtomPath("$.items[?(@.name=='Widget')]")).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'name', value: 'Widget' },
@@ -169,7 +169,7 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses key filter with bracket property', () => {
-    expect(parseDeltaPath("$.items[?(@['a.b']==42)]")).toEqual([
+    expect(parseAtomPath("$.items[?(@['a.b']==42)]")).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'a.b', value: 42 },
@@ -177,7 +177,7 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses key filter with boolean literal', () => {
-    expect(parseDeltaPath('$.items[?(@.active==true)]')).toEqual([
+    expect(parseAtomPath('$.items[?(@.active==true)]')).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'active', value: true },
@@ -185,7 +185,7 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses key filter with null literal', () => {
-    expect(parseDeltaPath('$.items[?(@.status==null)]')).toEqual([
+    expect(parseAtomPath('$.items[?(@.status==null)]')).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'status', value: null },
@@ -193,7 +193,7 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses value filter with string', () => {
-    expect(parseDeltaPath("$.tags[?(@=='urgent')]")).toEqual([
+    expect(parseAtomPath("$.tags[?(@=='urgent')]")).toEqual([
       { type: 'root' },
       { type: 'property', name: 'tags' },
       { type: 'valueFilter', value: 'urgent' },
@@ -201,7 +201,7 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses value filter with number', () => {
-    expect(parseDeltaPath('$.scores[?(@==100)]')).toEqual([
+    expect(parseAtomPath('$.scores[?(@==100)]')).toEqual([
       { type: 'root' },
       { type: 'property', name: 'scores' },
       { type: 'valueFilter', value: 100 },
@@ -209,7 +209,7 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses deep path after key filter', () => {
-    expect(parseDeltaPath('$.items[?(@.id==1)].name')).toEqual([
+    expect(parseAtomPath('$.items[?(@.id==1)].name')).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'id', value: 1 },
@@ -218,7 +218,7 @@ describe('parseDeltaPath', () => {
   });
 
   it('parses non-canonical bracket-for-everything form', () => {
-    expect(parseDeltaPath("$['user']['name']")).toEqual([
+    expect(parseAtomPath("$['user']['name']")).toEqual([
       { type: 'root' },
       { type: 'property', name: 'user' },
       { type: 'property', name: 'name' },
@@ -226,29 +226,29 @@ describe('parseDeltaPath', () => {
   });
 
   it('throws on invalid paths', () => {
-    expect(() => parseDeltaPath('')).toThrow();
-    expect(() => parseDeltaPath('name')).toThrow();
-    expect(() => parseDeltaPath('$[01]')).toThrow(); // leading zero
+    expect(() => parseAtomPath('')).toThrow();
+    expect(() => parseAtomPath('name')).toThrow();
+    expect(() => parseAtomPath('$[01]')).toThrow(); // leading zero
   });
 
   it('throws on unexpected character after [', () => {
-    expect(() => parseDeltaPath('$[!invalid]')).toThrow(/Unexpected character after/);
+    expect(() => parseAtomPath('$[!invalid]')).toThrow(/Unexpected character after/);
   });
 
   it('throws on unexpected character in path', () => {
-    expect(() => parseDeltaPath('$!name')).toThrow(/Unexpected character/);
+    expect(() => parseAtomPath('$!name')).toThrow(/Unexpected character/);
   });
 
   it('throws on unterminated quoted string', () => {
-    expect(() => parseDeltaPath("$['unterminated")).toThrow(/Unterminated quoted string/);
+    expect(() => parseAtomPath("$['unterminated")).toThrow(/Unterminated quoted string/);
   });
 
   it('throws on invalid filter expression', () => {
-    expect(() => parseDeltaPath('$[?(invalid==1)]')).toThrow(/Invalid filter expression/);
+    expect(() => parseAtomPath('$[?(invalid==1)]')).toThrow(/Invalid filter expression/);
   });
 
   it('handles filter literal containing )]', () => {
-    const result = parseDeltaPath("$.items[?(@.name=='val)]ue')]");
+    const result = parseAtomPath("$.items[?(@.name=='val)]ue')]");
     expect(result).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
@@ -257,13 +257,13 @@ describe('parseDeltaPath', () => {
   });
 });
 
-describe('buildDeltaPath', () => {
+describe('buildAtomPath', () => {
   it('builds root-only path', () => {
-    expect(buildDeltaPath([{ type: 'root' }])).toBe('$');
+    expect(buildAtomPath([{ type: 'root' }])).toBe('$');
   });
 
   it('builds simple dot property path', () => {
-    expect(buildDeltaPath([
+    expect(buildAtomPath([
       { type: 'root' },
       { type: 'property', name: 'user' },
       { type: 'property', name: 'name' },
@@ -271,21 +271,21 @@ describe('buildDeltaPath', () => {
   });
 
   it('uses bracket notation for special property names', () => {
-    expect(buildDeltaPath([
+    expect(buildAtomPath([
       { type: 'root' },
       { type: 'property', name: 'a.b' },
     ])).toBe("$['a.b']");
   });
 
   it('uses bracket notation for properties starting with digits', () => {
-    expect(buildDeltaPath([
+    expect(buildAtomPath([
       { type: 'root' },
       { type: 'property', name: '0key' },
     ])).toBe("$['0key']");
   });
 
   it('builds array index', () => {
-    expect(buildDeltaPath([
+    expect(buildAtomPath([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'index', index: 3 },
@@ -293,7 +293,7 @@ describe('buildDeltaPath', () => {
   });
 
   it('builds key filter with number', () => {
-    expect(buildDeltaPath([
+    expect(buildAtomPath([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'id', value: 42 },
@@ -301,7 +301,7 @@ describe('buildDeltaPath', () => {
   });
 
   it('builds key filter with string', () => {
-    expect(buildDeltaPath([
+    expect(buildAtomPath([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'id', value: 'abc' },
@@ -309,7 +309,7 @@ describe('buildDeltaPath', () => {
   });
 
   it('builds key filter with bracket-notation property', () => {
-    expect(buildDeltaPath([
+    expect(buildAtomPath([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'a.b', value: 42 },
@@ -317,14 +317,14 @@ describe('buildDeltaPath', () => {
   });
 
   it('builds value filter', () => {
-    expect(buildDeltaPath([
+    expect(buildAtomPath([
       { type: 'root' },
       { type: 'property', name: 'tags' },
       { type: 'valueFilter', value: 'urgent' },
     ])).toBe("$.tags[?(@=='urgent')]");
   });
 
-  it('round-trips with parseDeltaPath for canonical paths', () => {
+  it('round-trips with parseAtomPath for canonical paths', () => {
     const paths = [
       '$',
       '$.name',
@@ -337,113 +337,113 @@ describe('buildDeltaPath', () => {
       '$.items[?(@.id==1)].name',
     ];
     for (const path of paths) {
-      expect(buildDeltaPath(parseDeltaPath(path))).toBe(path);
+      expect(buildAtomPath(parseAtomPath(path))).toBe(path);
     }
   });
 });
 
-describe('atomicPathToDeltaPath', () => {
+describe('atomicPathToAtomPath', () => {
   it('converts $.$root to $', () => {
-    expect(atomicPathToDeltaPath('$.$root')).toBe('$');
+    expect(atomicPathToAtomPath('$.$root')).toBe('$');
   });
 
   it('converts simple dot paths unchanged', () => {
-    expect(atomicPathToDeltaPath('$.name')).toBe('$.name');
-    expect(atomicPathToDeltaPath('$.user.name')).toBe('$.user.name');
+    expect(atomicPathToAtomPath('$.name')).toBe('$.name');
+    expect(atomicPathToAtomPath('$.user.name')).toBe('$.user.name');
   });
 
   it('quotes unquoted bracket properties', () => {
-    expect(atomicPathToDeltaPath('$[a.b]')).toBe("$['a.b']");
+    expect(atomicPathToAtomPath('$[a.b]')).toBe("$['a.b']");
   });
 
   it('preserves already-quoted bracket properties', () => {
-    expect(atomicPathToDeltaPath("$['a.b']")).toBe("$['a.b']");
+    expect(atomicPathToAtomPath("$['a.b']")).toBe("$['a.b']");
   });
 
   it('preserves array indices', () => {
-    expect(atomicPathToDeltaPath('$.items[0]')).toBe('$.items[0]');
+    expect(atomicPathToAtomPath('$.items[0]')).toBe('$.items[0]');
   });
 
   it('preserves filter expressions', () => {
-    expect(atomicPathToDeltaPath("$.items[?(@.id=='1')]")).toBe("$.items[?(@.id=='1')]");
+    expect(atomicPathToAtomPath("$.items[?(@.id=='1')]")).toBe("$.items[?(@.id=='1')]");
   });
 
   it('handles bracket property with special characters', () => {
-    expect(atomicPathToDeltaPath('$[foo-bar]')).toBe("$['foo-bar']");
+    expect(atomicPathToAtomPath('$[foo-bar]')).toBe("$['foo-bar']");
   });
 
   it('throws when path does not start with $', () => {
-    expect(() => atomicPathToDeltaPath('invalid')).toThrow(/must start with/);
+    expect(() => atomicPathToAtomPath('invalid')).toThrow(/must start with/);
   });
 
   it('throws on unexpected character', () => {
-    expect(() => atomicPathToDeltaPath('$!bad')).toThrow(/Unexpected character/);
+    expect(() => atomicPathToAtomPath('$!bad')).toThrow(/Unexpected character/);
   });
 
   it('handles paths with filters and deep properties', () => {
-    expect(atomicPathToDeltaPath("$.items[?(@.id=='1')].name")).toBe("$.items[?(@.id=='1')].name");
+    expect(atomicPathToAtomPath("$.items[?(@.id=='1')].name")).toBe("$.items[?(@.id=='1')].name");
   });
 
   it('handles filter literal containing )]', () => {
-    expect(atomicPathToDeltaPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
+    expect(atomicPathToAtomPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
   });
 });
 
-describe('deltaPathToAtomicPath', () => {
+describe('atomPathToAtomicPath', () => {
   it('converts $ to $.$root', () => {
-    expect(deltaPathToAtomicPath('$')).toBe('$.$root');
+    expect(atomPathToAtomicPath('$')).toBe('$.$root');
   });
 
   it('passes through simple dot paths', () => {
-    expect(deltaPathToAtomicPath('$.name')).toBe('$.name');
+    expect(atomPathToAtomicPath('$.name')).toBe('$.name');
   });
 
   it('strips bracket-property quotes', () => {
-    expect(deltaPathToAtomicPath("$['a.b']")).toBe('$[a.b]');
+    expect(atomPathToAtomicPath("$['a.b']")).toBe('$[a.b]');
   });
 
   it('re-quotes numeric filter literals as strings', () => {
-    expect(deltaPathToAtomicPath('$.items[?(@.id==42)]')).toBe("$.items[?(@.id=='42')]");
+    expect(atomPathToAtomicPath('$.items[?(@.id==42)]')).toBe("$.items[?(@.id=='42')]");
   });
 
   it('re-quotes boolean filter literals as strings', () => {
-    expect(deltaPathToAtomicPath('$.items[?(@.active==true)]')).toBe("$.items[?(@.active=='true')]");
+    expect(atomPathToAtomicPath('$.items[?(@.active==true)]')).toBe("$.items[?(@.active=='true')]");
   });
 
   it('re-quotes null filter literals as strings', () => {
-    expect(deltaPathToAtomicPath('$.items[?(@.status==null)]')).toBe("$.items[?(@.status=='null')]");
+    expect(atomPathToAtomicPath('$.items[?(@.status==null)]')).toBe("$.items[?(@.status=='null')]");
   });
 
   it('preserves already string-quoted filter literals', () => {
-    expect(deltaPathToAtomicPath("$.items[?(@.id=='42')]")).toBe("$.items[?(@.id=='42')]");
+    expect(atomPathToAtomicPath("$.items[?(@.id=='42')]")).toBe("$.items[?(@.id=='42')]");
   });
 
   it('handles value filter re-quoting', () => {
-    expect(deltaPathToAtomicPath('$.scores[?(@==100)]')).toBe("$.scores[?(@=='100')]");
+    expect(atomPathToAtomicPath('$.scores[?(@==100)]')).toBe("$.scores[?(@=='100')]");
   });
 
   it('handles deep path after filter with re-quoting', () => {
-    expect(deltaPathToAtomicPath('$.items[?(@.id==1)].name')).toBe("$.items[?(@.id=='1')].name");
+    expect(atomPathToAtomicPath('$.items[?(@.id==1)].name')).toBe("$.items[?(@.id=='1')].name");
   });
 
   it('preserves array indices', () => {
-    expect(deltaPathToAtomicPath('$.items[0]')).toBe('$.items[0]');
+    expect(atomPathToAtomicPath('$.items[0]')).toBe('$.items[0]');
   });
 
   it('throws when path does not start with $', () => {
-    expect(() => deltaPathToAtomicPath('invalid')).toThrow(/must start with/);
+    expect(() => atomPathToAtomicPath('invalid')).toThrow(/must start with/);
   });
 
   it('throws on unexpected character after [', () => {
-    expect(() => deltaPathToAtomicPath('$[!bad]')).toThrow(/Unexpected character after/);
+    expect(() => atomPathToAtomicPath('$[!bad]')).toThrow(/Unexpected character after/);
   });
 
   it('throws on unexpected character in path', () => {
-    expect(() => deltaPathToAtomicPath('$!bad')).toThrow(/Unexpected character/);
+    expect(() => atomPathToAtomicPath('$!bad')).toThrow(/Unexpected character/);
   });
 
   it('handles filter literal containing )]', () => {
-    expect(deltaPathToAtomicPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
+    expect(atomPathToAtomicPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
   });
 });
 

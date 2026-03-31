@@ -12,47 +12,47 @@ import {
 import type { FunctionKey } from './helpers.js';
 import {
   formatFilterLiteral,
-  atomicPathToDeltaPath,
-  deltaPathToAtomicPath,
+  atomicPathToAtomPath,
+  atomPathToAtomicPath,
   extractKeyFromAtomicPath,
-} from './deltaPath.js';
+} from './atomPath.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type DeltaOp = 'add' | 'remove' | 'replace';
+export type AtomOp = 'add' | 'remove' | 'replace';
 
-export interface IDeltaOperation {
-  op: DeltaOp;
+export interface IAtomOperation {
+  op: AtomOp;
   path: string;
   value?: any;
   oldValue?: any;
   [key: string]: any;
 }
 
-export interface IJsonDelta {
-  format: 'json-delta';
+export interface IJsonAtom {
+  format: 'json-atom';
   version: number;
-  operations: IDeltaOperation[];
+  operations: IAtomOperation[];
   [key: string]: any;
 }
 
-export interface DeltaOptions extends Options {
+export interface AtomOptions extends Options {
   /** Include oldValue for reversibility. Default: true */
   reversible?: boolean;
 }
 
 // ─── Validation ─────────────────────────────────────────────────────────────
 
-export function validateDelta(delta: unknown): { valid: boolean; errors: string[] } {
+export function validateAtom(atom: unknown): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-  if (typeof delta !== 'object' || delta === null) {
-    return { valid: false, errors: ['Delta must be a non-null object'] };
+  if (typeof atom !== 'object' || atom === null) {
+    return { valid: false, errors: ['Atom must be a non-null object'] };
   }
 
-  const d = delta as Record<string, any>;
+  const d = atom as Record<string, any>;
 
-  if (d.format !== 'json-delta') {
-    errors.push(`Invalid or missing format: expected 'json-delta', got '${d.format}'`);
+  if (d.format !== 'json-atom') {
+    errors.push(`Invalid or missing format: expected 'json-atom', got '${d.format}'`);
   }
   if (typeof d.version !== 'number') {
     errors.push(`Missing or invalid version: expected number, got '${typeof d.version}'`);
@@ -92,23 +92,23 @@ export function validateDelta(delta: unknown): { valid: boolean; errors: string[
   return { valid: errors.length === 0, errors };
 }
 
-// ─── diffDelta ──────────────────────────────────────────────────────────────
+// ─── diffAtom ──────────────────────────────────────────────────────────────
 
 /**
- * Compute a canonical JSON Delta between two objects.
- * This is the spec-conformant delta producer.
+ * Compute a canonical JSON Atom between two objects.
+ * This is the spec-conformant atom producer.
  */
-export function diffDelta(oldObj: any, newObj: any, options: DeltaOptions = {}): IJsonDelta {
+export function diffAtom(oldObj: any, newObj: any, options: AtomOptions = {}): IJsonAtom {
   const changeset = diff(oldObj, newObj, {
     ...options,
     treatTypeChangeAsReplace: true, // Always true — merging REMOVE+ADD is more reliable (B.1)
   });
 
-  const operations: IDeltaOperation[] = [];
+  const operations: IAtomOperation[] = [];
   walkChanges(changeset, '$', oldObj, newObj, operations, options);
 
   return {
-    format: 'json-delta',
+    format: 'json-atom',
     version: 1,
     operations,
   };
@@ -162,8 +162,8 @@ function walkChanges(
   basePath: string,
   oldCtx: any,
   newCtx: any,
-  ops: IDeltaOperation[],
-  options: DeltaOptions
+  ops: IAtomOperation[],
+  options: AtomOptions
 ): void {
   const merged = mergeTypeChangePairs(changes);
 
@@ -171,7 +171,7 @@ function walkChanges(
     if ((change as MergedChange).isMergedReplace) {
       const mc = change as MergedChange;
       const path = mc.key === '$root' ? '$' : appendCanonicalProperty(basePath, mc.key);
-      const op: IDeltaOperation = { op: 'replace', path, value: mc.addValue };
+      const op: IAtomOperation = { op: 'replace', path, value: mc.addValue };
       if (options.reversible !== false) {
         op.oldValue = mc.removeValue;
       }
@@ -218,8 +218,8 @@ function walkChanges(
 function emitLeafOp(
   change: IChange,
   path: string,
-  ops: IDeltaOperation[],
-  options: DeltaOptions
+  ops: IAtomOperation[],
+  options: AtomOptions
 ): void {
   switch (change.type) {
     case Operation.ADD: {
@@ -227,7 +227,7 @@ function emitLeafOp(
       break;
     }
     case Operation.REMOVE: {
-      const op: IDeltaOperation = { op: 'remove', path };
+      const op: IAtomOperation = { op: 'remove', path };
       if (options.reversible !== false) {
         op.oldValue = change.value;
       }
@@ -235,7 +235,7 @@ function emitLeafOp(
       break;
     }
     case Operation.UPDATE: {
-      const op: IDeltaOperation = { op: 'replace', path, value: change.value };
+      const op: IAtomOperation = { op: 'replace', path, value: change.value };
       if (options.reversible !== false) {
         op.oldValue = change.oldValue;
       }
@@ -369,17 +369,17 @@ function findElementByFn(
   return undefined;
 }
 
-// ─── toDelta ────────────────────────────────────────────────────────────────
+// ─── toAtom ────────────────────────────────────────────────────────────────
 
 /**
- * Convert an existing v4 changeset or atomic changes to a JSON Delta document.
+ * Convert an existing v4 changeset or atomic changes to a JSON Atom document.
  * Best-effort bridge — filter literals will always be string-quoted.
- * Use `diffDelta()` for canonical spec-conformant output.
+ * Use `diffAtom()` for canonical spec-conformant output.
  */
-export function toDelta(changeset: Changeset | IAtomicChange[], options: { reversible?: boolean } = {}): IJsonDelta {
+export function toAtom(changeset: Changeset | IAtomicChange[], options: { reversible?: boolean } = {}): IJsonAtom {
   let atoms: IAtomicChange[];
   if (changeset.length === 0) {
-    return { format: 'json-delta', version: 1, operations: [] };
+    return { format: 'json-atom', version: 1, operations: [] };
   }
 
   // Detect if input is IAtomicChange[] (has 'path' property) or Changeset
@@ -389,21 +389,21 @@ export function toDelta(changeset: Changeset | IAtomicChange[], options: { rever
     atoms = atomizeChangeset(changeset as Changeset);
   }
 
-  // Convert atoms to delta operations
-  const rawOps: IDeltaOperation[] = atoms.map((atom) => {
-    const path = atomicPathToDeltaPath(atom.path);
+  // Convert atoms to atom operations
+  const rawOps: IAtomOperation[] = atoms.map((atom) => {
+    const path = atomicPathToAtomPath(atom.path);
     switch (atom.type) {
       case Operation.ADD:
-        return { op: 'add' as DeltaOp, path, value: atom.value };
+        return { op: 'add' as AtomOp, path, value: atom.value };
       case Operation.REMOVE: {
-        const op: IDeltaOperation = { op: 'remove', path };
+        const op: IAtomOperation = { op: 'remove', path };
         if (options.reversible !== false && atom.value !== undefined) {
           op.oldValue = atom.value;
         }
         return op;
       }
       case Operation.UPDATE: {
-        const op: IDeltaOperation = { op: 'replace', path, value: atom.value };
+        const op: IAtomOperation = { op: 'replace', path, value: atom.value };
         if (options.reversible !== false && atom.oldValue !== undefined) {
           op.oldValue = atom.oldValue;
         }
@@ -418,11 +418,11 @@ export function toDelta(changeset: Changeset | IAtomicChange[], options: { rever
   // Merge consecutive REMOVE+ADD at same path → single replace
   const operations = mergeConsecutiveOps(rawOps);
 
-  return { format: 'json-delta', version: 1, operations };
+  return { format: 'json-atom', version: 1, operations };
 }
 
-function mergeConsecutiveOps(ops: IDeltaOperation[]): IDeltaOperation[] {
-  const result: IDeltaOperation[] = [];
+function mergeConsecutiveOps(ops: IAtomOperation[]): IAtomOperation[] {
+  const result: IAtomOperation[] = [];
   let i = 0;
   while (i < ops.length) {
     if (
@@ -431,7 +431,7 @@ function mergeConsecutiveOps(ops: IDeltaOperation[]): IDeltaOperation[] {
       ops[i + 1].op === 'add' &&
       ops[i].path === ops[i + 1].path
     ) {
-      const merged: IDeltaOperation = {
+      const merged: IAtomOperation = {
         op: 'replace',
         path: ops[i].path,
         value: ops[i + 1].value,
@@ -449,21 +449,21 @@ function mergeConsecutiveOps(ops: IDeltaOperation[]): IDeltaOperation[] {
   return result;
 }
 
-// ─── fromDelta ──────────────────────────────────────────────────────────────
+// ─── fromAtom ──────────────────────────────────────────────────────────────
 
 /**
- * Convert a JSON Delta document to v4 atomic changes.
- * Returns IAtomicChange[] — one atom per delta operation.
- * Use `unatomizeChangeset(fromDelta(delta))` if you need a hierarchical Changeset.
+ * Convert a JSON Atom document to v4 atomic changes.
+ * Returns IAtomicChange[] — one atom per atom operation.
+ * Use `unatomizeChangeset(fromAtom(atom))` if you need a hierarchical Changeset.
  */
-export function fromDelta(delta: IJsonDelta): IAtomicChange[] {
-  const validation = validateDelta(delta);
+export function fromAtom(atom: IJsonAtom): IAtomicChange[] {
+  const validation = validateAtom(atom);
   if (!validation.valid) {
-    throw new Error(`Invalid delta: ${validation.errors.join(', ')}`);
+    throw new Error(`Invalid atom: ${validation.errors.join(', ')}`);
   }
 
-  return delta.operations.map((op) => {
-    const atomicPath = deltaPathToAtomicPath(op.path);
+  return atom.operations.map((op) => {
+    const atomicPath = atomPathToAtomicPath(op.path);
     const key = extractKeyFromAtomicPath(atomicPath);
 
     switch (op.op) {
@@ -498,31 +498,31 @@ function getValueType(value: any): string | null {
   return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
-// ─── invertDelta ────────────────────────────────────────────────────────────
+// ─── invertAtom ────────────────────────────────────────────────────────────
 
 /**
- * Compute the inverse of a JSON Delta document (spec Section 9.2).
+ * Compute the inverse of a JSON Atom document (spec Section 9.2).
  * Requires all replace/remove operations to have oldValue.
  */
-export function invertDelta(delta: IJsonDelta): IJsonDelta {
-  const validation = validateDelta(delta);
+export function invertAtom(atom: IJsonAtom): IJsonAtom {
+  const validation = validateAtom(atom);
   if (!validation.valid) {
-    throw new Error(`Invalid delta: ${validation.errors.join(', ')}`);
+    throw new Error(`Invalid atom: ${validation.errors.join(', ')}`);
   }
 
   // Validate reversibility
-  for (let i = 0; i < delta.operations.length; i++) {
-    const op = delta.operations[i];
+  for (let i = 0; i < atom.operations.length; i++) {
+    const op = atom.operations[i];
     if (op.op === 'replace' && !('oldValue' in op)) {
-      throw new Error(`operations[${i}]: replace operation missing oldValue — delta is not reversible`);
+      throw new Error(`operations[${i}]: replace operation missing oldValue — atom is not reversible`);
     }
     if (op.op === 'remove' && !('oldValue' in op)) {
-      throw new Error(`operations[${i}]: remove operation missing oldValue — delta is not reversible`);
+      throw new Error(`operations[${i}]: remove operation missing oldValue — atom is not reversible`);
     }
   }
 
   // Reverse the operations array and invert each operation
-  const invertedOps: IDeltaOperation[] = [...delta.operations].reverse().map((op) => {
+  const invertedOps: IAtomOperation[] = [...atom.operations].reverse().map((op) => {
     // Preserve extension properties (any key not in standard set)
     const extensions: Record<string, any> = {};
     for (const key of Object.keys(op)) {
@@ -533,11 +533,11 @@ export function invertDelta(delta: IJsonDelta): IJsonDelta {
 
     switch (op.op) {
       case 'add':
-        return { op: 'remove' as DeltaOp, path: op.path, oldValue: op.value, ...extensions };
+        return { op: 'remove' as AtomOp, path: op.path, oldValue: op.value, ...extensions };
       case 'remove':
-        return { op: 'add' as DeltaOp, path: op.path, value: op.oldValue, ...extensions };
+        return { op: 'add' as AtomOp, path: op.path, value: op.oldValue, ...extensions };
       case 'replace':
-        return { op: 'replace' as DeltaOp, path: op.path, value: op.oldValue, oldValue: op.value, ...extensions };
+        return { op: 'replace' as AtomOp, path: op.path, value: op.oldValue, oldValue: op.value, ...extensions };
       /* istanbul ignore next -- exhaustive switch */
       default:
         throw new Error(`Unknown operation: ${op.op}`);
@@ -545,36 +545,36 @@ export function invertDelta(delta: IJsonDelta): IJsonDelta {
   });
 
   // Preserve envelope extension properties
-  const envelope: IJsonDelta = { format: 'json-delta', version: delta.version, operations: invertedOps };
-  for (const key of Object.keys(delta)) {
+  const envelope: IJsonAtom = { format: 'json-atom', version: atom.version, operations: invertedOps };
+  for (const key of Object.keys(atom)) {
     if (!['format', 'version', 'operations'].includes(key)) {
-      envelope[key] = delta[key];
+      envelope[key] = atom[key];
     }
   }
 
   return envelope;
 }
 
-// ─── applyDelta ─────────────────────────────────────────────────────────────
+// ─── applyAtom ─────────────────────────────────────────────────────────────
 
 /**
- * Apply a JSON Delta document to an object.
+ * Apply a JSON Atom document to an object.
  * Processes operations sequentially. Handles root operations directly.
  * Returns the result (MUST use return value for root primitive replacements).
  */
-export function applyDelta(obj: any, delta: IJsonDelta): any {
-  const validation = validateDelta(delta);
+export function applyAtom(obj: any, atom: IJsonAtom): any {
+  const validation = validateAtom(atom);
   if (!validation.valid) {
-    throw new Error(`Invalid delta: ${validation.errors.join(', ')}`);
+    throw new Error(`Invalid atom: ${validation.errors.join(', ')}`);
   }
 
   let result: any = obj;
 
-  for (const op of delta.operations) {
+  for (const op of atom.operations) {
     if (op.path === '$') {
       result = applyRootOp(result, op);
     } else {
-      const atomicChange = deltaOpToAtomicChange(op);
+      const atomicChange = atomOpToAtomicChange(op);
       const miniChangeset = unatomizeChangeset([atomicChange]);
       applyChangeset(result, miniChangeset);
     }
@@ -583,7 +583,7 @@ export function applyDelta(obj: any, delta: IJsonDelta): any {
   return result;
 }
 
-function applyRootOp(obj: any, op: IDeltaOperation): any {
+function applyRootOp(obj: any, op: IAtomOperation): any {
   switch (op.op) {
     case 'add':
       return op.value;
@@ -610,8 +610,8 @@ function applyRootOp(obj: any, op: IDeltaOperation): any {
   }
 }
 
-function deltaOpToAtomicChange(op: IDeltaOperation): IAtomicChange {
-  const atomicPath = deltaPathToAtomicPath(op.path);
+function atomOpToAtomicChange(op: IAtomOperation): IAtomicChange {
+  const atomicPath = atomPathToAtomicPath(op.path);
   const key = extractKeyFromAtomicPath(atomicPath);
 
   switch (op.op) {
@@ -634,17 +634,17 @@ function deltaOpToAtomicChange(op: IDeltaOperation): IAtomicChange {
   }
 }
 
-// ─── revertDelta ────────────────────────────────────────────────────────────
+// ─── revertAtom ────────────────────────────────────────────────────────────
 
 /**
- * Revert a JSON Delta by computing its inverse and applying it.
+ * Revert a JSON Atom by computing its inverse and applying it.
  * Requires all replace/remove operations to have oldValue.
  */
-export function revertDelta(obj: any, delta: IJsonDelta): any {
-  const inverse = invertDelta(delta);
-  return applyDelta(obj, inverse);
+export function revertAtom(obj: any, atom: IJsonAtom): any {
+  const inverse = invertAtom(atom);
+  return applyAtom(obj, inverse);
 }
 
 // ─── Re-exports for convenience ─────────────────────────────────────────────
 
-export { DeltaPathSegment, formatFilterLiteral, parseFilterLiteral, parseDeltaPath, buildDeltaPath } from './deltaPath.js';
+export { AtomPathSegment, formatFilterLiteral, parseFilterLiteral, parseAtomPath, buildAtomPath } from './atomPath.js';

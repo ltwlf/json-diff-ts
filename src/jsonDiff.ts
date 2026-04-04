@@ -848,10 +848,8 @@ function append(basePath: string, nextSegment: string): string {
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 /** returns a JSON Path filter expression; e.g., `$.pet[?(@.name=='spot')]` */
-function filterExpression(basePath: string, filterKey: string, filterValue: string | number) {
-  const escapedValue = typeof filterValue === 'number'
-    ? filterValue
-    : `'${String(filterValue).replace(/'/g, "''")}'`;
+function filterExpression(basePath: string, filterKey: string, filterValue: string) {
+  const escapedValue = `'${filterValue.replace(/'/g, "''")}'`;
   const memberAccess = IDENT_RE.test(filterKey)
     ? `.${filterKey}`
     : `['${filterKey.replace(/'/g, "''")}']`;

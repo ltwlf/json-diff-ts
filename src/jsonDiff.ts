@@ -169,34 +169,23 @@ const atomizeChangeset = (
     return atomizeChangeset(obj.changes || obj, path, obj.embeddedKey);
   } else {
     const valueType = getTypeOfObj(obj.value);
-    // Special case for tests that expect specific path formats
-    // This is to maintain backward compatibility with existing tests
     let finalPath = path;
     if (!finalPath.endsWith(`[${obj.key}]`)) {
-      // For object values, still append the key to the path (fix for issue #184)
-      // But for tests that expect the old behavior, check if we're in a test environment
-      const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
-      const isSpecialTestCase = isTestEnv && 
-        (path === '$[a.b]' || path === '$.a' || 
-         path.includes('items') || path.includes('$.a[?(@.c.d'));
-      
-      if (!isSpecialTestCase || valueType === 'Object') {
-        // Avoid duplicate filter values at the end of the JSONPath
-        let endsWithFilterValue = false;
-        const filterEndIdx = path.lastIndexOf(')]');
-        if (filterEndIdx !== -1) {
-          const filterStartIdx = path.lastIndexOf('==', filterEndIdx);
-          if (filterStartIdx !== -1) {
-            const filterValue = path
-              .slice(filterStartIdx + 2, filterEndIdx)
-              // Remove single quotes at the start or end of the filter value
-              .replaceAll(/(^'|'$)/g, '');
-            endsWithFilterValue = filterValue === String(obj.key);
-          }
+      // Avoid duplicate filter values at the end of the JSONPath
+      let endsWithFilterValue = false;
+      const filterEndIdx = path.lastIndexOf(')]');
+      if (filterEndIdx !== -1) {
+        const filterStartIdx = path.lastIndexOf('==', filterEndIdx);
+        if (filterStartIdx !== -1) {
+          const filterValue = path
+            .slice(filterStartIdx + 2, filterEndIdx)
+            // Remove single quotes at the start or end of the filter value
+            .replaceAll(/(^'|'$)/g, '');
+          endsWithFilterValue = filterValue === String(obj.key);
         }
-        if (!endsWithFilterValue) {
-          finalPath = append(path, obj.key);
-        }
+      }
+      if (!endsWithFilterValue) {
+        finalPath = append(path, obj.key);
       }
     }
     
@@ -273,8 +262,12 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
     } else {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
-        // Matches JSONPath segments: "items[?(@.id=='123')]", "items[?(@.id==123)]", "items[2]", "items[?(@='123')]"
-        const result = /^([^[\]]+)\[\?\(@\.?([^=]*)=+'([^']+)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
+        // Matches JSONPath filter segments and array index segments:
+        //   "items[?(@.id=='123')]"       — dot-notation key filter
+        //   "items[?(@['c.d']=='20')]"    — bracket-notation key filter
+        //   "items[?(@=='123')]"          — value filter
+        //   "items[2]"                    — array index
+        const result = /^([^[\]]+)\[\?\(@(?:\.?([^=\[]*)|(?:\['([^']*)'\]))=+'([^']+)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
         // array
         if (result) {
           let key: string;
@@ -282,12 +275,12 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
           let arrKey: string | number;
           if (result[1]) {
             key = result[1];
-            embeddedKey = result[2] || '$value';
-            arrKey = result[3];
+            embeddedKey = result[3] || result[2] || '$value';
+            arrKey = result[4];
           } else {
-            key = result[4];
+            key = result[5];
             embeddedKey = '$index';
-            arrKey = Number(result[5]);
+            arrKey = Number(result[6]);
           }
           // leaf
           if (i === segments.length - 1) {
@@ -852,10 +845,15 @@ function append(basePath: string, nextSegment: string): string {
   return nextSegment.includes('.') ? `${basePath}[${nextSegment}]` : `${basePath}.${nextSegment}`;
 }
 
-/** returns a JSON Path filter expression; e.g., `$.pet[(?name='spot')]` */
+const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/** returns a JSON Path filter expression; e.g., `$.pet[?(@.name=='spot')]` */
 function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string | number) {
   const value = typeof filterValue === 'number' ? filterValue : `'${filterValue}'`;
-  return `${basePath}[?(@.${filterKey}==${value})]`;
+  const memberAccess = typeof filterKey === 'string' && !IDENT_RE.test(filterKey)
+    ? `['${filterKey}']`
+    : `.${filterKey}`;
+  return `${basePath}[?(@${memberAccess}==${value})]`;
 }
 
 export {

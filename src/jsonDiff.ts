@@ -267,7 +267,7 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
         //   "items[?(@['c.d']=='20')]"    — bracket-notation key filter
         //   "items[?(@=='123')]"          — value filter
         //   "items[2]"                    — array index
-        const result = /^([^[\]]+)\[\?\(@(?:\.?([^=\[]*)|(?:\['([^']*)'\]))=+'([^']+)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
+        const result = /^([^[\]]+)\[\?\(@(?:\.?([^=[]*)|(?:\['([^']*)'\]))=+'([^']+)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
         // array
         if (result) {
           let key: string;

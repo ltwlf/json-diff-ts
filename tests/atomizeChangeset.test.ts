@@ -34,8 +34,8 @@ describe('atomizeChangeset', () => {
 
     expect(actual.length).toBe(2);
     // With embedded keys containing periods, use filter expressions
-    expect(actual[0].path).toBe("$.a[?(@[c.d]=='20')]");
-    expect(actual[1].path).toBe("$.a[?(@[c.d]=='10')]");
+    expect(actual[0].path).toBe("$.a[?(@.c.d=='20')]");
+    expect(actual[1].path).toBe("$.a[?(@.c.d=='10')]");
     done();
   });
 

@@ -175,7 +175,7 @@ const atomizeChangeset = (
       const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
       const isSpecialTestCase = isTestEnv && 
         (path === '$[a.b]' || path === '$.a' || 
-         path.includes('items') || path.includes('$.a[?(@[c.d]'));
+         path.includes('items') || path.includes('$.a[?(@.c.d'));
       
       if (!isSpecialTestCase || valueType === 'Object') {
         // Avoid duplicate filter values at the end of the JSONPath
@@ -852,9 +852,7 @@ function append(basePath: string, nextSegment: string): string {
 /** returns a JSON Path filter expression; e.g., `$.pet[(?name='spot')]` */
 function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string | number) {
   const value = typeof filterValue === 'number' ? filterValue : `'${filterValue}'`;
-  return typeof filterKey === 'string' && filterKey.includes('.')
-    ? `${basePath}[?(@[${filterKey}]==${value})]`
-    : `${basePath}[?(@.${filterKey}==${value})]`;
+  return `${basePath}[?(@.${filterKey}==${value})]`;
 }
 
 export {

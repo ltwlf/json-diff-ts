@@ -218,7 +218,7 @@ function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path
       ]
     ];
   } else {
-    path = filterExpression(path, embeddedKey, obj.key);
+    path = filterExpression(path, embeddedKey as string, obj.key);
     return [path];
   }
 }
@@ -848,13 +848,10 @@ function append(basePath: string, nextSegment: string): string {
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 /** returns a JSON Path filter expression; e.g., `$.pet[?(@.name=='spot')]` */
-function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string | number) {
+function filterExpression(basePath: string, filterKey: string, filterValue: string | number) {
   const escapedValue = typeof filterValue === 'number'
     ? filterValue
     : `'${String(filterValue).replace(/'/g, "''")}'`;
-  if (typeof filterKey !== 'string') {
-    throw new Error('filterExpression requires a resolved string key, not a function');
-  }
   const memberAccess = IDENT_RE.test(filterKey)
     ? `.${filterKey}`
     : `['${filterKey.replace(/'/g, "''")}']`;

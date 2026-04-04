@@ -247,6 +247,20 @@ describe('parseAtomPath', () => {
     expect(() => parseAtomPath('$[?(invalid==1)]')).toThrow(/Invalid filter expression/);
   });
 
+  it('rejects non-identifier dot-notation filter keys', () => {
+    // Dot-containing keys must use bracket notation per spec Section 5.1
+    expect(() => parseAtomPath("$.items[?(@.pos.num==42)]")).toThrow(/Invalid property name in filter/);
+    expect(() => parseAtomPath("$.items[?(@.0key==42)]")).toThrow(/Invalid property name in filter/);
+  });
+
+  it('accepts bracket-notation filter keys with dots', () => {
+    expect(parseAtomPath("$.items[?(@['pos.num']==42)]")).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'pos.num', value: 42 },
+    ]);
+  });
+
   it('handles filter literal containing )]', () => {
     const result = parseAtomPath("$.items[?(@.name=='val)]ue')]");
     expect(result).toEqual([
@@ -364,8 +378,16 @@ describe('atomicPathToAtomPath', () => {
     expect(atomicPathToAtomPath('$.items[0]')).toBe('$.items[0]');
   });
 
-  it('preserves filter expressions', () => {
+  it('preserves simple identifier filter keys', () => {
     expect(atomicPathToAtomPath("$.items[?(@.id=='1')]")).toBe("$.items[?(@.id=='1')]");
+  });
+
+  it('canonicalizes non-identifier filter keys to bracket notation', () => {
+    expect(atomicPathToAtomPath("$.a[?(@.c.d=='20')]")).toBe("$.a[?(@['c.d']=='20')]");
+  });
+
+  it('preserves already bracket-quoted filter keys', () => {
+    expect(atomicPathToAtomPath("$.a[?(@['c.d']=='20')]")).toBe("$.a[?(@['c.d']=='20')]");
   });
 
   it('handles bracket property with special characters', () => {
@@ -445,6 +467,14 @@ describe('atomPathToAtomicPath', () => {
   it('handles filter literal containing )]', () => {
     expect(atomPathToAtomicPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
   });
+
+  it('converts bracket-notation filter keys to dot notation for v4', () => {
+    expect(atomPathToAtomicPath("$.a[?(@['c.d']=='20')]")).toBe("$.a[?(@.c.d=='20')]");
+  });
+
+  it('converts bracket filter keys with typed literals to string-quoted', () => {
+    expect(atomPathToAtomicPath("$.items[?(@['pos.num']==42)]")).toBe("$.items[?(@.pos.num=='42')]");
+  });
 });
 
 describe('extractKeyFromAtomicPath', () => {
@@ -478,5 +508,51 @@ describe('extractKeyFromAtomicPath', () => {
 
   it('returns the path itself as fallback', () => {
     expect(extractKeyFromAtomicPath('$')).toBe('$');
+  });
+});
+
+describe('v4 ↔ atom path round-trips', () => {
+  it('round-trips simple filter keys through both conversions', () => {
+    const v4Path = "$.items[?(@.id=='42')]";
+    const atomPath = atomicPathToAtomPath(v4Path);
+    expect(atomPath).toBe("$.items[?(@.id=='42')]");
+    expect(atomPathToAtomicPath(atomPath)).toBe(v4Path);
+  });
+
+  it('round-trips dot-containing filter keys (v4 → atom → v4)', () => {
+    // v4 uses dot notation for all keys; atom uses bracket notation for non-identifiers
+    const v4Path = "$.a[?(@.c.d=='20')]";
+    const atomPath = atomicPathToAtomPath(v4Path);
+    expect(atomPath).toBe("$.a[?(@['c.d']=='20')]");
+    const roundTripped = atomPathToAtomicPath(atomPath);
+    expect(roundTripped).toBe(v4Path);
+  });
+
+  it('round-trips bracket filter keys with typed literals', () => {
+    const atomPath = "$.items[?(@['pos.num']==42)]";
+    const v4Path = atomPathToAtomicPath(atomPath);
+    expect(v4Path).toBe("$.items[?(@.pos.num=='42')]");
+    const backToAtom = atomicPathToAtomPath(v4Path);
+    expect(backToAtom).toBe("$.items[?(@['pos.num']=='42')]");
+  });
+
+  it('atom canonical paths match Python canonical format', () => {
+    // These are the exact canonical forms that Python json-atom-py produces/consumes
+    const canonicalPaths = [
+      '$',
+      '$.name',
+      '$.user.name',
+      "$.config['a.b']",
+      '$.items[0]',
+      '$.items[?(@.id==42)]',
+      "$.items[?(@.name=='Widget')]",
+      "$.items[?(@['dotted.key']==42)]",
+      "$.tags[?(@=='urgent')]",
+      '$.items[?(@.id==1)].name',
+    ];
+    for (const path of canonicalPaths) {
+      // Parse and rebuild should produce the same canonical form
+      expect(buildAtomPath(parseAtomPath(path))).toBe(path);
+    }
   });
 });

@@ -110,6 +110,9 @@ function parseFilter(inner: string): AtomPathSegment {
     const eq = inner.indexOf('==');
     if (eq === -1) throw new Error(`Invalid filter: missing '==' in ${inner}`);
     const key = inner.slice(2, eq);
+    if (!key || !SIMPLE_PROPERTY_RE.test(key)) {
+      throw new Error(`Invalid property name in filter: '${key}'. Use bracket notation for non-identifier keys: @['${key}']`);
+    }
     return { type: 'keyFilter', property: key, value: parseFilterLiteral(inner.slice(eq + 2)) };
   }
   if (inner.startsWith("@['")) {
@@ -231,6 +234,72 @@ export function buildAtomPath(segments: AtomPathSegment[]): string {
   return result;
 }
 
+// ─── Filter Canonicalization ───────────────────────────────────────────────
+
+/**
+ * Canonicalize a filter expression for the JSON Atom path format.
+ * Converts dot-notation non-identifier keys to bracket notation.
+ *
+ * Examples:
+ * - `@.id=='1'` → `[?(@.id=='1')]` (simple identifier, unchanged)
+ * - `@.c.d=='20'` → `[?(@['c.d']=='20')]` (non-identifier, bracket-quoted)
+ * - `@['c.d']=='20'` → `[?(@['c.d']=='20')]` (already bracket, unchanged)
+ * - `@=='val'` → `[?(@=='val')]` (value filter, unchanged)
+ */
+function canonicalizeFilterForAtom(inner: string): string {
+  if (inner.startsWith('@.')) {
+    const eqIdx = inner.indexOf('==');
+    if (eqIdx === -1) return `[?(${inner})]`;
+    const key = inner.slice(2, eqIdx);
+    const valuePart = inner.slice(eqIdx); // ==value
+    if (SIMPLE_PROPERTY_RE.test(key)) {
+      return `[?(@.${key}${valuePart})]`;
+    }
+    // Non-identifier key: convert to bracket notation
+    return `[?(@['${key.replace(/'/g, "''")}']${valuePart})]`;
+  }
+  // @['key']==val or @==val — already canonical
+  return `[?(${inner})]`;
+}
+
+/**
+ * Canonicalize a filter expression for the v4 internal atomic path format.
+ * Converts bracket-notation filter keys to dot notation (v4 always uses dot).
+ *
+ * Examples:
+ * - `@['c.d']=='20'` → `[?(@.c.d=='20')]`
+ * - `@.id=='1'` → `[?(@.id=='1')]` (unchanged)
+ */
+function canonicalizeFilterForV4(inner: string): string {
+  if (inner.startsWith("@['")) {
+    const [key, endIdx] = extractQuotedString(inner, 3);
+    // After endIdx: ']' then '==value'
+    const rest = inner.slice(endIdx + 2); // skip '] → ==value
+    // Normalize the literal to string-quoted (v4 always uses string literals)
+    if (rest.startsWith('==')) {
+      const literal = rest.slice(2);
+      const normalizedLiteral = normalizeToStringQuoted(literal);
+      return `[?(@.${key}==${normalizedLiteral})]`;
+    }
+    return `[?(${inner})]`;
+  }
+  // @.key==val or @==val — normalize literals to string-quoted for v4
+  return normalizeFilterToStringLiterals(`[?(${inner})]`);
+}
+
+/**
+ * Convert a filter literal to string-quoted form for v4 compatibility.
+ * Already-quoted strings are returned unchanged.
+ */
+function normalizeToStringQuoted(literal: string): string {
+  if (literal.startsWith("'") && literal.endsWith("'")) {
+    return literal;
+  }
+  const value = parseFilterLiteral(literal);
+  const stringValue = String(value).replace(/'/g, "''");
+  return `'${stringValue}'`;
+}
+
 // ─── Path Conversion Utilities ──────────────────────────────────────────────
 
 /**
@@ -239,7 +308,7 @@ export function buildAtomPath(segments: AtomPathSegment[]): string {
  * Transformations:
  * - `$.$root` → `$`
  * - Unquoted bracket properties `$[a.b]` → quoted `$['a.b']`
- * - Filter literals stay as-is (v4 always uses string-quoted)
+ * - Non-identifier filter keys canonicalized: `@.c.d` → `@['c.d']`
  */
 export function atomicPathToAtomPath(atomicPath: string): string {
   // Handle root sentinel
@@ -265,10 +334,11 @@ export function atomicPathToAtomPath(atomicPath: string): string {
       result += formatMemberAccess(name);
     } else if (atomicPath[i] === '[') {
       if (atomicPath[i + 1] === '?') {
-        // Filter expression — pass through as-is until ')]'
+        // Filter expression — canonicalize key notation
         const closingIdx = findFilterClose(atomicPath, i + 2);
         if (closingIdx === -1) throw new Error(`Unterminated filter in: ${atomicPath}`);
-        result += atomicPath.slice(i, closingIdx + 2);
+        const inner = atomicPath.slice(i + 3, closingIdx); // content between [?( and )
+        result += canonicalizeFilterForAtom(inner);
         i = closingIdx + 2;
       } else if (atomicPath[i + 1] === "'" || /\d/.test(atomicPath[i + 1])) {
         // Already bracket-quoted property or array index — pass through
@@ -324,11 +394,11 @@ export function atomPathToAtomicPath(atomPath: string): string {
       result += '.' + atomPath.slice(start, i);
     } else if (atomPath[i] === '[') {
       if (atomPath[i + 1] === '?') {
-        // Filter expression — need to re-quote non-string literals to strings
+        // Filter expression — convert bracket keys to dot notation, re-quote literals
         const closingIdx = findFilterClose(atomPath, i + 2);
         if (closingIdx === -1) throw new Error(`Unterminated filter in: ${atomPath}`);
-        const filterContent = atomPath.slice(i, closingIdx + 2);
-        result += normalizeFilterToStringLiterals(filterContent);
+        const inner = atomPath.slice(i + 3, closingIdx); // content between [?( and )
+        result += canonicalizeFilterForV4(inner);
         i = closingIdx + 2;
       } else if (atomPath[i + 1] === "'") {
         // Bracket-quoted property: ['a.b'] → [a.b]

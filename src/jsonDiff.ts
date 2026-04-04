@@ -218,7 +218,7 @@ function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path
       ]
     ];
   } else {
-    path = filterExpression(path, embeddedKey, obj.key);
+    path = filterExpression(path, embeddedKey as string, obj.key);
     return [path];
   }
 }
@@ -848,12 +848,12 @@ function append(basePath: string, nextSegment: string): string {
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 /** returns a JSON Path filter expression; e.g., `$.pet[?(@.name=='spot')]` */
-function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string | number) {
-  const value = typeof filterValue === 'number' ? filterValue : `'${filterValue}'`;
-  const memberAccess = typeof filterKey === 'string' && !IDENT_RE.test(filterKey)
-    ? `['${filterKey}']`
-    : `.${filterKey}`;
-  return `${basePath}[?(@${memberAccess}==${value})]`;
+function filterExpression(basePath: string, filterKey: string, filterValue: string) {
+  const escapedValue = `'${filterValue.replace(/'/g, "''")}'`;
+  const memberAccess = IDENT_RE.test(filterKey)
+    ? `.${filterKey}`
+    : `['${filterKey.replace(/'/g, "''")}']`;
+  return `${basePath}[?(@${memberAccess}==${escapedValue})]`;
 }
 
 export {

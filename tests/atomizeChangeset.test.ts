@@ -1,4 +1,5 @@
-import { diff, atomizeChangeset, applyChangeset, unatomizeChangeset } from '../src/jsonDiff';
+import { diff, atomizeChangeset, applyChangeset, unatomizeChangeset, Operation } from '../src/jsonDiff';
+import type { FunctionKey } from '../src/helpers';
 
 describe('atomizeChangeset', () => {
   test('when JSON path segements contain periods', (done) => {
@@ -39,7 +40,7 @@ describe('atomizeChangeset', () => {
     done();
   });
 
-  test('when function-based identity key returns nested dot-notation path (#392)', () => {
+  test('when identity key name contains a period, atomized filter uses bracket notation (#392)', () => {
     const oldObj = {
       items: [
         { positionNumber: { value: "001" }, description: "alpha" },
@@ -50,18 +51,17 @@ describe('atomizeChangeset', () => {
       items: [{ positionNumber: { value: "001" }, description: "alpha" }],
     };
 
+    const resolver: FunctionKey = (obj, shouldReturnKeyName) => {
+      if (shouldReturnKeyName) return "positionNumber.value";
+      return obj.positionNumber.value;
+    };
+
     const changes = diff(oldObj, newObj, {
-      embeddedObjKeys: {
-        items: ((obj: any, shouldReturnKeyName: boolean) => {
-          if (shouldReturnKeyName) return "positionNumber.value";
-          return obj.positionNumber.value;
-        }) as any,
-      },
+      embeddedObjKeys: { items: resolver },
     });
     const atomic = atomizeChangeset(changes);
-    const removes = atomic.filter((c) => c.type === 'REMOVE' as any);
+    const removes = atomic.filter((c) => c.type === Operation.REMOVE);
     expect(removes).toHaveLength(1);
-    // Non-identifier key uses bracket notation per JSONPath spec
     expect(removes[0].path).toBe("$.items[?(@['positionNumber.value']=='002')]");
   });
 
@@ -77,6 +77,24 @@ describe('atomizeChangeset', () => {
     const fromOriginal = applyChangeset(JSON.parse(JSON.stringify(oldObject)), diffs);
     const fromRoundTrip = applyChangeset(JSON.parse(JSON.stringify(oldObject)), unatomized);
     expect(JSON.stringify(fromOriginal)).toEqual(JSON.stringify(fromRoundTrip));
+  });
+
+  test('when identity key value contains a single quote', () => {
+    const oldObj = { items: [{ name: "O'Brien", v: 1 }] };
+    const newObj = { items: [{ name: "O'Brien", v: 2 }] };
+    const changes = diff(oldObj, newObj, { embeddedObjKeys: { items: 'name' } });
+    const atomic = atomizeChangeset(changes);
+    // Single quotes in filter value must be escaped as doubled quotes
+    expect(atomic[0].path).toBe("$.items[?(@.name=='O''Brien')].v");
+  });
+
+  test('when identity key name contains a single quote', () => {
+    const oldObj = { items: [{ "it's": 'x', v: 1 }] };
+    const newObj = { items: [{ "it's": 'x', v: 2 }] };
+    const changes = diff(oldObj, newObj, { embeddedObjKeys: { items: "it's" } });
+    const atomic = atomizeChangeset(changes);
+    // Single quotes in filter key must be escaped
+    expect(atomic[0].path).toBe("$.items[?(@['it''s']=='x')].v");
   });
 
   test('when atomizing and unatomizing object properties', (done) => {

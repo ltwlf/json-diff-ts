@@ -34,9 +34,47 @@ describe('atomizeChangeset', () => {
 
     expect(actual.length).toBe(2);
     // With embedded keys containing periods, use filter expressions
-    expect(actual[0].path).toBe("$.a[?(@.c.d=='20')]");
-    expect(actual[1].path).toBe("$.a[?(@.c.d=='10')]");
+    expect(actual[0].path).toBe("$.a[?(@['c.d']=='20')]");
+    expect(actual[1].path).toBe("$.a[?(@['c.d']=='10')]");
     done();
+  });
+
+  test('when function-based identity key returns nested dot-notation path (#392)', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: "001" }, description: "alpha" },
+        { positionNumber: { value: "002" }, description: "beta" },
+      ],
+    };
+    const newObj = {
+      items: [{ positionNumber: { value: "001" }, description: "alpha" }],
+    };
+
+    const changes = diff(oldObj, newObj, {
+      embeddedObjKeys: {
+        items: ((obj: any, shouldReturnKeyName: boolean) => {
+          if (shouldReturnKeyName) return "positionNumber.value";
+          return obj.positionNumber.value;
+        }) as any,
+      },
+    });
+    const atomic = atomizeChangeset(changes);
+    const removes = atomic.filter((c) => c.type === 'REMOVE' as any);
+    expect(removes).toHaveLength(1);
+    expect(removes[0].path).toBe("$.items[?(@['positionNumber.value']=='002')]");
+  });
+
+  test('when atomizing and unatomizing with bracket-notation filter keys', () => {
+    const oldObject = { a: [{ b: 1, 'c.d': 10 }] };
+    const newObject = { a: [{ b: 2, 'c.d': 20 }] };
+    const diffs = diff(oldObject, newObject, { embeddedObjKeys: { a: 'c.d' } });
+
+    const atomized = atomizeChangeset(diffs);
+    const unatomized = unatomizeChangeset(atomized);
+
+    const fromOriginal = applyChangeset(JSON.parse(JSON.stringify(oldObject)), diffs);
+    const fromRoundTrip = applyChangeset(JSON.parse(JSON.stringify(oldObject)), unatomized);
+    expect(JSON.stringify(fromOriginal)).toEqual(JSON.stringify(fromRoundTrip));
   });
 
   test('when atomizing and unatomizing object properties', (done) => {

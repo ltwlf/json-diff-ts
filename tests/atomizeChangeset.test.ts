@@ -1,4 +1,5 @@
-import { diff, atomizeChangeset, applyChangeset, unatomizeChangeset } from '../src/jsonDiff';
+import { diff, atomizeChangeset, applyChangeset, unatomizeChangeset, Operation } from '../src/jsonDiff';
+import type { FunctionKey } from '../src/helpers';
 
 describe('atomizeChangeset', () => {
   test('when JSON path segements contain periods', (done) => {
@@ -39,7 +40,7 @@ describe('atomizeChangeset', () => {
     done();
   });
 
-  test('when function-based identity key returns nested dot-notation path (#392)', () => {
+  test('when identity key name contains a period, atomized filter uses bracket notation (#392)', () => {
     const oldObj = {
       items: [
         { positionNumber: { value: "001" }, description: "alpha" },
@@ -50,18 +51,17 @@ describe('atomizeChangeset', () => {
       items: [{ positionNumber: { value: "001" }, description: "alpha" }],
     };
 
+    const resolver: FunctionKey = (obj, shouldReturnKeyName) => {
+      if (shouldReturnKeyName) return "positionNumber.value";
+      return obj.positionNumber.value;
+    };
+
     const changes = diff(oldObj, newObj, {
-      embeddedObjKeys: {
-        items: ((obj: any, shouldReturnKeyName: boolean) => {
-          if (shouldReturnKeyName) return "positionNumber.value";
-          return obj.positionNumber.value;
-        }) as any,
-      },
+      embeddedObjKeys: { items: resolver },
     });
     const atomic = atomizeChangeset(changes);
-    const removes = atomic.filter((c) => c.type === 'REMOVE' as any);
+    const removes = atomic.filter((c) => c.type === Operation.REMOVE);
     expect(removes).toHaveLength(1);
-    // Non-identifier key uses bracket notation per JSONPath spec
     expect(removes[0].path).toBe("$.items[?(@['positionNumber.value']=='002')]");
   });
 

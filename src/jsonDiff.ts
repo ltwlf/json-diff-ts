@@ -849,11 +849,16 @@ const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 /** returns a JSON Path filter expression; e.g., `$.pet[?(@.name=='spot')]` */
 function filterExpression(basePath: string, filterKey: string | FunctionKey, filterValue: string | number) {
-  const value = typeof filterValue === 'number' ? filterValue : `'${filterValue}'`;
-  const memberAccess = typeof filterKey === 'string' && !IDENT_RE.test(filterKey)
-    ? `['${filterKey}']`
-    : `.${filterKey}`;
-  return `${basePath}[?(@${memberAccess}==${value})]`;
+  const escapedValue = typeof filterValue === 'number'
+    ? filterValue
+    : `'${String(filterValue).replace(/'/g, "''")}'`;
+  if (typeof filterKey !== 'string') {
+    throw new Error('filterExpression requires a resolved string key, not a function');
+  }
+  const memberAccess = IDENT_RE.test(filterKey)
+    ? `.${filterKey}`
+    : `['${filterKey.replace(/'/g, "''")}']`;
+  return `${basePath}[?(@${memberAccess}==${escapedValue})]`;
 }
 
 export {

@@ -92,6 +92,24 @@ describe('atomizeChangeset', () => {
     expect(atomic[0].path).toBe("$.items[?(@['a-b.c']=='x')].v");
   });
 
+  test('when simple identity key, embeddedKeyIsPath is not set and round-trips', () => {
+    const oldObj = { items: [{ id: 1, v: 'a' }] };
+    const newObj = { items: [{ id: 1, v: 'b' }] };
+    const changes = diff(oldObj, newObj, { embeddedObjKeys: { items: 'id' } });
+
+    // Single-segment key should NOT have embeddedKeyIsPath
+    expect(changes[0].embeddedKeyIsPath).toBeUndefined();
+
+    const atomic = atomizeChangeset(changes);
+    expect(atomic[0].path).toBe("$.items[?(@.id=='1')].v");
+
+    // Round-trip through unatomize + apply
+    const unatomized = unatomizeChangeset(atomic);
+    expect(unatomized[0].embeddedKeyIsPath).toBeUndefined();
+    const applied = applyChangeset(JSON.parse(JSON.stringify(oldObj)), unatomized);
+    expect(JSON.stringify(applied)).toEqual(JSON.stringify(newObj));
+  });
+
   test('when literal dot-key identity uses bracket notation and applies correctly', () => {
     const oldObject = { a: [{ b: 1, 'c.d': 10 }] };
     const newObject = { a: [{ b: 2, 'c.d': 10 }] };

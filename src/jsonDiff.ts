@@ -275,7 +275,7 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
             key = result[1];
             // Unescape doubled quotes in bracket keys and filter values
             embeddedKey = (result[3]?.replace(/''/g, "'") || result[2] || '$value');
-            isPath = !result[3] && result[2]?.includes('.') || undefined;
+            isPath = (!result[3] && !!result[2] && NESTED_PATH_RE.test(result[2])) ? true : undefined;
             arrKey = result[4]?.replace(/''/g, "'");
           } else {
             key = result[5];
@@ -577,7 +577,7 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
         type: Operation.UPDATE,
         key: getKey(path),
         embeddedKey: resolvedKey,
-        ...(isFunctionKey && typeof resolvedKey === 'string' && resolvedKey.includes('.') ? { embeddedKeyIsPath: true } : {}),
+        ...(isFunctionKey && typeof resolvedKey === 'string' && NESTED_PATH_RE.test(resolvedKey) && resolvedKey.includes('.') ? { embeddedKeyIsPath: true } : {}),
         changes: diffs
       }
     ];

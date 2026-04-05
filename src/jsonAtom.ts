@@ -12,6 +12,7 @@ import {
 import type { FunctionKey } from './helpers.js';
 import {
   formatFilterLiteral,
+  parseAtomPath,
   atomicPathToAtomPath,
   atomPathToAtomicPath,
   extractKeyFromAtomicPath,
@@ -19,11 +20,12 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type AtomOp = 'add' | 'remove' | 'replace';
+export type AtomOp = 'add' | 'remove' | 'replace' | 'move' | 'copy';
 
 export interface IAtomOperation {
   op: AtomOp;
   path: string;
+  from?: string;
   value?: any;
   oldValue?: any;
   [key: string]: any;
@@ -66,7 +68,7 @@ export function validateAtom(atom: unknown): { valid: boolean; errors: string[] 
         errors.push(`operations[${i}]: must be an object`);
         continue;
       }
-      if (!['add', 'remove', 'replace'].includes(op.op)) {
+      if (!['add', 'remove', 'replace', 'move', 'copy'].includes(op.op)) {
         errors.push(`operations[${i}]: invalid op '${op.op}'`);
       }
       if (typeof op.path !== 'string') {
@@ -85,6 +87,33 @@ export function validateAtom(atom: unknown): { valid: boolean; errors: string[] 
       }
       if (op.op === 'replace' && !('value' in op)) {
         errors.push(`operations[${i}]: replace operation must have value`);
+      }
+      if (op.op === 'move') {
+        if (typeof op.from !== 'string') {
+          errors.push(`operations[${i}]: move operation must have from (string)`);
+        }
+        if ('value' in op) {
+          errors.push(`operations[${i}]: move operation must not have value`);
+        }
+        if ('oldValue' in op) {
+          errors.push(`operations[${i}]: move operation must not have oldValue`);
+        }
+        if (typeof op.from === 'string' && typeof op.path === 'string') {
+          if (op.from === op.path) {
+            errors.push(`operations[${i}]: move operation from must not equal path (self-move)`);
+          }
+          if (op.from !== '$' && (op.path.startsWith(op.from + '.') || op.path.startsWith(op.from + '['))) {
+            errors.push(`operations[${i}]: move operation path must not be a subtree of from`);
+          }
+        }
+      }
+      if (op.op === 'copy') {
+        if (typeof op.from !== 'string') {
+          errors.push(`operations[${i}]: copy operation must have from (string)`);
+        }
+        if ('oldValue' in op) {
+          errors.push(`operations[${i}]: copy operation must not have oldValue`);
+        }
       }
     }
   }
@@ -463,6 +492,10 @@ export function fromAtom(atom: IJsonAtom): IAtomicChange[] {
   }
 
   return atom.operations.map((op) => {
+    if (op.op === 'move' || op.op === 'copy') {
+      throw new Error(`${op.op} operations cannot be converted to v4 atomic changes`);
+    }
+
     const atomicPath = atomPathToAtomicPath(op.path);
     const key = extractKeyFromAtomicPath(atomicPath);
 
@@ -519,6 +552,9 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
     if (op.op === 'remove' && !('oldValue' in op)) {
       throw new Error(`operations[${i}]: remove operation missing oldValue — atom is not reversible`);
     }
+    if (op.op === 'copy' && !('value' in op)) {
+      throw new Error(`operations[${i}]: copy operation missing value — atom is not reversible`);
+    }
   }
 
   // Reverse the operations array and invert each operation
@@ -526,7 +562,7 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
     // Preserve extension properties (any key not in standard set)
     const extensions: Record<string, any> = {};
     for (const key of Object.keys(op)) {
-      if (!['op', 'path', 'value', 'oldValue'].includes(key)) {
+      if (!['op', 'path', 'from', 'value', 'oldValue'].includes(key)) {
         extensions[key] = op[key];
       }
     }
@@ -538,6 +574,10 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
         return { op: 'add' as AtomOp, path: op.path, value: op.oldValue, ...extensions };
       case 'replace':
         return { op: 'replace' as AtomOp, path: op.path, value: op.oldValue, oldValue: op.value, ...extensions };
+      case 'move':
+        return { op: 'move' as AtomOp, from: op.path, path: op.from!, ...extensions };
+      case 'copy':
+        return { op: 'remove' as AtomOp, path: op.path, oldValue: op.value, ...extensions };
       /* istanbul ignore next -- exhaustive switch */
       default:
         throw new Error(`Unknown operation: ${op.op}`);
@@ -557,6 +597,55 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
 
 // ─── applyAtom ─────────────────────────────────────────────────────────────
 
+const NESTED_PATH_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
+
+/**
+ * Resolve a value at a JSON Atom path within an object.
+ * Uses parseAtomPath for correct handling of all path forms.
+ */
+function resolveValueAtPath(obj: any, atomPath: string): any {
+  const segments = parseAtomPath(atomPath);
+  let current = obj;
+  for (const seg of segments) {
+    switch (seg.type) {
+      case 'root':
+        break;
+      case 'property':
+        if (current == null || typeof current !== 'object') {
+          throw new Error(`Cannot access property '${seg.name}' on ${current === null ? 'null' : typeof current} at path: ${atomPath}`);
+        }
+        current = current[seg.name];
+        break;
+      case 'index':
+        if (!Array.isArray(current)) {
+          throw new Error(`Cannot access index ${seg.index} on non-array at path: ${atomPath}`);
+        }
+        current = current[seg.index];
+        break;
+      case 'keyFilter': {
+        if (!Array.isArray(current)) {
+          throw new Error(`Cannot apply key filter on non-array at path: ${atomPath}`);
+        }
+        const prop = seg.property;
+        const isPath = !seg.literalKey && prop.includes('.') && NESTED_PATH_RE.test(prop);
+        current = current.find((el: any) => {
+          const resolved = isPath ? prop.split('.').reduce((c: any, s: string) => c?.[s], el) : el[prop];
+          return JSON.stringify(resolved) === JSON.stringify(seg.value);
+        });
+        break;
+      }
+      case 'valueFilter': {
+        if (!Array.isArray(current)) {
+          throw new Error(`Cannot apply value filter on non-array at path: ${atomPath}`);
+        }
+        current = current.find((el: any) => JSON.stringify(el) === JSON.stringify(seg.value));
+        break;
+      }
+    }
+  }
+  return current;
+}
+
 /**
  * Apply a JSON Atom document to an object.
  * Processes operations sequentially. Handles root operations directly.
@@ -571,7 +660,36 @@ export function applyAtom(obj: any, atom: IJsonAtom): any {
   let result: any = obj;
 
   for (const op of atom.operations) {
-    if (op.path === '$') {
+    if (op.op === 'move') {
+      // Read value at from
+      const value = resolveValueAtPath(result, op.from!);
+      // Remove from source
+      const removeOp: IAtomOperation = { op: 'remove', path: op.from!, oldValue: value };
+      if (removeOp.path === '$') {
+        result = applyRootOp(result, removeOp);
+      } else {
+        const removeChange = atomOpToAtomicChange(removeOp);
+        applyChangeset(result, unatomizeChangeset([removeChange]));
+      }
+      // Add to target
+      const addOp: IAtomOperation = { op: 'add', path: op.path, value };
+      if (addOp.path === '$') {
+        result = applyRootOp(result, addOp);
+      } else {
+        const addChange = atomOpToAtomicChange(addOp);
+        applyChangeset(result, unatomizeChangeset([addChange]));
+      }
+    } else if (op.op === 'copy') {
+      const source = resolveValueAtPath(result, op.from!);
+      const value = source === undefined ? undefined : JSON.parse(JSON.stringify(source));
+      const addOp: IAtomOperation = { op: 'add', path: op.path, value };
+      if (addOp.path === '$') {
+        result = applyRootOp(result, addOp);
+      } else {
+        const addChange = atomOpToAtomicChange(addOp);
+        applyChangeset(result, unatomizeChangeset([addChange]));
+      }
+    } else if (op.path === '$') {
       result = applyRootOp(result, op);
     } else {
       const atomicChange = atomOpToAtomicChange(op);

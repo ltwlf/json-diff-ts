@@ -1525,6 +1525,17 @@ describe('move/copy operations', () => {
       expect(result).toEqual({ b: 1, c: {} });
     });
 
+    it('copy from value-filtered array element', () => {
+      const obj = { tags: ['urgent', 'review'], backup: [] as string[] };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.backup[0]', from: "$.tags[?(@=='urgent')]" }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.backup).toEqual(['urgent']);
+    });
+
     it('move empty array', () => {
       const obj = { a: [] as any[], b: 1 };
       const atom: IJsonAtom = {

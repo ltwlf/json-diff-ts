@@ -618,11 +618,11 @@ function resolveValueAtPath(obj: any, atomPath: string): any {
         break;
       case 'keyFilter': {
         const prop = seg.property;
-        const isPath = prop.includes('.') && NESTED_PATH_RE.test(prop);
+        const isPath = !seg.literalKey && prop.includes('.') && NESTED_PATH_RE.test(prop);
         const arr = current as any[];
         current = arr.find((el: any) => {
           const resolved = isPath ? prop.split('.').reduce((c: any, s: string) => c?.[s], el) : el[prop];
-          return resolved != null && JSON.stringify(resolved) === JSON.stringify(seg.value);
+          return JSON.stringify(resolved) === JSON.stringify(seg.value);
         });
         break;
       }

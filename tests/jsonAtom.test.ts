@@ -1174,17 +1174,18 @@ describe('move/copy operations', () => {
       expect(result).toEqual({ x: 10 });
     });
 
-    it('move from root replaces root with null then adds', () => {
+    it('move from root to descendant results in null (root removed)', () => {
       const obj = { a: 1 };
       const atom: IJsonAtom = {
         format: 'json-atom',
         version: 1,
         operations: [{ op: 'move', path: '$.backup', from: '$' }],
       };
-      // After remove root → null, then add $.backup on null would fail;
-      // This is an edge case — move from root is unusual
-      // We test the behavior as-is
-      expect(() => applyAtom(obj, atom)).toThrow();
+      // Validation passes. After removing root it becomes null — adding $.backup
+      // on null has no effect, so result is null.
+      expect(validateAtom(atom).valid).toBe(true);
+      const result = applyAtom(obj, atom);
+      expect(result).toBeNull();
     });
 
     it('keyed array consistency after move', () => {

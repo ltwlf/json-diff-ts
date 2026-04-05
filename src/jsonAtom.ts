@@ -10,9 +10,9 @@ import {
   Options,
 } from './jsonDiff.js';
 import type { FunctionKey } from './helpers.js';
-import { splitJSONPath } from './helpers.js';
 import {
   formatFilterLiteral,
+  parseAtomPath,
   atomicPathToAtomPath,
   atomPathToAtomicPath,
   extractKeyFromAtomicPath,
@@ -102,7 +102,7 @@ export function validateAtom(atom: unknown): { valid: boolean; errors: string[] 
           if (op.from === op.path) {
             errors.push(`operations[${i}]: move operation from must not equal path (self-move)`);
           }
-          if (op.path.startsWith(op.from + '.') || op.path.startsWith(op.from + '[')) {
+          if (op.from !== '$' && (op.path.startsWith(op.from + '.') || op.path.startsWith(op.from + '['))) {
             errors.push(`operations[${i}]: move operation path must not be a subtree of from`);
           }
         }
@@ -597,48 +597,41 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
 
 // ─── applyAtom ─────────────────────────────────────────────────────────────
 
+const NESTED_PATH_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
+
 /**
  * Resolve a value at a JSON Atom path within an object.
- * Used by move/copy operations to read the source value.
+ * Uses parseAtomPath for correct handling of all path forms.
  */
 function resolveValueAtPath(obj: any, atomPath: string): any {
-  if (atomPath === '$') return obj;
-  const atomicPath = atomPathToAtomicPath(atomPath);
-  const segments = splitJSONPath(atomicPath);
+  const segments = parseAtomPath(atomPath);
   let current = obj;
-  for (let i = 1; i < segments.length; i++) {
-    const segment = segments[i];
-    // Try filter match: items[?(@.id=='123')] or items[?(@.key.sub=='val')] or items[?(@['a.b']=='val')]
-    const filterResult = /^([^[\]]+)\[\?\(@(?:\.?([^=[]*)|(?:\['([^']*(?:''[^']*)*)'\]))=='([^']*(?:''[^']*)*)'\)\]$/.exec(segment);
-    if (filterResult) {
-      const key = filterResult[1];
-      const embeddedKey = filterResult[3]?.replace(/''/g, "'") || filterResult[2] || '$value';
-      const filterValue = filterResult[4]?.replace(/''/g, "'");
-      current = current[key];
-      if (embeddedKey === '$value') {
-        current = current.find((el: any) => String(el) === filterValue);
-      } else {
-        const isPath = !filterResult[3] && embeddedKey.includes('.') && /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(embeddedKey);
-        current = current.find((el: any) => {
-          const resolved = isPath ? embeddedKey.split('.').reduce((c: any, s: string) => c?.[s], el) : el[embeddedKey];
-          return resolved != null && String(resolved) === filterValue;
+  for (const seg of segments) {
+    switch (seg.type) {
+      case 'root':
+        break;
+      case 'property':
+        current = current[seg.name];
+        break;
+      case 'index':
+        current = current[seg.index];
+        break;
+      case 'keyFilter': {
+        const prop = seg.property;
+        const isPath = prop.includes('.') && NESTED_PATH_RE.test(prop);
+        const arr = current as any[];
+        current = arr.find((el: any) => {
+          const resolved = isPath ? prop.split('.').reduce((c: any, s: string) => c?.[s], el) : el[prop];
+          return resolved != null && JSON.stringify(resolved) === JSON.stringify(seg.value);
         });
+        break;
       }
-      continue;
+      case 'valueFilter': {
+        const arr = current as any[];
+        current = arr.find((el: any) => JSON.stringify(el) === JSON.stringify(seg.value));
+        break;
+      }
     }
-    // Try index match: items[2]
-    const indexResult = /^(.+)\[(\d+)\]$/.exec(segment);
-    if (indexResult) {
-      current = current[indexResult[1]][Number(indexResult[2])];
-      continue;
-    }
-    // Try bracket property: [a.b]
-    if (segment.startsWith('[') && segment.endsWith(']')) {
-      current = current[segment.slice(1, -1)];
-      continue;
-    }
-    // Simple property
-    current = current[segment];
   }
   return current;
 }

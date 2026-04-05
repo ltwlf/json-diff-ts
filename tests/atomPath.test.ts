@@ -247,9 +247,15 @@ describe('parseAtomPath', () => {
     expect(() => parseAtomPath('$[?(invalid==1)]')).toThrow(/Invalid filter expression/);
   });
 
-  it('rejects non-identifier dot-notation filter keys', () => {
-    // Dot-containing keys must use bracket notation per spec Section 5.1
-    expect(() => parseAtomPath("$.items[?(@.pos.num==42)]")).toThrow(/Invalid property name in filter/);
+  it('accepts nested dot-notation filter keys (RFC 9535)', () => {
+    expect(parseAtomPath("$.items[?(@.pos.num==42)]")).toEqual([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'pos.num', value: 42 },
+    ]);
+  });
+
+  it('rejects invalid dot-notation filter keys', () => {
     expect(() => parseAtomPath("$.items[?(@.0key==42)]")).toThrow(/Invalid property name in filter/);
   });
 
@@ -322,12 +328,20 @@ describe('buildAtomPath', () => {
     ])).toBe("$.items[?(@.id=='abc')]");
   });
 
-  it('builds key filter with bracket-notation property', () => {
+  it('builds key filter with nested dot-notation property', () => {
     expect(buildAtomPath([
       { type: 'root' },
       { type: 'property', name: 'items' },
       { type: 'keyFilter', property: 'a.b', value: 42 },
-    ])).toBe("$.items[?(@['a.b']==42)]");
+    ])).toBe("$.items[?(@.a.b==42)]");
+  });
+
+  it('builds key filter with bracket-notation for non-identifier property', () => {
+    expect(buildAtomPath([
+      { type: 'root' },
+      { type: 'property', name: 'items' },
+      { type: 'keyFilter', property: 'a-b', value: 42 },
+    ])).toBe("$.items[?(@['a-b']==42)]");
   });
 
   it('builds value filter', () => {
@@ -382,8 +396,8 @@ describe('atomicPathToAtomPath', () => {
     expect(atomicPathToAtomPath("$.items[?(@.id=='1')]")).toBe("$.items[?(@.id=='1')]");
   });
 
-  it('canonicalizes non-identifier filter keys to bracket notation', () => {
-    expect(atomicPathToAtomPath("$.a[?(@.c.d=='20')]")).toBe("$.a[?(@['c.d']=='20')]");
+  it('preserves nested dot-notation filter keys', () => {
+    expect(atomicPathToAtomPath("$.a[?(@.c.d=='20')]")).toBe("$.a[?(@.c.d=='20')]");
   });
 
   it('preserves already bracket-quoted filter keys', () => {
@@ -519,11 +533,11 @@ describe('v4 ↔ atom path round-trips', () => {
     expect(atomPathToAtomicPath(atomPath)).toBe(v4Path);
   });
 
-  it('round-trips dot-containing filter keys (v4 → atom → v4)', () => {
-    // v4 uses dot notation for all keys; atom uses bracket notation for non-identifiers
+  it('round-trips nested dot-notation filter keys (v4 → atom → v4)', () => {
     const v4Path = "$.a[?(@.c.d=='20')]";
     const atomPath = atomicPathToAtomPath(v4Path);
-    expect(atomPath).toBe("$.a[?(@['c.d']=='20')]");
+    // Nested path stays as dot notation in atom format
+    expect(atomPath).toBe("$.a[?(@.c.d=='20')]");
     const roundTripped = atomPathToAtomicPath(atomPath);
     expect(roundTripped).toBe(v4Path);
   });
@@ -533,11 +547,11 @@ describe('v4 ↔ atom path round-trips', () => {
     const v4Path = atomPathToAtomicPath(atomPath);
     expect(v4Path).toBe("$.items[?(@.pos.num=='42')]");
     const backToAtom = atomicPathToAtomPath(v4Path);
-    expect(backToAtom).toBe("$.items[?(@['pos.num']=='42')]");
+    // Nested path (each segment is valid identifier) → dot notation
+    expect(backToAtom).toBe("$.items[?(@.pos.num=='42')]");
   });
 
-  it('atom canonical paths match Python canonical format', () => {
-    // These are the exact canonical forms that Python json-atom-py produces/consumes
+  it('atom canonical paths round-trip through parse + build', () => {
     const canonicalPaths = [
       '$',
       '$.name',
@@ -546,12 +560,11 @@ describe('v4 ↔ atom path round-trips', () => {
       '$.items[0]',
       '$.items[?(@.id==42)]',
       "$.items[?(@.name=='Widget')]",
-      "$.items[?(@['dotted.key']==42)]",
+      '$.items[?(@.positionNumber.value==42)]',
       "$.tags[?(@=='urgent')]",
       '$.items[?(@.id==1)].name',
     ];
     for (const path of canonicalPaths) {
-      // Parse and rebuild should produce the same canonical form
       expect(buildAtomPath(parseAtomPath(path))).toBe(path);
     }
   });

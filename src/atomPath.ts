@@ -104,13 +104,16 @@ function findFilterClose(s: string, from: number): number {
 
 // ─── Filter Parsing ─────────────────────────────────────────────────────────
 
+/** Regex for nested dot-notation path: each segment is a valid identifier */
+const NESTED_PATH_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
+
 function parseFilter(inner: string): AtomPathSegment {
   if (inner.startsWith("@.")) {
-    // Key filter with dot property: @.key==val
+    // Key filter with dot property: @.key==val or @.a.b==val (nested)
     const eq = inner.indexOf('==');
     if (eq === -1) throw new Error(`Invalid filter: missing '==' in ${inner}`);
     const key = inner.slice(2, eq);
-    if (!key || !SIMPLE_PROPERTY_RE.test(key)) {
+    if (!key || !NESTED_PATH_RE.test(key)) {
       throw new Error(`Invalid property name in filter: '${key}'. Use bracket notation for non-identifier keys: @['${key}']`);
     }
     return { type: 'keyFilter', property: key, value: parseFilterLiteral(inner.slice(eq + 2)) };
@@ -220,9 +223,13 @@ export function buildAtomPath(segments: AtomPathSegment[]): string {
         result += `[${seg.index}]`;
         break;
       case 'keyFilter': {
-        const memberAccess = SIMPLE_PROPERTY_RE.test(seg.property)
-          ? `.${seg.property}`
-          : `['${seg.property.replace(/'/g, "''")}']`;
+        let memberAccess: string;
+        if (NESTED_PATH_RE.test(seg.property)) {
+          // Simple identifier or nested path — dot notation
+          memberAccess = `.${seg.property}`;
+        } else {
+          memberAccess = `['${seg.property.replace(/'/g, "''")}']`;
+        }
         result += `[?(@${memberAccess}==${formatFilterLiteral(seg.value)})]`;
         break;
       }
@@ -238,12 +245,11 @@ export function buildAtomPath(segments: AtomPathSegment[]): string {
 
 /**
  * Canonicalize a filter expression for the JSON Atom path format.
- * Converts dot-notation non-identifier keys to bracket notation.
  *
  * Examples:
  * - `@.id=='1'` → `[?(@.id=='1')]` (simple identifier, unchanged)
- * - `@.c.d=='20'` → `[?(@['c.d']=='20')]` (non-identifier, bracket-quoted)
- * - `@['c.d']=='20'` → `[?(@['c.d']=='20')]` (already bracket, unchanged)
+ * - `@.a.b=='20'` → `[?(@.a.b=='20')]` (nested path, preserved as dot notation)
+ * - `@['c.d']=='20'` → `[?(@['c.d']=='20')]` (literal dot-key, bracket preserved)
  * - `@=='val'` → `[?(@=='val')]` (value filter, unchanged)
  */
 function canonicalizeFilterForAtom(inner: string): string {
@@ -252,7 +258,8 @@ function canonicalizeFilterForAtom(inner: string): string {
     if (eqIdx === -1) return `[?(${inner})]`;
     const key = inner.slice(2, eqIdx);
     const valuePart = inner.slice(eqIdx); // ==value
-    if (SIMPLE_PROPERTY_RE.test(key)) {
+    if (NESTED_PATH_RE.test(key)) {
+      // Simple identifier or nested path (each segment is valid identifier) — dot notation
       return `[?(@.${key}${valuePart})]`;
     }
     // Non-identifier key: convert to bracket notation

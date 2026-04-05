@@ -662,9 +662,9 @@ const removeKey = (obj: any, key: any, embeddedKey: any, isPath?: boolean) => {
 };
 
 /** Resolve a property on an object. When isPath is true, traverses nested dot-separated segments. */
-const resolveProperty = (obj: any, key: string, isPath?: boolean): any => {
+const resolveProperty = (obj: any, key: any, isPath?: boolean): any => {
   if (obj == null) return undefined;
-  if (!isPath || !key.includes('.')) return obj[key];
+  if (typeof key !== 'string' || !isPath || !key.includes('.')) return obj[key];
   return key.split('.').reduce((cur, seg) => cur?.[seg], obj);
 };
 

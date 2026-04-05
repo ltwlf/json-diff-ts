@@ -10,6 +10,7 @@ import {
   Options,
 } from './jsonDiff.js';
 import type { FunctionKey } from './helpers.js';
+import { splitJSONPath } from './helpers.js';
 import {
   formatFilterLiteral,
   atomicPathToAtomPath,
@@ -19,11 +20,12 @@ import {
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type AtomOp = 'add' | 'remove' | 'replace';
+export type AtomOp = 'add' | 'remove' | 'replace' | 'move' | 'copy';
 
 export interface IAtomOperation {
   op: AtomOp;
   path: string;
+  from?: string;
   value?: any;
   oldValue?: any;
   [key: string]: any;
@@ -66,7 +68,7 @@ export function validateAtom(atom: unknown): { valid: boolean; errors: string[] 
         errors.push(`operations[${i}]: must be an object`);
         continue;
       }
-      if (!['add', 'remove', 'replace'].includes(op.op)) {
+      if (!['add', 'remove', 'replace', 'move', 'copy'].includes(op.op)) {
         errors.push(`operations[${i}]: invalid op '${op.op}'`);
       }
       if (typeof op.path !== 'string') {
@@ -85,6 +87,33 @@ export function validateAtom(atom: unknown): { valid: boolean; errors: string[] 
       }
       if (op.op === 'replace' && !('value' in op)) {
         errors.push(`operations[${i}]: replace operation must have value`);
+      }
+      if (op.op === 'move') {
+        if (typeof op.from !== 'string') {
+          errors.push(`operations[${i}]: move operation must have from (string)`);
+        }
+        if ('value' in op) {
+          errors.push(`operations[${i}]: move operation must not have value`);
+        }
+        if ('oldValue' in op) {
+          errors.push(`operations[${i}]: move operation must not have oldValue`);
+        }
+        if (typeof op.from === 'string' && typeof op.path === 'string') {
+          if (op.from === op.path) {
+            errors.push(`operations[${i}]: move operation from must not equal path (self-move)`);
+          }
+          if (op.path.startsWith(op.from + '.') || op.path.startsWith(op.from + '[')) {
+            errors.push(`operations[${i}]: move operation path must not be a subtree of from`);
+          }
+        }
+      }
+      if (op.op === 'copy') {
+        if (typeof op.from !== 'string') {
+          errors.push(`operations[${i}]: copy operation must have from (string)`);
+        }
+        if ('oldValue' in op) {
+          errors.push(`operations[${i}]: copy operation must not have oldValue`);
+        }
       }
     }
   }
@@ -463,6 +492,10 @@ export function fromAtom(atom: IJsonAtom): IAtomicChange[] {
   }
 
   return atom.operations.map((op) => {
+    if (op.op === 'move' || op.op === 'copy') {
+      throw new Error(`${op.op} operations cannot be converted to v4 atomic changes`);
+    }
+
     const atomicPath = atomPathToAtomicPath(op.path);
     const key = extractKeyFromAtomicPath(atomicPath);
 
@@ -519,6 +552,9 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
     if (op.op === 'remove' && !('oldValue' in op)) {
       throw new Error(`operations[${i}]: remove operation missing oldValue — atom is not reversible`);
     }
+    if (op.op === 'copy' && !('value' in op)) {
+      throw new Error(`operations[${i}]: copy operation missing value — atom is not reversible`);
+    }
   }
 
   // Reverse the operations array and invert each operation
@@ -526,7 +562,7 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
     // Preserve extension properties (any key not in standard set)
     const extensions: Record<string, any> = {};
     for (const key of Object.keys(op)) {
-      if (!['op', 'path', 'value', 'oldValue'].includes(key)) {
+      if (!['op', 'path', 'from', 'value', 'oldValue'].includes(key)) {
         extensions[key] = op[key];
       }
     }
@@ -538,6 +574,10 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
         return { op: 'add' as AtomOp, path: op.path, value: op.oldValue, ...extensions };
       case 'replace':
         return { op: 'replace' as AtomOp, path: op.path, value: op.oldValue, oldValue: op.value, ...extensions };
+      case 'move':
+        return { op: 'move' as AtomOp, from: op.path, path: op.from!, ...extensions };
+      case 'copy':
+        return { op: 'remove' as AtomOp, path: op.path, oldValue: op.value, ...extensions };
       /* istanbul ignore next -- exhaustive switch */
       default:
         throw new Error(`Unknown operation: ${op.op}`);
@@ -558,6 +598,52 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
 // ─── applyAtom ─────────────────────────────────────────────────────────────
 
 /**
+ * Resolve a value at a JSON Atom path within an object.
+ * Used by move/copy operations to read the source value.
+ */
+function resolveValueAtPath(obj: any, atomPath: string): any {
+  if (atomPath === '$') return obj;
+  const atomicPath = atomPathToAtomicPath(atomPath);
+  const segments = splitJSONPath(atomicPath);
+  let current = obj;
+  for (let i = 1; i < segments.length; i++) {
+    const segment = segments[i];
+    // Try filter match: items[?(@.id=='123')] or items[?(@.key.sub=='val')] or items[?(@['a.b']=='val')]
+    const filterResult = /^([^[\]]+)\[\?\(@(?:\.?([^=[]*)|(?:\['([^']*(?:''[^']*)*)'\]))=='([^']*(?:''[^']*)*)'\)\]$/.exec(segment);
+    if (filterResult) {
+      const key = filterResult[1];
+      const embeddedKey = filterResult[3]?.replace(/''/g, "'") || filterResult[2] || '$value';
+      const filterValue = filterResult[4]?.replace(/''/g, "'");
+      current = current[key];
+      if (embeddedKey === '$value') {
+        current = current.find((el: any) => String(el) === filterValue);
+      } else {
+        const isPath = !filterResult[3] && embeddedKey.includes('.') && /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/.test(embeddedKey);
+        current = current.find((el: any) => {
+          const resolved = isPath ? embeddedKey.split('.').reduce((c: any, s: string) => c?.[s], el) : el[embeddedKey];
+          return resolved != null && String(resolved) === filterValue;
+        });
+      }
+      continue;
+    }
+    // Try index match: items[2]
+    const indexResult = /^(.+)\[(\d+)\]$/.exec(segment);
+    if (indexResult) {
+      current = current[indexResult[1]][Number(indexResult[2])];
+      continue;
+    }
+    // Try bracket property: [a.b]
+    if (segment.startsWith('[') && segment.endsWith(']')) {
+      current = current[segment.slice(1, -1)];
+      continue;
+    }
+    // Simple property
+    current = current[segment];
+  }
+  return current;
+}
+
+/**
  * Apply a JSON Atom document to an object.
  * Processes operations sequentially. Handles root operations directly.
  * Returns the result (MUST use return value for root primitive replacements).
@@ -571,7 +657,35 @@ export function applyAtom(obj: any, atom: IJsonAtom): any {
   let result: any = obj;
 
   for (const op of atom.operations) {
-    if (op.path === '$') {
+    if (op.op === 'move') {
+      // Read value at from
+      const value = resolveValueAtPath(result, op.from!);
+      // Remove from source
+      const removeOp: IAtomOperation = { op: 'remove', path: op.from!, oldValue: value };
+      if (removeOp.path === '$') {
+        result = applyRootOp(result, removeOp);
+      } else {
+        const removeChange = atomOpToAtomicChange(removeOp);
+        applyChangeset(result, unatomizeChangeset([removeChange]));
+      }
+      // Add to target
+      const addOp: IAtomOperation = { op: 'add', path: op.path, value };
+      if (addOp.path === '$') {
+        result = applyRootOp(result, addOp);
+      } else {
+        const addChange = atomOpToAtomicChange(addOp);
+        applyChangeset(result, unatomizeChangeset([addChange]));
+      }
+    } else if (op.op === 'copy') {
+      const value = JSON.parse(JSON.stringify(resolveValueAtPath(result, op.from!)));
+      const addOp: IAtomOperation = { op: 'add', path: op.path, value };
+      if (addOp.path === '$') {
+        result = applyRootOp(result, addOp);
+      } else {
+        const addChange = atomOpToAtomicChange(addOp);
+        applyChangeset(result, unatomizeChangeset([addChange]));
+      }
+    } else if (op.path === '$') {
       result = applyRootOp(result, op);
     } else {
       const atomicChange = atomOpToAtomicChange(op);

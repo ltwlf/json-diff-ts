@@ -84,7 +84,7 @@ describe('validateAtom', () => {
     const result = validateAtom({
       format: 'json-atom',
       version: 1,
-      operations: [{ op: 'move', path: '$.x' }],
+      operations: [{ op: 'patch', path: '$.x' }],
     });
     expect(result.valid).toBe(false);
   });
@@ -947,5 +947,592 @@ describe('integration round-trips', () => {
     const result = deepClone(source);
     applyChangeset(result, changeset);
     expect(result).toEqual(target);
+  });
+});
+
+// ─── move/copy operations ──────────────────────────────────────────────────
+
+describe('move/copy operations', () => {
+  // ─── Validation ─────────────────────────────────────────────────────────
+
+  describe('validation', () => {
+    it('accepts valid move operation', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b', from: '$.a' }],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('accepts valid copy operation', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: '$.a' }],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('accepts copy with value (for reversibility)', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: '$.a', value: 42 }],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('rejects move without from', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toMatch(/from/);
+    });
+
+    it('rejects copy without from', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toMatch(/from/);
+    });
+
+    it('rejects move with value', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b', from: '$.a', value: 1 }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toMatch(/must not have value/);
+    });
+
+    it('rejects move with oldValue', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b', from: '$.a', oldValue: 1 }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toMatch(/must not have oldValue/);
+    });
+
+    it('rejects copy with oldValue', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: '$.a', oldValue: 1 }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toMatch(/must not have oldValue/);
+    });
+
+    it('rejects self-move (from === path)', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.a', from: '$.a' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toMatch(/self-move/);
+    });
+
+    it('rejects move into own subtree (dot)', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.a.b.c', from: '$.a.b' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toMatch(/subtree/);
+    });
+
+    it('rejects move into own subtree (bracket)', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.a[0]', from: '$.a' }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toMatch(/subtree/);
+    });
+
+    it('accepts move from subtree to ancestor', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.a', from: '$.a.b.c' }],
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('rejects move with non-string from', () => {
+      const result = validateAtom({
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b', from: 123 }],
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]).toMatch(/from/);
+    });
+  });
+
+  // ─── Apply move ─────────────────────────────────────────────────────────
+
+  describe('applyAtom move', () => {
+    it('moves a property', () => {
+      const obj = { a: 1, b: 2 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.c', from: '$.a' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ b: 2, c: 1 });
+      expect(result).not.toHaveProperty('a');
+    });
+
+    it('moves a nested property', () => {
+      const obj = { user: { name: 'Alice', age: 30 }, backup: {} };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.backup.name', from: '$.user.name' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.user).not.toHaveProperty('name');
+      expect(result.backup.name).toBe('Alice');
+    });
+
+    it('moves an array element by index', () => {
+      const obj = { src: [10, 20, 30], dst: [100] };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.dst[1]', from: '$.src[1]' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.src).toEqual([10, 30]);
+      expect(result.dst).toEqual([100, 20]);
+    });
+
+    it('moves a keyed array element', () => {
+      const obj = {
+        items: [{ id: '1', name: 'Widget' }, { id: '2', name: 'Gadget' }],
+        archive: [] as any[],
+      };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.archive[0]', from: "$.items[?(@.id=='2')]" }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe('1');
+      expect(result.archive).toHaveLength(1);
+      expect(result.archive[0]).toEqual({ id: '2', name: 'Gadget' });
+    });
+
+    it('moves property to root', () => {
+      const obj2 = { wrapper: { data: 42 } };
+      const atom2: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.extracted', from: '$.wrapper.data' }],
+      };
+      const result = applyAtom(obj2, atom2);
+      expect(result.wrapper).toEqual({});
+      expect(result.extracted).toBe(42);
+    });
+
+    it('moves a complex object (preserves structure)', () => {
+      const obj = { source: { nested: { deep: [1, 2, 3] } }, target: {} };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.target.data', from: '$.source.nested' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.source).toEqual({});
+      expect(result.target.data).toEqual({ deep: [1, 2, 3] });
+    });
+
+    it('move to root replaces entire document', () => {
+      const obj = { a: 1, b: { x: 10 } };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$', from: '$.b' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ x: 10 });
+    });
+
+    it('move from root replaces root with null then adds', () => {
+      const obj = { a: 1 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.backup', from: '$' }],
+      };
+      // After remove root → null, then add $.backup on null would fail;
+      // This is an edge case — move from root is unusual
+      // We test the behavior as-is
+      expect(() => applyAtom(obj, atom)).toThrow();
+    });
+
+    it('keyed array consistency after move', () => {
+      const obj = {
+        active: [{ id: 'a', val: 1 }, { id: 'b', val: 2 }],
+        inactive: [{ id: 'c', val: 3 }],
+      };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.inactive[1]', from: "$.active[?(@.id=='b')]" }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.active).toHaveLength(1);
+      expect(result.active[0].id).toBe('a');
+      expect(result.inactive).toHaveLength(2);
+      expect(result.inactive[1]).toEqual({ id: 'b', val: 2 });
+    });
+  });
+
+  // ─── Apply copy ─────────────────────────────────────────────────────────
+
+  describe('applyAtom copy', () => {
+    it('copies a property', () => {
+      const obj = { a: 1, b: 2 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.c', from: '$.a' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ a: 1, b: 2, c: 1 });
+    });
+
+    it('copy preserves source', () => {
+      const obj = { src: { nested: 42 } };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.dst', from: '$.src' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.src).toEqual({ nested: 42 });
+      expect(result.dst).toEqual({ nested: 42 });
+    });
+
+    it('copy deep-clones (no shared references)', () => {
+      const obj = { src: { nested: { deep: [1, 2] } } };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.dst', from: '$.src' }],
+      };
+      const result = applyAtom(obj, atom);
+      // Mutate copy should not affect source
+      result.dst.nested.deep.push(3);
+      expect(result.src.nested.deep).toEqual([1, 2]);
+    });
+
+    it('copies from root', () => {
+      const obj = { a: 1 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.snapshot', from: '$' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.a).toBe(1);
+      expect(result.snapshot).toEqual({ a: 1 });
+    });
+
+    it('copies an array element', () => {
+      const obj = { items: ['a', 'b', 'c'] };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.items[3]', from: '$.items[0]' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.items).toEqual(['a', 'b', 'c', 'a']);
+    });
+
+    it('copies a keyed array element', () => {
+      const obj = {
+        items: [{ id: '1', name: 'Widget' }],
+        copies: [] as any[],
+      };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.copies[0]', from: "$.items[?(@.id=='1')]" }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.items).toHaveLength(1);
+      expect(result.copies).toHaveLength(1);
+      expect(result.copies[0]).toEqual({ id: '1', name: 'Widget' });
+    });
+
+    it('copy to root replaces entire document', () => {
+      const obj = { a: 1, b: { x: 10 } };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$', from: '$.b' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ x: 10 });
+    });
+  });
+
+  // ─── Inversion ──────────────────────────────────────────────────────────
+
+  describe('invertAtom move/copy', () => {
+    it('inverts move by swapping from and path', () => {
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b', from: '$.a' }],
+      };
+      const inverse = invertAtom(atom);
+      expect(inverse.operations).toEqual([
+        { op: 'move', from: '$.b', path: '$.a' },
+      ]);
+    });
+
+    it('move round-trip: apply then revert', () => {
+      const obj = { a: 1, b: 2 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.c', from: '$.a' }],
+      };
+      const applied = applyAtom(deepClone(obj), atom);
+      expect(applied).toEqual({ b: 2, c: 1 });
+      const inverse = invertAtom(atom);
+      const reverted = applyAtom(deepClone(applied), inverse);
+      expect(reverted).toEqual(obj);
+    });
+
+    it('inverts copy to remove', () => {
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: '$.a', value: 42 }],
+      };
+      const inverse = invertAtom(atom);
+      expect(inverse.operations).toEqual([
+        { op: 'remove', path: '$.b', oldValue: 42 },
+      ]);
+    });
+
+    it('copy round-trip: apply then revert', () => {
+      const obj = { a: 1 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: '$.a', value: 1 }],
+      };
+      const applied = applyAtom(deepClone(obj), atom);
+      expect(applied).toEqual({ a: 1, b: 1 });
+      const inverse = invertAtom(atom);
+      const reverted = applyAtom(deepClone(applied), inverse);
+      expect(reverted).toEqual(obj);
+    });
+
+    it('throws when copy missing value for inversion', () => {
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: '$.a' }],
+      };
+      expect(() => invertAtom(atom)).toThrow(/copy operation missing value/);
+    });
+
+    it('preserves extension properties on move/copy inversion', () => {
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b', from: '$.a', x_reason: 'rename' }],
+      };
+      const inverse = invertAtom(atom);
+      expect(inverse.operations[0].x_reason).toBe('rename');
+    });
+
+    it('multi-op inversion preserves order reversal', () => {
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [
+          { op: 'move', path: '$.b', from: '$.a' },
+          { op: 'copy', path: '$.d', from: '$.c', value: 3 },
+        ],
+      };
+      const inverse = invertAtom(atom);
+      expect(inverse.operations).toHaveLength(2);
+      // Reversed order
+      expect(inverse.operations[0]).toEqual({ op: 'remove', path: '$.d', oldValue: 3 });
+      expect(inverse.operations[1]).toEqual({ op: 'move', from: '$.b', path: '$.a' });
+    });
+  });
+
+  // ─── fromAtom rejection ─────────────────────────────────────────────────
+
+  describe('fromAtom move/copy rejection', () => {
+    it('throws on move operation', () => {
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b', from: '$.a' }],
+      };
+      expect(() => fromAtom(atom)).toThrow(/move operations cannot be converted/);
+    });
+
+    it('throws on copy operation', () => {
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: '$.a' }],
+      };
+      expect(() => fromAtom(atom)).toThrow(/copy operations cannot be converted/);
+    });
+  });
+
+  // ─── Sequential semantics ──────────────────────────────────────────────
+
+  describe('sequential semantics', () => {
+    it('move then operate on moved value', () => {
+      const obj = { a: { x: 1 } };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [
+          { op: 'move', path: '$.b', from: '$.a' },
+          { op: 'replace', path: '$.b.x', value: 2, oldValue: 1 },
+        ],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ b: { x: 2 } });
+    });
+
+    it('copy then modify independently', () => {
+      const obj = { a: { x: 1 } };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [
+          { op: 'copy', path: '$.b', from: '$.a' },
+          { op: 'replace', path: '$.b.x', value: 99, oldValue: 1 },
+        ],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.a).toEqual({ x: 1 });
+      expect(result.b).toEqual({ x: 99 });
+    });
+
+    it('multiple moves in sequence', () => {
+      const obj = { a: 1, b: 2, c: 3 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [
+          { op: 'move', path: '$.x', from: '$.a' },
+          { op: 'move', path: '$.y', from: '$.b' },
+          { op: 'move', path: '$.z', from: '$.c' },
+        ],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ x: 1, y: 2, z: 3 });
+    });
+
+    it('mixed move/copy/add/remove/replace', () => {
+      const obj = { a: 1, b: 2, c: 3 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [
+          { op: 'copy', path: '$.a_copy', from: '$.a' },
+          { op: 'move', path: '$.renamed_b', from: '$.b' },
+          { op: 'remove', path: '$.c', oldValue: 3 },
+          { op: 'add', path: '$.d', value: 4 },
+          { op: 'replace', path: '$.a', value: 10, oldValue: 1 },
+        ],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ a: 10, a_copy: 1, renamed_b: 2, d: 4 });
+    });
+  });
+
+  // ─── Edge cases ─────────────────────────────────────────────────────────
+
+  describe('edge cases', () => {
+    it('move null value', () => {
+      const obj: Record<string, any> = { a: null, b: 1 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.c', from: '$.a' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ b: 1, c: null });
+    });
+
+    it('copy null value', () => {
+      const obj: Record<string, any> = { a: null };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: '$.a' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ a: null, b: null });
+    });
+
+    it('move with bracket-quoted filter paths', () => {
+      const obj = {
+        items: [{ id: '1', name: 'Widget' }],
+        backup: {} as Record<string, any>,
+      };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.backup.item', from: "$.items[?(@.id=='1')].name" }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result.items[0]).not.toHaveProperty('name');
+      expect(result.backup.item).toBe('Widget');
+    });
+
+    it('move empty object', () => {
+      const obj = { a: {}, b: 1 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.c', from: '$.a' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ b: 1, c: {} });
+    });
+
+    it('move empty array', () => {
+      const obj = { a: [] as any[], b: 1 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.c', from: '$.a' }],
+      };
+      const result = applyAtom(obj, atom);
+      expect(result).toEqual({ b: 1, c: [] });
+    });
   });
 });

@@ -12,6 +12,8 @@ interface IChange {
   type: Operation;
   key: string;
   embeddedKey?: string | FunctionKey;
+  /** When true, embeddedKey is a dot-separated nested path (e.g. "a.b" → @.a.b). */
+  embeddedKeyIsPath?: boolean;
   value?: any;
   oldValue?: any;
   changes?: IChange[];
@@ -149,13 +151,14 @@ const revertChangeset = (obj: any, changeset: Changeset) => {
 const atomizeChangeset = (
   obj: Changeset | IChange,
   path = '$',
-  embeddedKey?: string | FunctionKey
+  embeddedKey?: string | FunctionKey,
+  embeddedKeyIsPath?: boolean
 ): IAtomicChange[] => {
   if (Array.isArray(obj)) {
-    return handleArray(obj, path, embeddedKey);
+    return handleArray(obj, path, embeddedKey, embeddedKeyIsPath);
   } else if (obj.changes || embeddedKey) {
     if (embeddedKey) {
-      const [updatedPath, atomicChange] = handleEmbeddedKey(embeddedKey, obj, path);
+      const [updatedPath, atomicChange] = handleEmbeddedKey(embeddedKey, obj, path, embeddedKeyIsPath);
       path = updatedPath;
       if (atomicChange) {
         return atomicChange;
@@ -163,7 +166,7 @@ const atomizeChangeset = (
     } else {
       path = append(path, obj.key);
     }
-    return atomizeChangeset(obj.changes || obj, path, obj.embeddedKey);
+    return atomizeChangeset(obj.changes || obj, path, obj.embeddedKey, obj.embeddedKeyIsPath);
   } else {
     const valueType = getTypeOfObj(obj.value);
     let finalPath = path;
@@ -197,7 +200,7 @@ const atomizeChangeset = (
 };
 
 // Function to handle embeddedKey logic and update the path
-function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path: string): [string, IAtomicChange[]?] {
+function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path: string, isPath?: boolean): [string, IAtomicChange[]?] {
   if (embeddedKey === '$index') {
     path = `${path}[${obj.key}]`;
     return [path];
@@ -215,13 +218,13 @@ function handleEmbeddedKey(embeddedKey: string | FunctionKey, obj: IChange, path
       ]
     ];
   } else {
-    path = filterExpression(path, embeddedKey as string, obj.key);
+    path = filterExpression(path, embeddedKey as string, obj.key, isPath);
     return [path];
   }
 }
 
-const handleArray = (obj: Changeset | IChange[], path: string, embeddedKey?: string | FunctionKey): IAtomicChange[] => {
-  return obj.reduce((memo, change) => [...memo, ...atomizeChangeset(change, path, embeddedKey)], [] as IAtomicChange[]);
+const handleArray = (obj: Changeset | IChange[], path: string, embeddedKey?: string | FunctionKey, embeddedKeyIsPath?: boolean): IAtomicChange[] => {
+  return obj.reduce((memo, change) => [...memo, ...atomizeChangeset(change, path, embeddedKey, embeddedKeyIsPath)], [] as IAtomicChange[]);
 };
 
 /**
@@ -564,12 +567,15 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   const indexedOldObj = convertArrayToObj(oldObj, uniqKey);
   const indexedNewObj = convertArrayToObj(newObj, uniqKey);
   const diffs = compareObject(indexedOldObj, indexedNewObj, path, keyPath, true, options);
+  const isFunctionKey = typeof uniqKey === 'function' && uniqKey.length === 2;
   if (diffs.length) {
+    const resolvedKey = isFunctionKey ? uniqKey(newObj[0], true) : uniqKey;
     return [
       {
         type: Operation.UPDATE,
         key: getKey(path),
-        embeddedKey: typeof uniqKey === 'function' && uniqKey.length === 2 ? uniqKey(newObj[0], true) : uniqKey,
+        embeddedKey: resolvedKey,
+        ...(isFunctionKey && typeof resolvedKey === 'string' && resolvedKey.includes('.') ? { embeddedKeyIsPath: true } : {}),
         changes: diffs
       }
     ];
@@ -845,11 +851,16 @@ function append(basePath: string, nextSegment: string): string {
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 /** returns a JSON Path filter expression; e.g., `$.pet[?(@.name=='spot')]` */
-function filterExpression(basePath: string, filterKey: string, filterValue: string) {
+function filterExpression(basePath: string, filterKey: string, filterValue: string, isPath?: boolean) {
   const escapedValue = `'${filterValue.replace(/'/g, "''")}'`;
-  const memberAccess = IDENT_RE.test(filterKey)
-    ? `.${filterKey}`
-    : `['${filterKey.replace(/'/g, "''")}']`;
+  let memberAccess: string;
+  if (isPath) {
+    memberAccess = '.' + filterKey;
+  } else if (IDENT_RE.test(filterKey)) {
+    memberAccess = `.${filterKey}`;
+  } else {
+    memberAccess = `['${filterKey.replace(/'/g, "''")}']`;
+  }
   return `${basePath}[?(@${memberAccess}==${escapedValue})]`;
 }
 

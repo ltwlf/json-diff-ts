@@ -40,7 +40,7 @@ describe('atomizeChangeset', () => {
     done();
   });
 
-  test('when identity key name contains a period, atomized filter uses bracket notation (#392)', () => {
+  test('when function-based identity key returns nested path, filter uses dot notation (#392)', () => {
     const oldObj = {
       items: [
         { positionNumber: { value: "001" }, description: "alpha" },
@@ -62,7 +62,7 @@ describe('atomizeChangeset', () => {
     const atomic = atomizeChangeset(changes);
     const removes = atomic.filter((c) => c.type === Operation.REMOVE);
     expect(removes).toHaveLength(1);
-    expect(removes[0].path).toBe("$.items[?(@['positionNumber.value']=='002')]");
+    expect(removes[0].path).toBe("$.items[?(@.positionNumber.value=='002')]");
   });
 
   test('when atomizing and unatomizing with bracket-notation filter keys', () => {

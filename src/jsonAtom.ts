@@ -611,24 +611,34 @@ function resolveValueAtPath(obj: any, atomPath: string): any {
       case 'root':
         break;
       case 'property':
+        if (current == null || typeof current !== 'object') {
+          throw new Error(`Cannot access property '${seg.name}' on ${current === null ? 'null' : typeof current} at path: ${atomPath}`);
+        }
         current = current[seg.name];
         break;
       case 'index':
+        if (!Array.isArray(current)) {
+          throw new Error(`Cannot access index ${seg.index} on non-array at path: ${atomPath}`);
+        }
         current = current[seg.index];
         break;
       case 'keyFilter': {
+        if (!Array.isArray(current)) {
+          throw new Error(`Cannot apply key filter on non-array at path: ${atomPath}`);
+        }
         const prop = seg.property;
         const isPath = !seg.literalKey && prop.includes('.') && NESTED_PATH_RE.test(prop);
-        const arr = current as any[];
-        current = arr.find((el: any) => {
+        current = current.find((el: any) => {
           const resolved = isPath ? prop.split('.').reduce((c: any, s: string) => c?.[s], el) : el[prop];
           return JSON.stringify(resolved) === JSON.stringify(seg.value);
         });
         break;
       }
       case 'valueFilter': {
-        const arr = current as any[];
-        current = arr.find((el: any) => JSON.stringify(el) === JSON.stringify(seg.value));
+        if (!Array.isArray(current)) {
+          throw new Error(`Cannot apply value filter on non-array at path: ${atomPath}`);
+        }
+        current = current.find((el: any) => JSON.stringify(el) === JSON.stringify(seg.value));
         break;
       }
     }
@@ -670,7 +680,8 @@ export function applyAtom(obj: any, atom: IJsonAtom): any {
         applyChangeset(result, unatomizeChangeset([addChange]));
       }
     } else if (op.op === 'copy') {
-      const value = JSON.parse(JSON.stringify(resolveValueAtPath(result, op.from!)));
+      const source = resolveValueAtPath(result, op.from!);
+      const value = source === undefined ? undefined : JSON.parse(JSON.stringify(source));
       const addOp: IAtomOperation = { op: 'add', path: op.path, value };
       if (addOp.path === '$') {
         result = applyRootOp(result, addOp);

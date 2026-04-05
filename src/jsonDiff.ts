@@ -852,12 +852,13 @@ function append(basePath: string, nextSegment: string): string {
 }
 
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const NESTED_PATH_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
 
 /** returns a JSON Path filter expression; e.g., `$.pet[?(@.name=='spot')]` */
 function filterExpression(basePath: string, filterKey: string, filterValue: string, isPath?: boolean) {
   const escapedValue = `'${filterValue.replace(/'/g, "''")}'`;
   let memberAccess: string;
-  if (isPath) {
+  if (isPath && NESTED_PATH_RE.test(filterKey)) {
     // Nested path: use dot notation for each segment (e.g. @.a.b)
     memberAccess = '.' + filterKey;
   } else if (IDENT_RE.test(filterKey)) {

@@ -4,7 +4,7 @@ export type AtomPathSegment =
   | { type: 'root' }
   | { type: 'property'; name: string }
   | { type: 'index'; index: number }
-  | { type: 'keyFilter'; property: string; value: unknown }
+  | { type: 'keyFilter'; property: string; value: unknown; literalKey?: boolean }
   | { type: 'valueFilter'; value: unknown };
 
 // ─── Filter Literal Formatting ──────────────────────────────────────────────
@@ -123,7 +123,7 @@ function parseFilter(inner: string): AtomPathSegment {
     const [key, endIdx] = extractQuotedString(inner, 3);
     // endIdx is at closing quote; then ']', '=', '=' follow
     const valStart = endIdx + 4; // skip past ']==
-    return { type: 'keyFilter', property: key, value: parseFilterLiteral(inner.slice(valStart)) };
+    return { type: 'keyFilter', property: key, value: parseFilterLiteral(inner.slice(valStart)), literalKey: true };
   }
   if (inner.startsWith('@==')) {
     // Value filter: @==val
@@ -224,7 +224,10 @@ export function buildAtomPath(segments: AtomPathSegment[]): string {
         break;
       case 'keyFilter': {
         let memberAccess: string;
-        if (NESTED_PATH_RE.test(seg.property)) {
+        if (seg.literalKey) {
+          // Literal property name (from bracket notation) — always bracket
+          memberAccess = `['${seg.property.replace(/'/g, "''")}']`;
+        } else if (NESTED_PATH_RE.test(seg.property)) {
           // Simple identifier or nested path — dot notation
           memberAccess = `.${seg.property}`;
         } else {

@@ -172,7 +172,7 @@ describe('parseAtomPath', () => {
     expect(parseAtomPath("$.items[?(@['a.b']==42)]")).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
-      { type: 'keyFilter', property: 'a.b', value: 42 },
+      { type: 'keyFilter', property: 'a.b', value: 42, literalKey: true },
     ]);
   });
 
@@ -263,7 +263,7 @@ describe('parseAtomPath', () => {
     expect(parseAtomPath("$.items[?(@['pos.num']==42)]")).toEqual([
       { type: 'root' },
       { type: 'property', name: 'items' },
-      { type: 'keyFilter', property: 'pos.num', value: 42 },
+      { type: 'keyFilter', property: 'pos.num', value: 42, literalKey: true },
     ]);
   });
 
@@ -567,5 +567,11 @@ describe('v4 ↔ atom path round-trips', () => {
     for (const path of canonicalPaths) {
       expect(buildAtomPath(parseAtomPath(path))).toBe(path);
     }
+  });
+
+  it('round-trips bracket-notation filter keys containing dots', () => {
+    // Bracket notation = literal property name, must not become dot notation
+    const path = "$.a[?(@['c.d']=='20')]";
+    expect(buildAtomPath(parseAtomPath(path))).toBe(path);
   });
 });

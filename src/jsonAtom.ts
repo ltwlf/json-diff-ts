@@ -220,7 +220,8 @@ function walkChanges(
             childChange.key,
             childOld,
             childNew,
-            childChange
+            childChange,
+            change.embeddedKeyIsPath
           );
 
           if (childChange.changes) {
@@ -283,7 +284,8 @@ function buildCanonicalFilterPath(
   changeKey: string,
   oldArr: any[],
   newArr: any[],
-  change: IChange
+  change: IChange,
+  embeddedKeyIsPath?: boolean
 ): string {
   if (embeddedKey === '$index') {
     return `${basePath}[${changeKey}]`;
@@ -309,9 +311,12 @@ function buildCanonicalFilterPath(
   }
 
   // Named string key
+  const isNestedPath = embeddedKeyIsPath && NESTED_PATH_RE.test(embeddedKey);
   const element = findElementByKey(oldArr, newArr, embeddedKey, changeKey, change.type);
-  const typedVal = element ? element[embeddedKey] : changeKey;
-  const memberAccess = SIMPLE_PROPERTY_RE.test(embeddedKey) ? `.${embeddedKey}` : `['${embeddedKey.replace(/'/g, "''")}']`;
+  const typedVal = isNestedPath
+    ? embeddedKey.split('.').reduce((c: any, s: string) => c?.[s], element) ?? changeKey
+    : element ? element[embeddedKey] : changeKey;
+  const memberAccess = SIMPLE_PROPERTY_RE.test(embeddedKey) || isNestedPath ? `.${embeddedKey}` : `['${embeddedKey.replace(/'/g, "''")}']`;
   return `${basePath}[?(@${memberAccess}==${formatFilterLiteral(typedVal)})]`;
 }
 

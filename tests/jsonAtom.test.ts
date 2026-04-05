@@ -384,6 +384,70 @@ describe('diffAtom', () => {
     expect(atom.operations[0].path).toBe('$.items[?(@.id==2)]');
   });
 
+  it('diffAtom with nested identity path uses dot notation (#392)', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'beta' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '003' }, description: 'gamma' },
+      ],
+    };
+
+    const changes = diffAtom(oldObj, newObj, {
+      arrayIdentityKeys: {
+        items: ((obj: any, shouldReturnKeyName?: boolean) => {
+          if (shouldReturnKeyName) return 'positionNumber.value';
+          return obj.positionNumber.value;
+        }) as any,
+      },
+    });
+
+    expect(changes.operations.length).toBe(2);
+    const removes = changes.operations.filter((c) => c.op === 'remove');
+    expect(removes).toHaveLength(1);
+    expect(removes[0].path).toBe("$.items[?(@.positionNumber.value=='002')]");
+    const adds = changes.operations.filter((c) => c.op === 'add');
+    expect(adds).toHaveLength(1);
+    expect(adds[0].path).toBe("$.items[?(@.positionNumber.value=='003')]");
+  });
+
+  it('diffAtom with nested identity path — update within element (#392)', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'beta' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'updated' },
+      ],
+    };
+
+    const changes = diffAtom(oldObj, newObj, {
+      arrayIdentityKeys: {
+        items: ((obj: any, shouldReturnKeyName?: boolean) => {
+          if (shouldReturnKeyName) return 'positionNumber.value';
+          return obj.positionNumber.value;
+        }) as any,
+      },
+    });
+
+    expect(changes.operations).toHaveLength(1);
+    expect(changes.operations[0]).toMatchObject({
+      op: 'replace',
+      path: "$.items[?(@.positionNumber.value=='002')].description",
+      value: 'updated',
+      oldValue: 'beta',
+    });
+  });
+
   it('handles nested property names with dots (bracket notation)', () => {
     const atom = diffAtom(
       { 'a.b': 1 },

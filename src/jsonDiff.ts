@@ -665,6 +665,7 @@ const removeKey = (obj: any, key: any, embeddedKey: any, isPath?: boolean) => {
 
 /** Resolve a property on an object. When isPath is true, traverses nested dot-separated segments. */
 const resolveProperty = (obj: any, key: string, isPath?: boolean): any => {
+  if (obj == null) return undefined;
   if (!isPath || !key.includes('.')) return obj[key];
   return key.split('.').reduce((cur, seg) => cur?.[seg], obj);
 };
@@ -771,7 +772,7 @@ const applyBranchChange = (obj: any, change: any) => {
   }
 };
 
-const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
+const revertLeafChange = (obj: any, change: any, embeddedKey = '$index', isPath?: boolean) => {
   const { type, key, value, oldValue } = change;
   
   // Special handling for $root key
@@ -808,7 +809,7 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
   // Regular property handling
   switch (type) {
     case Operation.ADD:
-      return removeKey(obj, key, embeddedKey);
+      return removeKey(obj, key, embeddedKey, isPath);
     case Operation.UPDATE:
       return modifyKeyValue(obj, key, oldValue);
     case Operation.REMOVE:
@@ -829,7 +830,7 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index') => {
 const revertArrayChange = (arr: any[], change: any) => {
   for (const subchange of change.changes) {
     if (subchange.value != null || subchange.type === Operation.REMOVE) {
-      revertLeafChange(arr, subchange, change.embeddedKey);
+      revertLeafChange(arr, subchange, change.embeddedKey, change.embeddedKeyIsPath);
     } else {
       let element;
       if (change.embeddedKey === '$index') {

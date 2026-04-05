@@ -75,6 +75,23 @@ describe('atomizeChangeset', () => {
     expect(JSON.stringify(appliedRoundTrip)).toEqual(JSON.stringify(newObj));
   });
 
+  test('when function-based key returns non-identifier dotted name, uses bracket notation', () => {
+    const oldObj = { items: [{ 'a-b': { c: 'x' }, v: 1 }] };
+    const newObj = { items: [{ 'a-b': { c: 'x' }, v: 2 }] };
+
+    const resolver: FunctionKey = (obj, shouldReturnKeyName) => {
+      if (shouldReturnKeyName) return "a-b.c"; // not a valid nested identifier path
+      return obj['a-b']?.c;
+    };
+
+    const changes = diff(oldObj, newObj, {
+      embeddedObjKeys: { items: resolver },
+    });
+    const atomic = atomizeChangeset(changes);
+    // a-b.c fails NESTED_PATH_RE → bracket notation, NOT dot notation
+    expect(atomic[0].path).toBe("$.items[?(@['a-b.c']=='x')].v");
+  });
+
   test('when literal dot-key identity uses bracket notation and applies correctly', () => {
     const oldObject = { a: [{ b: 1, 'c.d': 10 }] };
     const newObject = { a: [{ b: 2, 'c.d': 10 }] };

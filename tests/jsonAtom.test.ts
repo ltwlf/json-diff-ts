@@ -1536,6 +1536,46 @@ describe('move/copy operations', () => {
       expect(result.backup).toEqual(['urgent']);
     });
 
+    it('move errors on property access on non-object', () => {
+      const obj = { a: 42 };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b', from: '$.a.nested' }],
+      };
+      expect(() => applyAtom(obj, atom)).toThrow(/Cannot access property/);
+    });
+
+    it('copy errors on index access on non-array', () => {
+      const obj = { a: 'str' };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: '$.a[0]' }],
+      };
+      expect(() => applyAtom(obj, atom)).toThrow(/Cannot access index/);
+    });
+
+    it('move errors on filter on non-array', () => {
+      const obj = { a: { id: 1 } };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'move', path: '$.b', from: "$.a[?(@.id==1)]" }],
+      };
+      expect(() => applyAtom(obj, atom)).toThrow(/Cannot apply key filter/);
+    });
+
+    it('copy errors on value filter on non-array', () => {
+      const obj = { a: 'str' };
+      const atom: IJsonAtom = {
+        format: 'json-atom',
+        version: 1,
+        operations: [{ op: 'copy', path: '$.b', from: "$.a[?(@=='x')]" }],
+      };
+      expect(() => applyAtom(obj, atom)).toThrow(/Cannot apply value filter/);
+    });
+
     it('move empty array', () => {
       const obj = { a: [] as any[], b: 1 };
       const atom: IJsonAtom = {

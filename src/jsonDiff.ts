@@ -276,9 +276,12 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
           let key: string;
           let embeddedKey: string;
           let arrKey: string | number;
+          let isPath: boolean | undefined;
           if (result[1]) {
             key = result[1];
             embeddedKey = result[3] || result[2] || '$value';
+            // Dot-notation key (result[2]) with dots = nested path
+            isPath = !result[3] && result[2]?.includes('.') || undefined;
             arrKey = result[4];
           } else {
             key = result[5];
@@ -289,6 +292,7 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
           if (i === segments.length - 1) {
             ptr.key = key!;
             ptr.embeddedKey = embeddedKey!;
+            if (isPath) ptr.embeddedKeyIsPath = true;
             ptr.type = Operation.UPDATE;
             ptr.changes = [
               {
@@ -302,6 +306,7 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
             // object
             ptr.key = key;
             ptr.embeddedKey = embeddedKey;
+            if (isPath) ptr.embeddedKeyIsPath = true;
             ptr.type = Operation.UPDATE;
             const newPtr = {} as IChange;
             ptr.changes = [
@@ -643,13 +648,13 @@ const comparePrimitives = (oldObj: any, newObj: any, path: any) => {
   return changes;
 };
 
-const removeKey = (obj: any, key: any, embeddedKey: any) => {
+const removeKey = (obj: any, key: any, embeddedKey: any, isPath?: boolean) => {
   if (Array.isArray(obj)) {
     if (embeddedKey === '$index') {
       obj.splice(Number(key), 1);
       return;
     }
-    const index = indexOfItemInArray(obj, embeddedKey, key);
+    const index = indexOfItemInArray(obj, embeddedKey, key, isPath);
     if (index === -1) {
       // tslint:disable-next-line:no-console
       console.warn(`Element with the key '${embeddedKey}' and value '${key}' could not be found in the array!`);
@@ -662,20 +667,21 @@ const removeKey = (obj: any, key: any, embeddedKey: any) => {
   }
 };
 
-/** Resolve a potentially nested property path (e.g. "a.b.c") on an object. */
-const resolveProperty = (obj: any, key: string): any => {
-  if (!key.includes('.')) return obj[key];
+/** Resolve a property on an object. When isPath is true, traverses nested dot-separated segments. */
+const resolveProperty = (obj: any, key: string, isPath?: boolean): any => {
+  if (!isPath || !key.includes('.')) return obj[key];
   return key.split('.').reduce((cur, seg) => cur?.[seg], obj);
 };
 
-const indexOfItemInArray = (arr: any[], key: any, value: any) => {
+const indexOfItemInArray = (arr: any[], key: any, value: any, isPath?: boolean) => {
   if (key === '$value') {
     return arr.indexOf(value);
   }
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
-    const resolved = resolveProperty(item, key);
-    if (item && resolved ? resolved.toString() === value.toString() : undefined) {
+    if (item == null) continue;
+    const resolved = resolveProperty(item, key, isPath);
+    if (resolved != null && String(resolved) === String(value)) {
       return i;
     }
   }
@@ -695,7 +701,7 @@ const addKeyValue = (obj: any, key: any, value: any, embeddedKey?: any) => {
   }
 };
 
-const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
+const applyLeafChange = (obj: any, change: any, embeddedKey: any, isPath?: boolean) => {
   const { type, key, value } = change;
   switch (type) {
     case Operation.ADD:
@@ -703,7 +709,7 @@ const applyLeafChange = (obj: any, change: any, embeddedKey: any) => {
     case Operation.UPDATE:
       return modifyKeyValue(obj, key, value);
     case Operation.REMOVE:
-      return removeKey(obj, key, embeddedKey);
+      return removeKey(obj, key, embeddedKey, isPath);
   }
 };
 
@@ -737,7 +743,7 @@ const applyArrayChange = (arr: any[], change: any) => {
       (subchange.value === null && subchange.type === Operation.ADD) ||
       (subchange.value === undefined && subchange.type === Operation.ADD)
     ) {
-      applyLeafChange(arr, subchange, change.embeddedKey);
+      applyLeafChange(arr, subchange, change.embeddedKey, change.embeddedKeyIsPath);
     } else {
       let element;
       if (change.embeddedKey === '$index') {
@@ -748,7 +754,10 @@ const applyArrayChange = (arr: any[], change: any) => {
           element = arr[index];
         }
       } else {
-        element = arr.find((el) => resolveProperty(el, change.embeddedKey)?.toString() === subchange.key.toString());
+        element = arr.find((el) => {
+          const resolved = resolveProperty(el, change.embeddedKey, change.embeddedKeyIsPath);
+          return resolved != null && String(resolved) === String(subchange.key);
+        });
       }
       if (element) {
         applyChangeset(element, subchange.changes);
@@ -835,7 +844,10 @@ const revertArrayChange = (arr: any[], change: any) => {
           element = arr[index];
         }
       } else {
-        element = arr.find((el) => resolveProperty(el, change.embeddedKey)?.toString() === subchange.key.toString());
+        element = arr.find((el) => {
+          const resolved = resolveProperty(el, change.embeddedKey, change.embeddedKeyIsPath);
+          return resolved != null && String(resolved) === String(subchange.key);
+        });
       }
       if (element) {
         revertChangeset(element, subchange.changes);

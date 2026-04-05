@@ -75,18 +75,22 @@ describe('atomizeChangeset', () => {
     expect(JSON.stringify(appliedRoundTrip)).toEqual(JSON.stringify(newObj));
   });
 
-  test('when atomizing and unatomizing with bracket-notation filter keys', () => {
+  test('when literal dot-key identity uses bracket notation and applies correctly', () => {
     const oldObject = { a: [{ b: 1, 'c.d': 10 }] };
-    const newObject = { a: [{ b: 2, 'c.d': 20 }] };
+    const newObject = { a: [{ b: 2, 'c.d': 10 }] };
     const diffs = diff(oldObject, newObject, { embeddedObjKeys: { a: 'c.d' } });
 
-    const atomized = atomizeChangeset(diffs);
-    const unatomized = unatomizeChangeset(atomized);
+    // Apply produces correct result
+    const applied = applyChangeset(JSON.parse(JSON.stringify(oldObject)), diffs);
+    expect(JSON.stringify(applied)).toEqual(JSON.stringify(newObject));
 
-    // Round-trip: applying unatomized changes should produce same result
-    const fromOriginal = applyChangeset(JSON.parse(JSON.stringify(oldObject)), diffs);
+    // Atomize → unatomize → apply round-trip
+    const atomized = atomizeChangeset(diffs);
+    // Literal dot-key uses bracket notation
+    expect(atomized[0].path).toBe("$.a[?(@['c.d']=='10')].b");
+    const unatomized = unatomizeChangeset(atomized);
     const fromRoundTrip = applyChangeset(JSON.parse(JSON.stringify(oldObject)), unatomized);
-    expect(JSON.stringify(fromOriginal)).toEqual(JSON.stringify(fromRoundTrip));
+    expect(JSON.stringify(fromRoundTrip)).toEqual(JSON.stringify(newObject));
   });
 
   test('when identity key value contains a single quote', () => {

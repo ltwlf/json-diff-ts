@@ -64,6 +64,15 @@ describe('atomizeChangeset', () => {
     expect(removes).toHaveLength(1);
     // Nested path from function key → dot notation per RFC 9535
     expect(removes[0].path).toBe("$.items[?(@.positionNumber.value=='002')]");
+
+    // Apply changeset should produce the expected result
+    const applied = applyChangeset(JSON.parse(JSON.stringify(oldObj)), changes);
+    expect(JSON.stringify(applied)).toEqual(JSON.stringify(newObj));
+
+    // Atomize → unatomize → apply round-trip
+    const unatomized = unatomizeChangeset(atomic);
+    const appliedRoundTrip = applyChangeset(JSON.parse(JSON.stringify(oldObj)), unatomized);
+    expect(JSON.stringify(appliedRoundTrip)).toEqual(JSON.stringify(newObj));
   });
 
   test('when atomizing and unatomizing with bracket-notation filter keys', () => {

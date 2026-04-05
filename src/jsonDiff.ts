@@ -262,12 +262,9 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
     } else {
       for (let i = 1; i < segments.length; i++) {
         const segment = segments[i];
-        // Matches JSONPath filter segments and array index segments:
-        //   "items[?(@.id=='123')]"       — dot-notation key filter
-        //   "items[?(@['c.d']=='20')]"    — bracket-notation key filter
-        //   "items[?(@=='123')]"          — value filter
-        //   "items[2]"                    — array index
-        const result = /^([^[\]]+)\[\?\(@(?:\.?([^=[]*)|(?:\['([^']*)'\]))=+'([^']+)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
+        // Matches JSONPath filter segments and array index segments.
+        // Supports doubled-quote escaping in bracket keys and filter values (e.g. O''Brien).
+        const result = /^([^[\]]+)\[\?\(@(?:\.?([^=[]*)|(?:\['([^']*(?:''[^']*)*)'\]))=+'([^']*(?:''[^']*)*)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
         // array
         if (result) {
           let key: string;
@@ -276,9 +273,10 @@ const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
           let isPath: boolean | undefined;
           if (result[1]) {
             key = result[1];
-            embeddedKey = result[3] || result[2] || '$value';
+            // Unescape doubled quotes in bracket keys and filter values
+            embeddedKey = (result[3]?.replace(/''/g, "'") || result[2] || '$value');
             isPath = !result[3] && result[2]?.includes('.') || undefined;
-            arrKey = result[4];
+            arrKey = result[4]?.replace(/''/g, "'");
           } else {
             key = result[5];
             embeddedKey = '$index';

@@ -91,22 +91,28 @@ describe('atomizeChangeset', () => {
     expect(JSON.stringify(fromRoundTrip)).toEqual(JSON.stringify(newObject));
   });
 
-  test('when identity key value contains a single quote', () => {
+  test('when identity key value contains a single quote, round-trips correctly', () => {
     const oldObj = { items: [{ name: "O'Brien", v: 1 }] };
     const newObj = { items: [{ name: "O'Brien", v: 2 }] };
     const changes = diff(oldObj, newObj, { embeddedObjKeys: { items: 'name' } });
     const atomic = atomizeChangeset(changes);
-    // Single quotes in filter value must be escaped as doubled quotes
     expect(atomic[0].path).toBe("$.items[?(@.name=='O''Brien')].v");
+
+    const unatomized = unatomizeChangeset(atomic);
+    const applied = applyChangeset(JSON.parse(JSON.stringify(oldObj)), unatomized);
+    expect(JSON.stringify(applied)).toEqual(JSON.stringify(newObj));
   });
 
-  test('when identity key name contains a single quote', () => {
+  test('when identity key name contains a single quote, round-trips correctly', () => {
     const oldObj = { items: [{ "it's": 'x', v: 1 }] };
     const newObj = { items: [{ "it's": 'x', v: 2 }] };
     const changes = diff(oldObj, newObj, { embeddedObjKeys: { items: "it's" } });
     const atomic = atomizeChangeset(changes);
-    // Single quotes in filter key must be escaped
     expect(atomic[0].path).toBe("$.items[?(@['it''s']=='x')].v");
+
+    const unatomized = unatomizeChangeset(atomic);
+    const applied = applyChangeset(JSON.parse(JSON.stringify(oldObj)), unatomized);
+    expect(JSON.stringify(applied)).toEqual(JSON.stringify(newObj));
   });
 
   test('when atomizing and unatomizing object properties', (done) => {

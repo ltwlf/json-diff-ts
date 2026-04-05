@@ -569,7 +569,7 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   const diffs = compareObject(indexedOldObj, indexedNewObj, path, keyPath, true, options);
   const isFunctionKey = typeof uniqKey === 'function' && uniqKey.length === 2;
   if (diffs.length) {
-    const resolvedKey = isFunctionKey ? uniqKey(newObj[0], true) : uniqKey;
+    const resolvedKey = isFunctionKey ? uniqKey(newObj[0] ?? oldObj[0], true) : uniqKey;
     return [
       {
         type: Operation.UPDATE,
@@ -659,13 +659,20 @@ const removeKey = (obj: any, key: any, embeddedKey: any) => {
   }
 };
 
+/** Resolve a potentially nested property path (e.g. "a.b.c") on an object. */
+const resolveProperty = (obj: any, key: string): any => {
+  if (!key.includes('.')) return obj[key];
+  return key.split('.').reduce((cur, seg) => cur?.[seg], obj);
+};
+
 const indexOfItemInArray = (arr: any[], key: any, value: any) => {
   if (key === '$value') {
     return arr.indexOf(value);
   }
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
-    if (item && item[key] ? item[key].toString() === value.toString() : undefined) {
+    const resolved = resolveProperty(item, key);
+    if (item && resolved ? resolved.toString() === value.toString() : undefined) {
       return i;
     }
   }
@@ -738,7 +745,7 @@ const applyArrayChange = (arr: any[], change: any) => {
           element = arr[index];
         }
       } else {
-        element = arr.find((el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+        element = arr.find((el) => resolveProperty(el, change.embeddedKey)?.toString() === subchange.key.toString());
       }
       if (element) {
         applyChangeset(element, subchange.changes);
@@ -825,7 +832,7 @@ const revertArrayChange = (arr: any[], change: any) => {
           element = arr[index];
         }
       } else {
-        element = arr.find((el) => el[change.embeddedKey]?.toString() === subchange.key.toString());
+        element = arr.find((el) => resolveProperty(el, change.embeddedKey)?.toString() === subchange.key.toString());
       }
       if (element) {
         revertChangeset(element, subchange.changes);
@@ -849,12 +856,13 @@ function append(basePath: string, nextSegment: string): string {
 }
 
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const NESTED_PATH_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
 
 /** returns a JSON Path filter expression; e.g., `$.pet[?(@.name=='spot')]` */
 function filterExpression(basePath: string, filterKey: string, filterValue: string, isPath?: boolean) {
   const escapedValue = `'${filterValue.replace(/'/g, "''")}'`;
   let memberAccess: string;
-  if (isPath) {
+  if (isPath && NESTED_PATH_RE.test(filterKey)) {
     memberAccess = '.' + filterKey;
   } else if (IDENT_RE.test(filterKey)) {
     memberAccess = `.${filterKey}`;

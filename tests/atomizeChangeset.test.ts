@@ -1,4 +1,4 @@
-import { diff, atomizeChangeset, applyChangeset, unatomizeChangeset, Operation } from '../src/jsonDiff';
+import { diff, atomizeChangeset, applyChangeset, revertChangeset, unatomizeChangeset, Operation } from '../src/jsonDiff';
 import type { FunctionKey } from '../src/helpers';
 
 describe('atomizeChangeset', () => {
@@ -129,6 +129,72 @@ describe('atomizeChangeset', () => {
     const unatomized = unatomizeChangeset(atomic);
     const applied = applyChangeset(JSON.parse(JSON.stringify(oldObj)), unatomized);
     expect(JSON.stringify(applied)).toEqual(JSON.stringify(newObj));
+  });
+
+  test('when string-based nested identity key uses dot notation and round-trips', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'beta' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'updated' },
+      ],
+    };
+
+    const changes = diff(oldObj, newObj, {
+      embeddedObjKeys: { items: 'positionNumber.value' },
+    });
+    const atomic = atomizeChangeset(changes);
+    expect(atomic).toHaveLength(1);
+    expect(atomic[0].path).toBe("$.items[?(@.positionNumber.value=='002')].description");
+
+    // Apply round-trip
+    const applied = applyChangeset(JSON.parse(JSON.stringify(oldObj)), changes);
+    expect(JSON.stringify(applied)).toEqual(JSON.stringify(newObj));
+
+    // Atomize → unatomize → apply round-trip
+    const unatomized = unatomizeChangeset(atomic);
+    const appliedRoundTrip = applyChangeset(JSON.parse(JSON.stringify(oldObj)), unatomized);
+    expect(JSON.stringify(appliedRoundTrip)).toEqual(JSON.stringify(newObj));
+  });
+
+  test('when null identity value, apply and revert work correctly', () => {
+    const oldObj = {
+      items: [
+        { status: null, label: 'pending' },
+        { status: 'OK', label: 'done' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { status: null, label: 'waiting' },
+        { status: 'OK', label: 'done' },
+      ],
+    };
+
+    const changes = diff(oldObj, newObj, {
+      embeddedObjKeys: { items: 'status' },
+    });
+
+    // Apply
+    const applied = applyChangeset(JSON.parse(JSON.stringify(oldObj)), changes);
+    expect(JSON.stringify(applied)).toEqual(JSON.stringify(newObj));
+
+    // Revert
+    const reverted = JSON.parse(JSON.stringify(newObj));
+    revertChangeset(reverted, changes);
+    expect(JSON.stringify(reverted)).toEqual(JSON.stringify(oldObj));
+
+    // Atomize → unatomize → apply round-trip
+    const atomic = atomizeChangeset(changes);
+    expect(atomic[0].path).toContain("status=='null'");
+    const unatomized = unatomizeChangeset(atomic);
+    const appliedRoundTrip = applyChangeset(JSON.parse(JSON.stringify(oldObj)), unatomized);
+    expect(JSON.stringify(appliedRoundTrip)).toEqual(JSON.stringify(newObj));
   });
 
   test('when atomizing and unatomizing object properties', (done) => {

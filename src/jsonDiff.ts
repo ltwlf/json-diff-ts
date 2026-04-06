@@ -575,9 +575,9 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
     // Nested path when resolvedKey contains '.' and matches NESTED_PATH_RE.
     // Function keys qualify directly; string keys qualify only if the sample
     // element does not expose resolvedKey as a literal property.
-    const sampleEl = newObj[0] ?? oldObj[0];
+    const sampleEl = [...newObj, ...oldObj].find((el) => el != null && typeof el === 'object');
     const isNestedPath = typeof resolvedKey === 'string' && resolvedKey.includes('.') && NESTED_PATH_RE.test(resolvedKey)
-      && (isFunctionKey || !(sampleEl != null && typeof sampleEl === 'object' && resolvedKey in sampleEl));
+      && (isFunctionKey || !(sampleEl != null && resolvedKey in sampleEl));
     return [
       {
         type: Operation.UPDATE,

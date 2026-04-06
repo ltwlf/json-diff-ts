@@ -1,4 +1,4 @@
-import { diff, atomizeChangeset, applyChangeset, unatomizeChangeset, Operation } from '../src/jsonDiff';
+import { diff, atomizeChangeset, applyChangeset, revertChangeset, unatomizeChangeset, Operation } from '../src/jsonDiff';
 import type { FunctionKey } from '../src/helpers';
 
 describe('atomizeChangeset', () => {
@@ -183,6 +183,11 @@ describe('atomizeChangeset', () => {
     // Apply
     const applied = applyChangeset(JSON.parse(JSON.stringify(oldObj)), changes);
     expect(JSON.stringify(applied)).toEqual(JSON.stringify(newObj));
+
+    // Revert
+    const reverted = JSON.parse(JSON.stringify(newObj));
+    revertChangeset(reverted, changes);
+    expect(JSON.stringify(reverted)).toEqual(JSON.stringify(oldObj));
 
     // Atomize → unatomize → apply round-trip
     const atomic = atomizeChangeset(changes);

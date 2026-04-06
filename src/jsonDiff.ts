@@ -632,7 +632,7 @@ const convertArrayToObj = (arr: any[], uniqKey: any) => {
     const keyFunction = typeof uniqKey === 'string'
       ? (maybeNestedPath
           ? (item: any) => (item != null && typeof item === 'object' && uniqKey in item) ? item[uniqKey] : resolveProperty(item, uniqKey, true)
-          : (item: any) => item[uniqKey])
+          : (item: any) => item != null ? item[uniqKey] : undefined)
       : uniqKey;
     obj = keyBy(arr, keyFunction);
   }

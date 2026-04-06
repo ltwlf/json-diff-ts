@@ -312,10 +312,9 @@ function buildCanonicalFilterPath(
 
   // Named string key
   const isNestedPath = embeddedKeyIsPath && NESTED_PATH_RE.test(embeddedKey);
-  const element = findElementByKey(oldArr, newArr, embeddedKey, changeKey, change.type);
-  const typedVal = isNestedPath
-    ? embeddedKey.split('.').reduce((c: any, s: string) => c?.[s], element) ?? changeKey
-    : element ? element[embeddedKey] : changeKey;
+  const element = findElementByKey(oldArr, newArr, embeddedKey, changeKey, change.type, isNestedPath);
+  const resolved = element !== undefined ? resolveNestedKey(element, embeddedKey, !!isNestedPath) : undefined;
+  const typedVal = resolved !== undefined ? resolved : changeKey;
   const memberAccess = SIMPLE_PROPERTY_RE.test(embeddedKey) || isNestedPath ? `.${embeddedKey}` : `['${embeddedKey.replace(/'/g, "''")}']`;
   return `${basePath}[?(@${memberAccess}==${formatFilterLiteral(typedVal)})]`;
 }
@@ -365,20 +364,29 @@ function findElement(arr: any[], embeddedKey: string | FunctionKey, changeKey: s
   return arr.find((item) => item && String(item[embeddedKey]) === changeKey);
 }
 
+function resolveNestedKey(item: any, key: string, isPath: boolean): any {
+  if (isPath) {
+    return key.split('.').reduce((c: any, s: string) => c?.[s], item);
+  }
+  return item?.[key];
+}
+
 function findElementByKey(
   oldArr: any[],
   newArr: any[],
   embeddedKey: string,
   changeKey: string,
-  opType: Operation
+  opType: Operation,
+  isPath?: boolean
 ): any {
+  const match = (item: any) => item && String(resolveNestedKey(item, embeddedKey, !!isPath)) === changeKey;
   // For REMOVE ops, element is in old array. For ADD, in new. For UPDATE, prefer old.
   if (opType === Operation.REMOVE || opType === Operation.UPDATE) {
-    const el = oldArr?.find((item) => item && String(item[embeddedKey]) === changeKey);
+    const el = oldArr?.find(match);
     if (el) return el;
   }
   if (opType === Operation.ADD || opType === Operation.UPDATE) {
-    const el = newArr?.find((item) => item && String(item[embeddedKey]) === changeKey);
+    const el = newArr?.find(match);
     if (el) return el;
   }
   return undefined;

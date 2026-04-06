@@ -384,6 +384,285 @@ describe('diffAtom', () => {
     expect(atom.operations[0].path).toBe('$.items[?(@.id==2)]');
   });
 
+  it('diffAtom with nested identity path uses dot notation (#392)', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'beta' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '003' }, description: 'gamma' },
+      ],
+    };
+
+    const changes = diffAtom(oldObj, newObj, {
+      arrayIdentityKeys: {
+        items: ((obj: any, shouldReturnKeyName?: boolean) => {
+          if (shouldReturnKeyName) return 'positionNumber.value';
+          return obj.positionNumber.value;
+        }) as any,
+      },
+    });
+
+    expect(changes.operations.length).toBe(2);
+    const removes = changes.operations.filter((c) => c.op === 'remove');
+    expect(removes).toHaveLength(1);
+    expect(removes[0].path).toBe("$.items[?(@.positionNumber.value=='002')]");
+    const adds = changes.operations.filter((c) => c.op === 'add');
+    expect(adds).toHaveLength(1);
+    expect(adds[0].path).toBe("$.items[?(@.positionNumber.value=='003')]");
+  });
+
+  it('diffAtom with nested identity path — update within element (#392)', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'beta' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'updated' },
+      ],
+    };
+
+    const changes = diffAtom(oldObj, newObj, {
+      arrayIdentityKeys: {
+        items: ((obj: any, shouldReturnKeyName?: boolean) => {
+          if (shouldReturnKeyName) return 'positionNumber.value';
+          return obj.positionNumber.value;
+        }) as any,
+      },
+    });
+
+    expect(changes.operations).toHaveLength(1);
+    expect(changes.operations[0]).toMatchObject({
+      op: 'replace',
+      path: "$.items[?(@.positionNumber.value=='002')].description",
+      value: 'updated',
+      oldValue: 'beta',
+    });
+  });
+
+  it('diffAtom → applyAtom full round-trip with nested identity path (#392)', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'beta' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '003' }, description: 'gamma' },
+      ],
+    };
+
+    const identityKey = ((obj: any, shouldReturnKeyName?: boolean) => {
+      if (shouldReturnKeyName) return 'positionNumber.value';
+      return obj.positionNumber.value;
+    }) as any;
+
+    const atom = diffAtom(oldObj, newObj, { arrayIdentityKeys: { items: identityKey } });
+    const result = applyAtom(JSON.parse(JSON.stringify(oldObj)), atom);
+    expect(result).toEqual(newObj);
+  });
+
+  it('diffAtom → applyAtom → revertAtom round-trip with nested identity path (#392)', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'beta' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'updated' },
+      ],
+    };
+
+    const identityKey = ((obj: any, shouldReturnKeyName?: boolean) => {
+      if (shouldReturnKeyName) return 'positionNumber.value';
+      return obj.positionNumber.value;
+    }) as any;
+
+    const atom = diffAtom(oldObj, newObj, { arrayIdentityKeys: { items: identityKey } });
+    const applied = applyAtom(JSON.parse(JSON.stringify(oldObj)), atom);
+    expect(applied).toEqual(newObj);
+    const reverted = revertAtom(JSON.parse(JSON.stringify(applied)), atom);
+    expect(reverted).toEqual(oldObj);
+  });
+
+  it('diffAtom with string-based nested identity key (not function) (#392)', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'beta' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+      ],
+    };
+
+    const atom = diffAtom(oldObj, newObj, {
+      embeddedObjKeys: { items: 'positionNumber.value' },
+    });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].op).toBe('remove');
+    expect(atom.operations[0].path).toBe("$.items[?(@.positionNumber.value=='002')]");
+
+    // Round-trip
+    const result = applyAtom(JSON.parse(JSON.stringify(oldObj)), atom);
+    expect(result).toEqual(newObj);
+  });
+
+  it('diffAtom with 3-level nested identity path (a.b.c)', () => {
+    const oldObj = {
+      items: [
+        { meta: { org: { id: 'X' } }, val: 10 },
+        { meta: { org: { id: 'Y' } }, val: 20 },
+      ],
+    };
+    const newObj = {
+      items: [
+        { meta: { org: { id: 'X' } }, val: 10 },
+        { meta: { org: { id: 'Y' } }, val: 30 },
+      ],
+    };
+
+    const identityKey = ((obj: any, shouldReturnKeyName?: boolean) => {
+      if (shouldReturnKeyName) return 'meta.org.id';
+      return obj.meta.org.id;
+    }) as any;
+
+    const atom = diffAtom(oldObj, newObj, { arrayIdentityKeys: { items: identityKey } });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].path).toBe("$.items[?(@.meta.org.id=='Y')].val");
+
+    // Round-trip
+    const result = applyAtom(JSON.parse(JSON.stringify(oldObj)), atom);
+    expect(result).toEqual(newObj);
+    const reverted = revertAtom(JSON.parse(JSON.stringify(result)), atom);
+    expect(reverted).toEqual(oldObj);
+  });
+
+  it('diffAtom with nested identity path — numeric value', () => {
+    const oldObj = {
+      items: [
+        { code: { num: 1 }, name: 'Widget' },
+        { code: { num: 2 }, name: 'Gadget' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { code: { num: 1 }, name: 'Widget' },
+        { code: { num: 2 }, name: 'Updated' },
+      ],
+    };
+
+    const identityKey = ((obj: any, shouldReturnKeyName?: boolean) => {
+      if (shouldReturnKeyName) return 'code.num';
+      return obj.code.num;
+    }) as any;
+
+    const atom = diffAtom(oldObj, newObj, { arrayIdentityKeys: { items: identityKey } });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].path).toBe('$.items[?(@.code.num==2)].name');
+
+    const result = applyAtom(JSON.parse(JSON.stringify(oldObj)), atom);
+    expect(result).toEqual(newObj);
+  });
+
+  it('diffAtom with nested identity path — boolean value', () => {
+    const oldObj = {
+      items: [
+        { config: { active: true }, label: 'on' },
+        { config: { active: false }, label: 'off' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { config: { active: true }, label: 'on' },
+        { config: { active: false }, label: 'disabled' },
+      ],
+    };
+
+    const identityKey = ((obj: any, shouldReturnKeyName?: boolean) => {
+      if (shouldReturnKeyName) return 'config.active';
+      return obj.config.active;
+    }) as any;
+
+    const atom = diffAtom(oldObj, newObj, { arrayIdentityKeys: { items: identityKey } });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].path).toBe('$.items[?(@.config.active==false)].label');
+
+    const result = applyAtom(JSON.parse(JSON.stringify(oldObj)), atom);
+    expect(result).toEqual(newObj);
+  });
+
+  it('diffAtom with nested identity path — null value', () => {
+    const oldObj = {
+      items: [
+        { status: { code: null }, label: 'pending' },
+        { status: { code: 'OK' }, label: 'done' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { status: { code: null }, label: 'waiting' },
+        { status: { code: 'OK' }, label: 'done' },
+      ],
+    };
+
+    const identityKey = ((obj: any, shouldReturnKeyName?: boolean) => {
+      if (shouldReturnKeyName) return 'status.code';
+      return obj.status.code;
+    }) as any;
+
+    const atom = diffAtom(oldObj, newObj, { arrayIdentityKeys: { items: identityKey } });
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].path).toBe('$.items[?(@.status.code==null)].label');
+
+    const result = applyAtom(JSON.parse(JSON.stringify(oldObj)), atom);
+    expect(result).toEqual(newObj);
+  });
+
+  it('toAtom bridge with nested identity paths', () => {
+    const oldObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'beta' },
+      ],
+    };
+    const newObj = {
+      items: [
+        { positionNumber: { value: '001' }, description: 'alpha' },
+        { positionNumber: { value: '002' }, description: 'updated' },
+      ],
+    };
+
+    const identityKey = ((obj: any, shouldReturnKeyName?: boolean) => {
+      if (shouldReturnKeyName) return 'positionNumber.value';
+      return obj.positionNumber.value;
+    }) as any;
+
+    const changeset = diff(oldObj, newObj, { arrayIdentityKeys: { items: identityKey } });
+    const atom = toAtom(changeset);
+    expect(atom.operations).toHaveLength(1);
+    expect(atom.operations[0].path).toContain('positionNumber.value');
+
+    // Apply via atom path
+    const result = applyAtom(JSON.parse(JSON.stringify(oldObj)), atom);
+    expect(result).toEqual(newObj);
+  });
+
   it('handles nested property names with dots (bracket notation)', () => {
     const atom = diffAtom(
       { 'a.b': 1 },

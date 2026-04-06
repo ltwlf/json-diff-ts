@@ -576,12 +576,17 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   const isFunctionKey = typeof uniqKey === 'function' && uniqKey.length === 2;
   if (diffs.length) {
     const resolvedKey = isFunctionKey ? uniqKey(newObj[0] ?? oldObj[0], true) : uniqKey;
+    // Determine if the key is a nested path: function keys always signal nested paths via NESTED_PATH_RE;
+    // string keys are nested only when data doesn't have the literal property.
+    const sampleEl = newObj[0] ?? oldObj[0];
+    const isNestedPath = typeof resolvedKey === 'string' && resolvedKey.includes('.') && NESTED_PATH_RE.test(resolvedKey)
+      && (isFunctionKey || !(sampleEl != null && resolvedKey in sampleEl));
     return [
       {
         type: Operation.UPDATE,
         key: getKey(path),
         embeddedKey: resolvedKey,
-        ...(isFunctionKey && typeof resolvedKey === 'string' && NESTED_PATH_RE.test(resolvedKey) && resolvedKey.includes('.') ? { embeddedKeyIsPath: true } : {}),
+        ...(isNestedPath ? { embeddedKeyIsPath: true } : {}),
         changes: diffs
       }
     ];
@@ -626,8 +631,12 @@ const convertArrayToObj = (arr: any[], uniqKey: any) => {
       obj[i] = value;
     }
   } else {
-    // Convert string keys to functions for compatibility with es-toolkit keyBy
-    const keyFunction = typeof uniqKey === 'string' ? (item: any) => item[uniqKey] : uniqKey;
+    const maybeNestedPath = typeof uniqKey === 'string' && uniqKey.includes('.') && NESTED_PATH_RE.test(uniqKey);
+    const keyFunction = typeof uniqKey === 'string'
+      ? (maybeNestedPath
+          ? (item: any) => (item != null && uniqKey in item) ? item[uniqKey] : resolveProperty(item, uniqKey, true)
+          : (item: any) => item[uniqKey])
+      : uniqKey;
     obj = keyBy(arr, keyFunction);
   }
   return obj;
@@ -680,7 +689,7 @@ const indexOfItemInArray = (arr: any[], key: any, value: any, isPath?: boolean) 
     const item = arr[i];
     if (item == null) continue;
     const resolved = resolveProperty(item, key, isPath);
-    if (resolved != null && String(resolved) === String(value)) {
+    if (resolved !== undefined && String(resolved) === String(value)) {
       return i;
     }
   }
@@ -755,7 +764,7 @@ const applyArrayChange = (arr: any[], change: any) => {
       } else {
         element = arr.find((el) => {
           const resolved = resolveProperty(el, change.embeddedKey, change.embeddedKeyIsPath);
-          return resolved != null && String(resolved) === String(subchange.key);
+          return resolved !== undefined && String(resolved) === String(subchange.key);
         });
       }
       if (element) {
@@ -845,7 +854,7 @@ const revertArrayChange = (arr: any[], change: any) => {
       } else {
         element = arr.find((el) => {
           const resolved = resolveProperty(el, change.embeddedKey, change.embeddedKeyIsPath);
-          return resolved != null && String(resolved) === String(subchange.key);
+          return resolved !== undefined && String(resolved) === String(subchange.key);
         });
       }
       if (element) {

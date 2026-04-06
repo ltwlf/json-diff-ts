@@ -576,11 +576,12 @@ const compareArray = (oldObj: any, newObj: any, path: any, keyPath: any, options
   const isFunctionKey = typeof uniqKey === 'function' && uniqKey.length === 2;
   if (diffs.length) {
     const resolvedKey = isFunctionKey ? uniqKey(newObj[0] ?? oldObj[0], true) : uniqKey;
-    // Determine if the key is a nested path: function keys always signal nested paths via NESTED_PATH_RE;
-    // string keys are nested only when data doesn't have the literal property.
+    // Nested path when resolvedKey contains '.' and matches NESTED_PATH_RE.
+    // Function keys qualify directly; string keys qualify only if the sample
+    // element does not expose resolvedKey as a literal property.
     const sampleEl = newObj[0] ?? oldObj[0];
     const isNestedPath = typeof resolvedKey === 'string' && resolvedKey.includes('.') && NESTED_PATH_RE.test(resolvedKey)
-      && (isFunctionKey || !(sampleEl != null && resolvedKey in sampleEl));
+      && (isFunctionKey || !(sampleEl != null && typeof sampleEl === 'object' && resolvedKey in sampleEl));
     return [
       {
         type: Operation.UPDATE,
@@ -634,7 +635,7 @@ const convertArrayToObj = (arr: any[], uniqKey: any) => {
     const maybeNestedPath = typeof uniqKey === 'string' && uniqKey.includes('.') && NESTED_PATH_RE.test(uniqKey);
     const keyFunction = typeof uniqKey === 'string'
       ? (maybeNestedPath
-          ? (item: any) => (item != null && uniqKey in item) ? item[uniqKey] : resolveProperty(item, uniqKey, true)
+          ? (item: any) => (item != null && typeof item === 'object' && uniqKey in item) ? item[uniqKey] : resolveProperty(item, uniqKey, true)
           : (item: any) => item[uniqKey])
       : uniqKey;
     obj = keyBy(arr, keyFunction);

@@ -213,7 +213,8 @@ function walkChanges(
 
       if (change.embeddedKey) {
         // Array level — process each child with filter expression
-        for (const childChange of change.changes) {
+        const orderedChildChanges = orderArrayChildChanges(change.changes, change.embeddedKey);
+        for (const childChange of orderedChildChanges) {
           const filterPath = buildCanonicalFilterPath(
             childPath,
             change.embeddedKey,
@@ -243,6 +244,16 @@ function walkChanges(
       emitLeafOp(change, path, ops, options);
     }
   }
+}
+
+function orderArrayChildChanges(changes: IChange[], embeddedKey: string | FunctionKey): IChange[] {
+  if (embeddedKey !== '$index') {
+    return changes;
+  }
+
+  const removes = changes.filter((c) => c.type === Operation.REMOVE).sort((a, b) => Number(b.key) - Number(a.key));
+  const rest = changes.filter((c) => c.type !== Operation.REMOVE);
+  return [...rest, ...removes];
 }
 
 function emitLeafOp(

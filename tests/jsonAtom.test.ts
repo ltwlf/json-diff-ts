@@ -203,6 +203,42 @@ describe('diffAtom', () => {
     });
   });
 
+  it('applies multiple index-based removes correctly without identity keys (#404)', () => {
+    const oldObj = {
+      bankAccounts: [
+        { iban: 'DE12345678901234567890', bic: 'BIC123456' },
+        { iban: 'DE23456789012345678901', bic: 'BIC234567' },
+        { iban: 'DE23456789012345678902', bic: 'BIC234567' },
+      ],
+    };
+    const newObj = {
+      bankAccounts: [{ iban: 'DE11456789012345678999', bic: 'BIC123456' }],
+    };
+
+    const atom = diffAtom(oldObj, newObj);
+    expect(atom.operations).toEqual([
+      {
+        op: 'replace',
+        path: '$.bankAccounts[0].iban',
+        oldValue: 'DE12345678901234567890',
+        value: 'DE11456789012345678999',
+      },
+      {
+        op: 'remove',
+        path: '$.bankAccounts[2]',
+        oldValue: { iban: 'DE23456789012345678902', bic: 'BIC234567' },
+      },
+      {
+        op: 'remove',
+        path: '$.bankAccounts[1]',
+        oldValue: { iban: 'DE23456789012345678901', bic: 'BIC234567' },
+      },
+    ]);
+
+    const applied = applyAtom(structuredClone(oldObj), atom);
+    expect(applied).toEqual(newObj);
+  });
+
   it('handles arrays with named key (string IDs)', () => {
     const atom = diffAtom(
       { items: [{ id: '1', name: 'Widget' }] },

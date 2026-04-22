@@ -285,6 +285,7 @@ function orderArrayChildChanges(changes: IChange[], embeddedKey: string | Functi
   }
 
   const removeIndices = pureRemoves.map((change) => Number(change.key));
+  /* istanbul ignore next -- $index keys are always integer-like from diff(); fallback is defensive */
   if (removeIndices.some((idx) => !Number.isInteger(idx))) {
     // Defensive fallback: if keys are not numeric, keep original order.
     return changes;

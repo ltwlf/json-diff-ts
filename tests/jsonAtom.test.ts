@@ -272,6 +272,27 @@ describe('diffAtom', () => {
     expect(applied).toEqual(newObj);
   });
 
+  it('keeps index type-change REMOVE+ADD pairs in order while still applying correctly', () => {
+    const oldObj = { items: [1, 2, 3, 4] };
+    const newObj = { items: ['x', 2] };
+
+    const atom = diffAtom(oldObj, newObj);
+    expect(applyAtom(structuredClone(oldObj), atom)).toEqual(newObj);
+
+    // Ensure pure removes (excluding paired type-change REMOVE+ADD at same index) stay descending.
+    const addIndices = new Set(
+      atom.operations
+        .filter((op) => op.op === 'add')
+        .map((op) => Number(op.path.match(/\[(\d+)\]$/)?.[1]))
+    );
+    const pureRemoveIndices = atom.operations
+      .filter((op) => op.op === 'remove')
+      .map((op) => Number(op.path.match(/\[(\d+)\]$/)?.[1]))
+      .filter((idx) => !addIndices.has(idx));
+
+    expect(pureRemoveIndices).toEqual([...pureRemoveIndices].sort((a, b) => b - a));
+  });
+
   it('handles arrays with named key (string IDs)', () => {
     const atom = diffAtom(
       { items: [{ id: '1', name: 'Widget' }] },

@@ -251,32 +251,57 @@ function orderArrayChildChanges(changes: IChange[], embeddedKey: string | Functi
     return changes;
   }
 
-  const removeSlots: number[] = [];
-  const removes: IChange[] = [];
+  type OrderedGroup = { kind: 'pure-remove' } | { kind: 'preserved'; changes: IChange[] };
+  const groups: OrderedGroup[] = [];
+  const pureRemoves: IChange[] = [];
 
   for (let i = 0; i < changes.length; i++) {
-    if (changes[i].type === Operation.REMOVE) {
-      removeSlots.push(i);
-      removes.push(changes[i]);
+    const current = changes[i];
+    const next = changes[i + 1];
+
+    // Keep REMOVE+ADD type-change pairs together and in original order.
+    if (
+      current.type === Operation.REMOVE &&
+      next &&
+      next.type === Operation.ADD &&
+      String(current.key) === String(next.key)
+    ) {
+      groups.push({ kind: 'preserved', changes: [current, next] });
+      i++;
+      continue;
     }
+
+    if (current.type === Operation.REMOVE) {
+      pureRemoves.push(current);
+      groups.push({ kind: 'pure-remove' });
+      continue;
+    }
+
+    groups.push({ kind: 'preserved', changes: [current] });
   }
 
-  if (removes.length < 2) {
+  if (pureRemoves.length < 2) {
     return changes;
   }
 
-  const removeIndices = removes.map((change) => Number(change.key));
+  const removeIndices = pureRemoves.map((change) => Number(change.key));
   if (removeIndices.some((idx) => !Number.isInteger(idx))) {
     // Defensive fallback: if keys are not numeric, keep original order.
     return changes;
   }
 
-  removes.sort((a, b) => Number(b.key) - Number(a.key));
+  pureRemoves.sort((a, b) => Number(b.key) - Number(a.key));
 
-  const ordered = [...changes];
-  for (let i = 0; i < removeSlots.length; i++) {
-    ordered[removeSlots[i]] = removes[i];
+  const ordered: IChange[] = [];
+  let removeIndex = 0;
+  for (const group of groups) {
+    if (group.kind === 'pure-remove') {
+      ordered.push(pureRemoves[removeIndex++]);
+    } else {
+      ordered.push(...group.changes);
+    }
   }
+
   return ordered;
 }
 

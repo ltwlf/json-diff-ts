@@ -265,6 +265,12 @@ function orderArrayChildChanges(changes: IChange[], embeddedKey: string | Functi
     return changes;
   }
 
+  const removeIndices = removes.map((change) => Number(change.key));
+  if (removeIndices.some((idx) => !Number.isInteger(idx))) {
+    // Defensive fallback: if keys are not numeric, keep original order.
+    return changes;
+  }
+
   removes.sort((a, b) => Number(b.key) - Number(a.key));
 
   const ordered = [...changes];

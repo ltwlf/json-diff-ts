@@ -239,6 +239,39 @@ describe('diffAtom', () => {
     expect(applied).toEqual(newObj);
   });
 
+  it('emits index-based remove operations in descending order for nested arrays', () => {
+    const oldObj = { items: [1, 2, 3, 4] };
+    const newObj = { items: [1] };
+
+    const atom = diffAtom(oldObj, newObj);
+    const removeIndices = atom.operations
+      .filter((op) => op.op === 'remove')
+      .map((op) => Number(op.path.match(/\[(\d+)\]$/)?.[1]));
+
+    expect(removeIndices.length).toBeGreaterThanOrEqual(2);
+    expect(removeIndices).toEqual([...removeIndices].sort((a, b) => b - a));
+
+    const applied = applyAtom(structuredClone(oldObj), atom);
+    expect(applied).toEqual(newObj);
+  });
+
+  it('keeps non-remove operations while sorting multiple index removes descending', () => {
+    const oldObj = { items: ['a', 'b', 'c', 'd'] };
+    const newObj = { items: ['z', 'b'] };
+
+    const atom = diffAtom(oldObj, newObj);
+    const removeIndices = atom.operations
+      .filter((op) => op.op === 'remove')
+      .map((op) => Number(op.path.match(/\[(\d+)\]$/)?.[1]));
+
+    expect(atom.operations.some((op) => op.op === 'replace')).toBe(true);
+    expect(removeIndices.length).toBeGreaterThanOrEqual(2);
+    expect(removeIndices).toEqual([...removeIndices].sort((a, b) => b - a));
+
+    const applied = applyAtom(structuredClone(oldObj), atom);
+    expect(applied).toEqual(newObj);
+  });
+
   it('handles arrays with named key (string IDs)', () => {
     const atom = diffAtom(
       { items: [{ id: '1', name: 'Widget' }] },

@@ -293,6 +293,22 @@ describe('diffAtom', () => {
     expect(pureRemoveIndices).toEqual([...pureRemoveIndices].sort((a, b) => b - a));
   });
 
+  it('preserves same-index REMOVE+ADD pairs for pure index type changes (P1 badge case)', () => {
+    const oldObj = { a: [1, 2] };
+    const newObj = { a: [[1], [2]] };
+
+    const atom = diffAtom(oldObj, newObj);
+    const applied = applyAtom(structuredClone(oldObj), atom);
+
+    expect(applied).toEqual(newObj);
+    expect(atom.operations).toEqual([
+      { op: 'remove', path: '$.a[0]', oldValue: 1 },
+      { op: 'add', path: '$.a[0]', value: [1] },
+      { op: 'remove', path: '$.a[1]', oldValue: 2 },
+      { op: 'add', path: '$.a[1]', value: [2] },
+    ]);
+  });
+
   it('handles arrays with named key (string IDs)', () => {
     const atom = diffAtom(
       { items: [{ id: '1', name: 'Widget' }] },

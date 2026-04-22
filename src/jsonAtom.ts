@@ -213,7 +213,8 @@ function walkChanges(
 
       if (change.embeddedKey) {
         // Array level — process each child with filter expression
-        for (const childChange of change.changes) {
+        const orderedChildChanges = orderArrayChildChanges(change.changes, change.embeddedKey);
+        for (const childChange of orderedChildChanges) {
           const filterPath = buildCanonicalFilterPath(
             childPath,
             change.embeddedKey,
@@ -243,6 +244,66 @@ function walkChanges(
       emitLeafOp(change, path, ops, options);
     }
   }
+}
+
+function orderArrayChildChanges(changes: IChange[], embeddedKey: string | FunctionKey): IChange[] {
+  if (embeddedKey !== '$index') {
+    return changes;
+  }
+
+  type OrderedGroup = { kind: 'pure-remove' } | { kind: 'preserved'; changes: IChange[] };
+  const groups: OrderedGroup[] = [];
+  const pureRemoves: IChange[] = [];
+
+  for (let i = 0; i < changes.length; i++) {
+    const current = changes[i];
+    const next = changes[i + 1];
+
+    // Keep REMOVE+ADD type-change pairs together and in original order.
+    if (
+      current.type === Operation.REMOVE &&
+      next &&
+      next.type === Operation.ADD &&
+      String(current.key) === String(next.key)
+    ) {
+      groups.push({ kind: 'preserved', changes: [current, next] });
+      i++;
+      continue;
+    }
+
+    if (current.type === Operation.REMOVE) {
+      pureRemoves.push(current);
+      groups.push({ kind: 'pure-remove' });
+      continue;
+    }
+
+    groups.push({ kind: 'preserved', changes: [current] });
+  }
+
+  if (pureRemoves.length < 2) {
+    return changes;
+  }
+
+  const removeIndices = pureRemoves.map((change) => Number(change.key));
+  /* istanbul ignore next -- $index keys are always integer-like from diff(); fallback is defensive */
+  if (removeIndices.some((idx) => !Number.isInteger(idx))) {
+    // Defensive fallback: if keys are not numeric, keep original order.
+    return changes;
+  }
+
+  pureRemoves.sort((a, b) => Number(b.key) - Number(a.key));
+
+  const ordered: IChange[] = [];
+  let removeIndex = 0;
+  for (const group of groups) {
+    if (group.kind === 'pure-remove') {
+      ordered.push(pureRemoves[removeIndex++]);
+    } else {
+      ordered.push(...group.changes);
+    }
+  }
+
+  return ordered;
 }
 
 function emitLeafOp(

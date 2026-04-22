@@ -203,6 +203,112 @@ describe('diffAtom', () => {
     });
   });
 
+  it('applies multiple index-based removes correctly without identity keys (#404)', () => {
+    const oldObj = {
+      bankAccounts: [
+        { iban: 'DE12345678901234567890', bic: 'BIC123456' },
+        { iban: 'DE23456789012345678901', bic: 'BIC234567' },
+        { iban: 'DE23456789012345678902', bic: 'BIC234567' },
+      ],
+    };
+    const newObj = {
+      bankAccounts: [{ iban: 'DE11456789012345678999', bic: 'BIC123456' }],
+    };
+
+    const atom = diffAtom(oldObj, newObj);
+    expect(atom.operations).toEqual([
+      {
+        op: 'replace',
+        path: '$.bankAccounts[0].iban',
+        oldValue: 'DE12345678901234567890',
+        value: 'DE11456789012345678999',
+      },
+      {
+        op: 'remove',
+        path: '$.bankAccounts[2]',
+        oldValue: { iban: 'DE23456789012345678902', bic: 'BIC234567' },
+      },
+      {
+        op: 'remove',
+        path: '$.bankAccounts[1]',
+        oldValue: { iban: 'DE23456789012345678901', bic: 'BIC234567' },
+      },
+    ]);
+
+    const applied = applyAtom(structuredClone(oldObj), atom);
+    expect(applied).toEqual(newObj);
+  });
+
+  it('emits index-based remove operations in descending order for nested arrays', () => {
+    const oldObj = { items: [1, 2, 3, 4] };
+    const newObj = { items: [1] };
+
+    const atom = diffAtom(oldObj, newObj);
+    const removeIndices = atom.operations
+      .filter((op) => op.op === 'remove')
+      .map((op) => Number(op.path.match(/\[(\d+)\]$/)?.[1]));
+
+    expect(removeIndices.length).toBeGreaterThanOrEqual(2);
+    expect(removeIndices).toEqual([...removeIndices].sort((a, b) => b - a));
+
+    const applied = applyAtom(structuredClone(oldObj), atom);
+    expect(applied).toEqual(newObj);
+  });
+
+  it('keeps non-remove operations while sorting multiple index removes descending', () => {
+    const oldObj = { items: ['a', 'b', 'c', 'd'] };
+    const newObj = { items: ['z', 'b'] };
+
+    const atom = diffAtom(oldObj, newObj);
+    const removeIndices = atom.operations
+      .filter((op) => op.op === 'remove')
+      .map((op) => Number(op.path.match(/\[(\d+)\]$/)?.[1]));
+
+    expect(atom.operations.some((op) => op.op === 'replace')).toBe(true);
+    expect(removeIndices.length).toBeGreaterThanOrEqual(2);
+    expect(removeIndices).toEqual([...removeIndices].sort((a, b) => b - a));
+
+    const applied = applyAtom(structuredClone(oldObj), atom);
+    expect(applied).toEqual(newObj);
+  });
+
+  it('keeps index type-change REMOVE+ADD pairs in order while still applying correctly', () => {
+    const oldObj = { items: [1, 2, 3, 4] };
+    const newObj = { items: ['x', 2] };
+
+    const atom = diffAtom(oldObj, newObj);
+    expect(applyAtom(structuredClone(oldObj), atom)).toEqual(newObj);
+
+    // Ensure pure removes (excluding paired type-change REMOVE+ADD at same index) stay descending.
+    const addIndices = new Set(
+      atom.operations
+        .filter((op) => op.op === 'add')
+        .map((op) => Number(op.path.match(/\[(\d+)\]$/)?.[1]))
+    );
+    const pureRemoveIndices = atom.operations
+      .filter((op) => op.op === 'remove')
+      .map((op) => Number(op.path.match(/\[(\d+)\]$/)?.[1]))
+      .filter((idx) => !addIndices.has(idx));
+
+    expect(pureRemoveIndices).toEqual([...pureRemoveIndices].sort((a, b) => b - a));
+  });
+
+  it('preserves same-index REMOVE+ADD pairs for pure index type changes (P1 badge case)', () => {
+    const oldObj = { a: [1, 2] };
+    const newObj = { a: [[1], [2]] };
+
+    const atom = diffAtom(oldObj, newObj);
+    const applied = applyAtom(structuredClone(oldObj), atom);
+
+    expect(applied).toEqual(newObj);
+    expect(atom.operations).toEqual([
+      { op: 'remove', path: '$.a[0]', oldValue: 1 },
+      { op: 'add', path: '$.a[0]', value: [1] },
+      { op: 'remove', path: '$.a[1]', oldValue: 2 },
+      { op: 'add', path: '$.a[1]', value: [2] },
+    ]);
+  });
+
   it('handles arrays with named key (string IDs)', () => {
     const atom = diffAtom(
       { items: [{ id: '1', name: 'Widget' }] },

@@ -251,9 +251,27 @@ function orderArrayChildChanges(changes: IChange[], embeddedKey: string | Functi
     return changes;
   }
 
-  const removes = changes.filter((c) => c.type === Operation.REMOVE).sort((a, b) => Number(b.key) - Number(a.key));
-  const rest = changes.filter((c) => c.type !== Operation.REMOVE);
-  return [...rest, ...removes];
+  const removeSlots: number[] = [];
+  const removes: IChange[] = [];
+
+  for (let i = 0; i < changes.length; i++) {
+    if (changes[i].type === Operation.REMOVE) {
+      removeSlots.push(i);
+      removes.push(changes[i]);
+    }
+  }
+
+  if (removes.length < 2) {
+    return changes;
+  }
+
+  removes.sort((a, b) => Number(b.key) - Number(a.key));
+
+  const ordered = [...changes];
+  for (let i = 0; i < removeSlots.length; i++) {
+    ordered[removeSlots[i]] = removes[i];
+  }
+  return ordered;
 }
 
 function emitLeafOp(

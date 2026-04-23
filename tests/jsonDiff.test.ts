@@ -133,6 +133,122 @@ describe('jsonDiff#diff', () => {
     ]);
   });
 
+  describe('regex keysToSkip', () => {
+    const base = {
+      user: { name: 'Alice', secret: 'abc123' },
+      config: { secret: 'xyz', timeout: 30 }
+    };
+
+    it('skips paths matched by a regex pattern', () => {
+      const updated = {
+        user: { name: 'Alice', secret: 'changed' },
+        config: { secret: 'changed', timeout: 30 }
+      };
+      expect(diff(base, updated, { keysToSkip: [/\.secret$/] })).toEqual([]);
+    });
+
+    it('skips add of a path matched by regex', () => {
+      const withoutSecrets = {
+        user: { name: 'Alice' },
+        config: { timeout: 30 }
+      };
+      expect(diff(withoutSecrets, base, { keysToSkip: [/\.secret$/] })).toEqual([]);
+    });
+
+    it('skips removal of a path matched by regex', () => {
+      const withoutSecrets = {
+        user: { name: 'Alice' },
+        config: { timeout: 30 }
+      };
+      expect(diff(base, withoutSecrets, { keysToSkip: [/\.secret$/] })).toEqual([]);
+    });
+
+    it('still detects changes to non-matching paths', () => {
+      const updated = {
+        user: { name: 'Bob', secret: 'changed' },
+        config: { secret: 'changed', timeout: 60 }
+      };
+      expect(diff(base, updated, { keysToSkip: [/\.secret$/] })).toEqual([
+        { type: 'UPDATE', key: 'user', changes: [{ type: 'UPDATE', key: 'name', value: 'Bob', oldValue: 'Alice' }] },
+        { type: 'UPDATE', key: 'config', changes: [{ type: 'UPDATE', key: 'timeout', value: 60, oldValue: 30 }] }
+      ]);
+    });
+
+    it('can mix string and regex entries in keysToSkip', () => {
+      const updated = {
+        user: { name: 'Bob', secret: 'changed' },
+        config: { secret: 'changed', timeout: 60 }
+      };
+      expect(diff(base, updated, { keysToSkip: [/\.secret$/, 'config.timeout'] })).toEqual([
+        { type: 'UPDATE', key: 'user', changes: [{ type: 'UPDATE', key: 'name', value: 'Bob', oldValue: 'Alice' }] }
+      ]);
+    });
+
+    describe('children of a path', () => {
+      const base = {
+        property: {
+          name: 'Alice',
+          address: {
+            formattedAddress: '123 Main St',
+              utcOffset: 0,
+          }
+        }
+      };
+
+      it('ignores property changes inside the matched path', () => {
+        const withChangedAddress = {
+          property: {
+            name: 'Alice',
+            address: {
+              formattedAddress: 'New Address',
+                utcOffset: 5,
+            }
+          }
+        };
+        expect(diff(base, withChangedAddress, { keysToSkip: [/^property\.address\./] })).toEqual([]);
+      });
+
+      it('detects removal of the matched path itself', () => {
+        const withoutAddress = { property: { name: 'Alice' } };
+        expect(diff(base, withoutAddress, { keysToSkip: [/^property\.address\./] })).toEqual([
+          {
+            type: 'UPDATE',
+            key: 'property',
+            changes: [{ type: 'REMOVE', key: 'address', value: base.property.address }]
+          }
+        ]);
+      });
+
+      it('detects addition of the matched path itself', () => {
+        const withoutAddress = { property: { name: 'Alice' } };
+        expect(diff(withoutAddress, base, { keysToSkip: [/^property\.address\./] })).toEqual([
+          {
+            type: 'UPDATE',
+            key: 'property',
+            changes: [{ type: 'ADD', key: 'address', value: base.property.address }]
+          }
+        ]);
+      });
+    });
+
+    it('skips all properties except one', () => {
+      const base = {
+        address: { street: '123 Main St', city: 'Springfield', zip: '12345' }
+      };
+      const updated = {
+        address: { street: 'New Street', city: 'Shelbyville', zip: '99999' }
+      };
+
+      expect(diff(base, updated, { keysToSkip: [/^address\.(?!city$)/] })).toEqual([
+        {
+          type: 'UPDATE',
+          key: 'address',
+          changes: [{ type: 'UPDATE', key: 'city', value: 'Shelbyville', oldValue: 'Springfield' }]
+        }
+      ]);
+    });
+  });
+
   it.each(fixtures.assortedDiffs)(
     'correctly diffs $oldVal with $newVal',
     ({ oldVal, newVal, expectedReplacement, expectedUpdate }) => {

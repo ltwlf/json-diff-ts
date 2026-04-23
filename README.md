@@ -256,7 +256,7 @@ Extends the base `Options` interface:
 interface AtomOptions extends Options {
   reversible?: boolean;       // Include oldValue for undo. Default: true
   arrayIdentityKeys?: Record<string, string | FunctionKey>;
-  keysToSkip?: readonly string[];
+  keysToSkip?: readonly (string | RegExp)[];
 }
 ```
 
@@ -614,7 +614,20 @@ diff(old, new, { arrayIdentityKeys: { tags: '$value' } });
 #### Path Skipping
 
 ```typescript
+// Skip an exact path and all its children
 diff(old, new, { keysToSkip: ['characters.metadata'] });
+
+// Skip all children of a path using a regex but still detect ADD/REMOVE of the node itself
+diff(old, new, { keysToSkip: [/^characters\.metadata\./] });
+
+// Skip any path ending in a given key name, regardless of nesting depth
+diff(old, new, { keysToSkip: [/\.secret$/] });
+
+// Skip all properties except one
+diff(old, new, { keysToSkip: [/^address\.(?!city$)/] });
+
+// Mix strings and regexes in the same array
+diff(old, new, { keysToSkip: ['characters.metadata', /\.secret$/] });
 ```
 
 #### Type Change Handling
@@ -649,7 +662,7 @@ interface Options {
   arrayIdentityKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
   /** @deprecated Use arrayIdentityKeys instead */
   embeddedObjKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
-  keysToSkip?: readonly string[];
+  keysToSkip?: readonly (string | RegExp)[];
   treatTypeChangeAsReplace?: boolean; // default: true
 }
 ```

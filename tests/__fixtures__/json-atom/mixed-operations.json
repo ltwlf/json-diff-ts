@@ -1,0 +1,64 @@
+{
+  "name": "mixed-operations",
+  "description": "A realistic delta combining all five operation types",
+  "source": {
+    "user": { "name": "Alice", "email": "alice@example.com" },
+    "items": [
+      { "id": "1", "name": "Widget", "price": 10 },
+      { "id": "2", "name": "Gadget", "price": 20 }
+    ],
+    "settings": { "theme": "light" }
+  },
+  "target": {
+    "user": { "displayName": "Anna", "email": "alice@example.com" },
+    "items": [
+      { "id": "1", "name": "Widget Pro", "price": 10 },
+      { "id": "3", "name": "Thingamajig", "price": 40 }
+    ],
+    "preferences": { "theme": "light" }
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "move",
+        "from": "$.user.name",
+        "path": "$.user.displayName"
+      },
+      {
+        "op": "replace",
+        "path": "$.user.displayName",
+        "value": "Anna",
+        "oldValue": "Alice"
+      },
+      {
+        "op": "replace",
+        "path": "$.items[?(@.id=='1')].name",
+        "value": "Widget Pro",
+        "oldValue": "Widget"
+      },
+      {
+        "op": "remove",
+        "path": "$.items[?(@.id=='2')]",
+        "oldValue": { "id": "2", "name": "Gadget", "price": 20 }
+      },
+      {
+        "op": "add",
+        "path": "$.items[?(@.id=='3')]",
+        "value": { "id": "3", "name": "Thingamajig", "price": 40 }
+      },
+      {
+        "op": "move",
+        "from": "$.settings",
+        "path": "$.preferences"
+      }
+    ]
+  },
+  "computeHints": {
+    "arrayKeys": {
+      "items": "id"
+    }
+  },
+  "level": 2
+}

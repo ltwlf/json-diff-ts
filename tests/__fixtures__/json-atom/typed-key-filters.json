@@ -1,0 +1,55 @@
+{
+  "name": "typed-key-filters",
+  "description": "Numeric, string and boolean identities are distinct.",
+  "source": {
+    "items": [
+      {
+        "id": 1,
+        "value": "number"
+      },
+      {
+        "id": "1",
+        "value": "string"
+      },
+      {
+        "id": true,
+        "value": "boolean"
+      }
+    ]
+  },
+  "target": {
+    "items": [
+      {
+        "id": 1,
+        "value": "changed number"
+      },
+      {
+        "id": "1",
+        "value": "string"
+      },
+      {
+        "id": true,
+        "value": "changed boolean"
+      }
+    ]
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "replace",
+        "path": "$.items[?(@.id==1)].value",
+        "oldValue": "number",
+        "value": "changed number"
+      },
+      {
+        "op": "replace",
+        "path": "$.items[?(@.id==true)].value",
+        "oldValue": "boolean",
+        "value": "changed boolean"
+      }
+    ]
+  },
+  "level": 2
+}

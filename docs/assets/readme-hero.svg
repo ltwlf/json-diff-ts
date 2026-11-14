@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="420" viewBox="0 0 1120 420" role="img" aria-labelledby="title desc">
+  <title id="title">json-diff-ts — Diff. Apply. Undo.</title>
+  <desc id="desc">A TypeScript toolkit for reversible JSON changes. Key-based array identity, JSON Atom and zero runtime dependencies. Around 1.2 million npm downloads per week as of November 14, 2026.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0c1725"/><stop offset="1" stop-color="#102e39"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#9cf8b9"/><stop offset="1" stop-color="#58d8ed"/></linearGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M 36 0 L 0 0 0 36" fill="none" stroke="#b2eddf" stroke-opacity=".045"/></pattern>
+  </defs>
+  <rect width="1120" height="420" rx="20" fill="url(#bg)"/>
+  <rect width="1120" height="420" rx="20" fill="url(#grid)"/>
+  <path d="M30 1 H1090" stroke="url(#accent)" stroke-width="2"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif">
+    <rect x="44" y="35" width="36" height="36" rx="10" fill="#a4f6ba"/>
+    <text x="62" y="60" text-anchor="middle" font-size="23" font-weight="700" fill="#102429">{ }</text>
+    <text x="94" y="61" font-size="23" font-weight="700" fill="#f1f8fb">json-diff-ts</text>
+    <rect x="936" y="35" width="140" height="32" rx="16" fill="#193e42" stroke="#80d7bc" stroke-opacity=".4"/>
+    <circle cx="955" cy="51" r="4" fill="#a4f6ba"/>
+    <text x="1013" y="56" text-anchor="middle" font-size="13" font-weight="600" letter-spacing="1" fill="#bbf7d1">OPEN SOURCE</text>
+    <text x="44" y="156" font-size="57" font-weight="750" letter-spacing="-2" fill="#f1f8fb">Diff. Apply. <tspan fill="#a4f6ba">Undo.</tspan></text>
+    <text x="47" y="203" font-size="23" fill="#b9cdd8">Give every JSON change a clear identity.</text>
+    <text x="47" y="238" font-size="16" fill="#87a6b9">Typed paths. Reversible operations. Your data, in control.</text>
+    <g transform="translate(648 102)">
+      <rect width="428" height="172" rx="14" fill="#0a1824" stroke="#3f626e"/>
+      <path d="M1 42 H427" stroke="#2a4552"/>
+      <circle cx="21" cy="21" r="4" fill="#ff917e"/><circle cx="37" cy="21" r="4" fill="#f8d885"/><circle cx="53" cy="21" r="4" fill="#a4f6ba"/>
+      <text x="407" y="26" text-anchor="end" font-size="11" letter-spacing="1.7" fill="#8daab8">JSON ATOM</text>
+      <g font-family="'SFMono-Regular', Consolas, 'Liberation Mono', monospace" font-size="17">
+        <text x="22" y="79" fill="#5dd5eb">$.items[?(@.id==42)].price</text>
+        <text x="22" y="113" fill="#8daab8">replace</text>
+        <text x="122" y="113" fill="#ffaf9e">29</text>
+        <path d="M158 107 H184 M179 102 L184 107 L179 112" fill="none" stroke="#658697" stroke-width="1.5"/>
+        <text x="197" y="113" fill="#a4f6ba">24</text>
+      </g>
+      <text x="22" y="147" font-size="13" fill="#8daab8">Address the item by its ID. Keep the old value for undo.</text>
+    </g>
+    <path d="M44 311 H1076" stroke="#34505e"/>
+    <text x="47" y="356" font-size="30" font-weight="700" fill="#f1f8fb">~1.2M</text>
+    <text x="47" y="383" font-size="14" fill="#91adbc">weekly npm downloads</text>
+    <path d="M343 335 V386" stroke="#34505e"/>
+    <text x="380" y="356" font-size="30" font-weight="700" fill="#f1f8fb">0</text>
+    <text x="380" y="383" font-size="14" fill="#91adbc">runtime dependencies</text>
+    <path d="M674 335 V386" stroke="#34505e"/>
+    <text x="711" y="356" font-size="30" font-weight="700" fill="#f1f8fb">TypeScript</text>
+    <text x="711" y="383" font-size="14" fill="#91adbc">native types · ESM + CommonJS</text>
+  </g>
+</svg>

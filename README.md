@@ -1,129 +1,16 @@
 # json-diff-ts
 
-[![CI](https://github.com/ltwlf/json-diff-ts/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ltwlf/json-diff-ts/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/ltwlf/json-diff-ts/branch/master/graph/badge.svg)](https://codecov.io/gh/ltwlf/json-diff-ts)
-[![npm version](https://badge.fury.io/js/json-diff-ts.svg)](https://badge.fury.io/js/json-diff-ts)
-[![npm downloads](https://img.shields.io/npm/dm/json-diff-ts.svg)](https://www.npmjs.com/package/json-diff-ts)
-[![npm bundle size](https://img.shields.io/bundlephobia/minzip/json-diff-ts)](https://bundlephobia.com/package/json-diff-ts)
-[![Known Vulnerabilities](https://snyk.io/test/github/ltwlf/json-diff-ts/badge.svg?targetFile=package.json)](https://snyk.io/test/github/ltwlf/json-diff-ts?targetFile=package.json)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ltwlf_json-diff-ts&metric=alert_status)](https://sonarcloud.io/dashboard?id=ltwlf_json-diff-ts)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg?logo=buy-me-a-coffee)](https://buymeacoffee.com/leitwolf)
+![json-diff-ts: Diff. Apply. Undo. Reversible JSON changes, key-based array identity, zero runtime dependencies.](https://raw.githubusercontent.com/ltwlf/json-diff-ts/master/docs/assets/readme-hero.svg)
 
-**Deterministic JSON state transitions with key-based array identity.** A TypeScript JSON diff library that computes, applies, and reverts atomic changes using the [JSON Atom](https://github.com/ltwlf/json-atom-format) wire format -- a JSON Patch alternative with stable array paths, built-in undo/redo for JSON, and language-agnostic state synchronization.
+[![npm version](https://img.shields.io/npm/v/json-diff-ts?color=1c8065&label=npm&style=flat-square)](https://www.npmjs.com/package/json-diff-ts) [![weekly npm downloads](https://img.shields.io/npm/dw/json-diff-ts?color=1c8065&label=downloads%2Fweek&style=flat-square)](https://www.npmjs.com/package/json-diff-ts) [![CI](https://github.com/ltwlf/json-diff-ts/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ltwlf/json-diff-ts/actions/workflows/ci.yml) [![coverage](https://codecov.io/gh/ltwlf/json-diff-ts/branch/master/graph/badge.svg)](https://codecov.io/gh/ltwlf/json-diff-ts) [![MIT license](https://img.shields.io/badge/license-MIT-456b84?style=flat-square)](LICENSE)
 
-Zero dependencies. TypeScript-first. ESM + CommonJS. Trusted by thousands of developers ([500K+ weekly npm downloads](https://www.npmjs.com/package/json-diff-ts)).
+**Turn JSON changes into something you can inspect, apply, and undo.** A TypeScript toolkit for meaningful diffs, stable array identity, and reversible [JSON Atom](https://github.com/ltwlf/json-atom-format) operations. Zero runtime dependencies. ESM and CommonJS included.
 
-## Why Index-Based Diffing Breaks
+**Around 1.2 million npm downloads a week.** [npm recorded 1,196,776 downloads for November 7–13, 2026](https://api.npmjs.org/downloads/point/2026-11-07:2026-11-13/json-diff-ts); the badge above updates automatically.
 
-Most JSON diff libraries track array changes by position. Insert one element at the start and every path shifts:
+Created by **[Christian Glessner](https://www.linkedin.com/in/christian-glessner/)** · [Support the project](https://buymeacoffee.com/leitwolf)
 
-```text
-Remove /items/0  ← was actually "Widget"
-Add    /items/0  ← now it's "NewItem"
-Update /items/1  ← this used to be /items/0
-...
-```
-
-This makes diffs fragile -- you can't store them, replay them reliably, or build audit logs on top of them. Reorder the array and every operation is wrong. This is the fundamental problem with index-based formats like JSON Patch (RFC 6902): paths like `/items/0` are positional, so any insertion, deletion, or reorder invalidates every subsequent path.
-
-**json-diff-ts solves this with key-based identity.** Array elements are matched by a stable key (`id`, `sku`, or any field), and paths use JSONPath filter expressions that survive insertions, deletions, and reordering:
-
-```typescript
-import { diffAtom, applyAtom, revertAtom } from 'json-diff-ts';
-
-const before = {
-  items: [
-    { id: 1, name: 'Widget', price: 9.99 },
-    { id: 2, name: 'Gadget', price: 24.99 },
-  ],
-};
-
-const after = {
-  items: [
-    { id: 2, name: 'Gadget', price: 24.99 },           // reordered
-    { id: 1, name: 'Widget Pro', price: 14.99 },        // renamed + repriced
-    { id: 3, name: 'Doohickey', price: 4.99 },          // added
-  ],
-};
-
-const atom = diffAtom(before, after, { arrayIdentityKeys: { items: 'id' } });
-```
-
-The atom tracks _what_ changed, not _where_ it moved:
-
-```json
-{
-  "format": "json-atom",
-  "version": 1,
-  "operations": [
-    { "op": "replace", "path": "$.items[?(@.id==1)].name", "value": "Widget Pro", "oldValue": "Widget" },
-    { "op": "replace", "path": "$.items[?(@.id==1)].price", "value": 14.99, "oldValue": 9.99 },
-    { "op": "add", "path": "$.items[?(@.id==3)]", "value": { "id": 3, "name": "Doohickey", "price": 4.99 } }
-  ]
-}
-```
-
-Apply forward to get the new state, or revert to restore the original:
-
-```typescript
-// Clone before applying — applyAtom mutates the input object
-const updated  = applyAtom(structuredClone(before), atom);  // updated values; existing array order retained
-const restored = revertAtom(structuredClone(updated), atom); // restored === before
-```
-
-## Version 5
-
-JSON Atom is available in the stable v5 release:
-
-```sh
-npm install json-diff-ts@5
-# Pin the release explicitly:
-npm install json-diff-ts@5.1.0
-```
-
-Version 5 adds JSON Atom diff/apply/undo, move/copy operations, workflow helpers, and `keysToInclude`. It fixes atomic path round-trips for special property names and array apply/revert ordering. JSON Atom consumers use typed filters and reject malformed paths, missing or ambiguous targets, and invalid JSON payloads.
-
-## Quick Start
-
-```typescript
-import { diffAtom, applyAtom, revertAtom } from 'json-diff-ts';
-
-const oldObj = {
-  items: [
-    { id: 1, name: 'Widget', price: 9.99 },
-    { id: 2, name: 'Gadget', price: 24.99 },
-  ],
-};
-
-const newObj = {
-  items: [
-    { id: 1, name: 'Widget Pro', price: 9.99 },
-    { id: 2, name: 'Gadget', price: 24.99 },
-    { id: 3, name: 'Doohickey', price: 4.99 },
-  ],
-};
-
-// 1. Compute an atom between two JSON objects
-const atom = diffAtom(oldObj, newObj, {
-  arrayIdentityKeys: { items: 'id' },   // match array elements by 'id' field
-});
-// atom.operations =>
-// [
-//   { op: 'replace', path: '$.items[?(@.id==1)].name', value: 'Widget Pro', oldValue: 'Widget' },
-//   { op: 'add', path: '$.items[?(@.id==3)]', value: { id: 3, name: 'Doohickey', price: 4.99 } }
-// ]
-
-// 2. Apply the atom to produce the new state
-const updated = applyAtom(structuredClone(oldObj), atom);
-
-// 3. Revert the atom to restore the original state
-const reverted = revertAtom(structuredClone(updated), atom);
-```
-
-That's it. `atom` is a plain JSON object you can store in a database, send over HTTP, or consume in any language.
+[Quick start](#quick-start) · [Regex skipping](#skip-the-noise) · [JSON Atom API](#json-atom-api) · [Python & specification](#one-format-two-languages) · [Migrate from v4](#migration-from-v4)
 
 ## Installation
 
@@ -139,39 +26,138 @@ import { diffAtom, applyAtom, revertAtom } from 'json-diff-ts';
 const { diffAtom, applyAtom, revertAtom } = require('json-diff-ts');
 ```
 
+Maintaining a v4 application? `npm install json-diff-ts@legacy-v4` installs the v4 maintenance release. npm `latest` follows v5.
+
+## Quick Start
+
+A price changes. The item keeps its identity. The old value stays available for undo.
+
+```typescript
+import { diffAtom, applyAtom, revertAtom } from 'json-diff-ts';
+
+const before = { items: [{ id: 42, name: 'Widget', price: 29 }] };
+const after  = { items: [{ id: 42, name: 'Widget', price: 24 }] };
+
+const atom = diffAtom(before, after, {
+  arrayIdentityKeys: { items: 'id' },
+});
+
+// Mutating APIs: clone first when you want to preserve the input.
+const updated  = applyAtom(structuredClone(before), atom);
+const restored = revertAtom(structuredClone(updated), atom);
+// updated matches after; restored matches before.
+```
+
+The result is plain JSON, ready to store or send:
+
+```json
+{
+  "format": "json-atom",
+  "version": 1,
+  "operations": [
+    {
+      "op": "replace",
+      "path": "$.items[?(@.id==42)].price",
+      "value": 24,
+      "oldValue": 29
+    }
+  ]
+}
+```
+
+## Skip the noise
+
+**New in 5.1:** mix string paths and regular expressions in `keysToSkip`. Focus a diff on changes that matter to your application.
+
+```typescript
+import { diffAtom } from 'json-diff-ts';
+
+const before = { user: { name: 'Alice', updatedAt: '09:00', internal: 'a' } };
+const after  = { user: { name: 'Anna',  updatedAt: '09:01', internal: 'b' } };
+
+const atom = diffAtom(before, after, {
+  keysToSkip: [/\.updatedAt$/, 'user.internal'],
+});
+// Only $.user.name changes: Alice → Anna.
+```
+
+Works with `diff` and `diffAtom`. Global and sticky regexes are evaluated independently for each path without changing your regex's `lastIndex`. Use [`keysToInclude`](#include-only-selected-paths) to select fields; skips take precedence.
+
+Selection controls which paths are compared, **not payload redaction**. Adding or replacing an entire object retains its complete value.
+
+## Build with changes
+
+| You are building… | Start here |
+| --- | --- |
+| Undo / redo | `diffAtom` → `applyAtom` → `revertAtom` |
+| Audit logs and state history | Store atoms with `oldValue`; attach actor and timestamp extensions |
+| API payload or configuration diffs | `keysToInclude`, string paths, and regex `keysToSkip` |
+| Changes to keyed collections | `arrayIdentityKeys: { items: 'id' }` |
+| A readable comparison UI | [`compare` and comparison serialization](#comparison-serialization) |
+| A TypeScript + Python system | [Exchange JSON Atom documents](#one-format-two-languages) |
+
+### Identity that survives a reorder
+
+`$.items[?(@.id==42)].price` selects the item with numeric ID `42`, wherever it sits in the array. An index path such as `$.items[0].price` selects the item currently at position zero.
+
+Choose keyed identity when membership and field values matter. **Keyed diffs preserve the order of existing elements and do not encode pure reordering.** Use index-based diffing when exact array order is part of the state you need to reproduce. Identity keys must be unique, and numeric `42` is distinct from string `'42'`.
+
+Stable identity is useful for replay and synchronization, but it does not provide conflict resolution: the target must still meet each operation's preconditions.
+
+## One format, two languages
+
+| Project | Role | Get started |
+| --- | --- | --- |
+| **[json-diff-ts](https://github.com/ltwlf/json-diff-ts)** | TypeScript / JavaScript implementation | `npm install json-diff-ts` |
+| **[json-atom-py](https://github.com/ltwlf/json-atom-py)** | Python implementation | `pip install json-atom` |
+| **[JSON Atom Format](https://github.com/ltwlf/json-atom-format)** | Wire format, path grammar, and shared fixtures | [Read the specification](https://github.com/ltwlf/json-atom-format/blob/main/spec/v0.md) |
+
+The repository names, package versions, and wire-format version are separate: a JSON Atom document uses `"format": "json-atom"` and `"version": 1`. The specification's current draft lives in `spec/v0.md`.
+
+Diff options are local API choices; consumers only need the resulting atom. A Python consumer can apply the JSON produced by the quick start above:
+
+```python
+import copy
+import json
+from json_atom import apply_delta, revert_delta
+
+# `payload` is JSON.stringify(atom) from the TypeScript example.
+atom = json.loads(payload)
+before = {"items": [{"id": 42, "name": "Widget", "price": 29}]}
+updated = apply_delta(copy.deepcopy(before), atom)
+restored = revert_delta(copy.deepcopy(updated), atom)
+assert updated["items"][0]["price"] == 24
+assert restored == before
+```
+
+[Shared conformance fixtures](https://github.com/ltwlf/json-atom-format/tree/main/fixtures) exercise all five operation types. [Run the cross-language checks](docs/interop.md) for the tested source revisions and compatibility boundaries. JavaScript and Python have different numeric precision; use string identity keys for integers outside JavaScript's safe integer range.
+
 ## What is JSON Atom?
 
 [JSON Atom](https://github.com/ltwlf/json-atom-format) is a specification for representing atomic changes to JSON documents. json-diff-ts is the originating implementation from which the spec was derived.
 
-```text
-json-atom-format  (specification)
-    ├── json-diff-ts      (TypeScript implementation)  ← this package
-    └── json-atom-py     (Python implementation)
-```
-
-The specification defines the wire format. Each language implementation produces and consumes compatible atoms.
-
 An atom is a self-describing JSON document you can store, transmit, and consume in any language:
 
-- **Three operations** -- `add`, `remove`, `replace`. Nothing else to learn.
+- **Five operations** -- `add`, `remove`, `replace`, `move`, and `copy`. `diffAtom` produces the first three; the executor also accepts explicit move/copy operations.
 - **JSONPath-based paths** -- `$.items[?(@.id==1)].name` identifies elements by key, not index.
-- **Reversible by default** -- every `replace` and `remove` includes `oldValue` for undo.
+- **Reversible diffs by default** -- `diffAtom` includes `oldValue` for replacements and removals. Reversible copy operations also carry the copied `value`.
 - **Self-identifying** -- the `format` field makes atoms discoverable without external context.
 - **Extension-friendly** -- unknown properties are preserved; `x_`-prefixed properties are future-safe.
 
 ### JSON Atom vs JSON Patch (RFC 6902)
 
-JSON Patch uses JSON Pointer paths like `/items/0` that reference array elements by index. When an element is inserted at position 0, every subsequent path shifts -- `/items/1` now points to what was `/items/0`. This makes stored patches unreliable for JSON change tracking, audit logs, or undo/redo across time.
+JSON Patch applies an ordered list of operations against a document using JSON Pointer paths such as `/items/0`. Those positional paths work when operations are applied to the expected state. Independently reordering a target array can change which element a stored path addresses.
 
-JSON Atom uses JSONPath filter expressions like `$.items[?(@.id==1)]` that identify elements by a stable key. The path stays valid regardless of insertions, deletions, or reordering.
+JSON Atom additionally supports typed identity filters such as `$.items[?(@.id==42)]`. This lets an operation address an item by its identity while retaining index paths when positional semantics are needed. Neither format is a conflict-resolution protocol.
 
 | | JSON Atom | JSON Patch (RFC 6902) |
 | --- | --- | --- |
-| Path syntax | JSONPath (`$.items[?(@.id==1)]`) | JSON Pointer (`/items/0`) |
-| Array identity | Key-based -- survives reorder | Index-based -- breaks on insert/delete |
-| Reversibility | Built-in `oldValue` | Not supported |
-| Self-describing | `format` field in envelope | No envelope |
-| Specification | [json-atom-format](https://github.com/ltwlf/json-atom-format) | [RFC 6902](https://tools.ietf.org/html/rfc6902) |
+| Paths | Constrained JSONPath, including typed key filters | JSON Pointer |
+| Array targeting | By index, identity key, or primitive value | By index |
+| Undo information | `oldValue` on remove/replace; `value` on reversible copy | No standard old-value field |
+| Document | Self-identifying `format` / `version` envelope | Array of operations |
+| Operations | `add`, `remove`, `replace`, `move`, `copy` | Those five plus `test` |
+| Specification | [JSON Atom draft](https://github.com/ltwlf/json-atom-format) | [RFC 6902](https://www.rfc-editor.org/rfc/rfc6902) |
 
 ---
 
@@ -702,28 +688,16 @@ interface Options {
 
 ---
 
-## Why json-diff-ts?
-
-| Feature | json-diff-ts | deep-diff | jsondiffpatch | RFC 6902 |
-| --- | --- | --- | --- | --- |
-| TypeScript | Native | Partial | Definitions only | Varies |
-| Bundle Size | ~21KB | ~45KB | ~120KB+ | Varies |
-| Dependencies | Zero | Few | Many | Varies |
-| ESM Support | Native | CJS only | CJS only | Varies |
-| Array Identity | Key-based | Index only | Configurable | Index only |
-| Wire Format | JSON Atom (draft specification) | Proprietary | Proprietary | JSON Pointer |
-| Reversibility | Built-in (`oldValue`) | Manual | Plugin | Not built-in |
-
 ## FAQ
 
 **Q: How does JSON Atom compare to JSON Patch (RFC 6902)?**
-JSON Patch uses JSON Pointer (`/items/0`) for paths, which breaks when array elements are inserted, deleted, or reordered. JSON Atom uses JSONPath filter expressions (`$.items[?(@.id==1)]`) for stable, key-based identity. JSON Atom also supports built-in reversibility via `oldValue`.
+JSON Patch addresses array positions. JSON Atom can also address elements by unique identity using typed filters such as `$.items[?(@.id==1)]`. Both apply ordered operations against an expected state; JSON Atom carries optional old values for undo.
 
 **Q: Can I use this with React / Vue / Angular?**
-Yes. json-diff-ts works in any JavaScript runtime -- browsers, Node.js, Deno, Bun, edge workers.
+Yes. The core APIs are framework-independent and ship as ESM and CommonJS. Keep your framework's state immutable by cloning before `applyAtom` or `revertAtom`.
 
 **Q: Is it suitable for large objects?**
-Yes. The library handles large, deeply nested JSON structures efficiently with zero dependencies and a ~6KB gzipped footprint.
+Benchmark representative documents and change patterns for your workload. Use path selection to avoid traversing unrelated branches; the package has no runtime dependencies.
 
 **Q: Can I use the v4 API alongside JSON Atom?**
 Yes. Both APIs coexist. Use `toAtom()` / `fromAtom()` to convert between formats.
@@ -736,6 +710,10 @@ Use `$value` as the identity key: `{ arrayIdentityKeys: { tags: '$value' } }`. E
 ## Release Notes
 
 - **v5.1.0:** `keysToSkip` accepts regular expressions in `diff` and `diffAtom`, including deterministic global/sticky matching without changing caller state. Regex skips take precedence over `keysToInclude`.
+
+- **v5.0.0:** Stable JSON Atom diff/apply/undo, move/copy execution, typed paths, strict validation, path selection, and ESM/CommonJS exports. [Release notes](https://github.com/ltwlf/json-diff-ts/releases/tag/v5.0.0).
+
+- **v4.10.5:** Maintenance release with the index-array revert fix, available through `json-diff-ts@legacy-v4`.
 
 - **v5.0.0-alpha.2:**
   - Atom workflow helpers: `squashAtoms`, `atomMap`, `atomStamp`, `atomGroupBy`

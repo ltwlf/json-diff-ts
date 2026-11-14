@@ -1,0 +1,37 @@
+{
+  "name": "mixed-member-filter",
+  "description": "Mixed dot/bracket filter members preserve literal dots in nested identity properties.",
+  "source": {
+    "items": [
+      {
+        "meta": {
+          "a.b": 42
+        },
+        "value": 1
+      }
+    ]
+  },
+  "target": {
+    "items": [
+      {
+        "meta": {
+          "a.b": 42
+        },
+        "value": 2
+      }
+    ]
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "replace",
+        "path": "$['items'][?(@['meta']['a.b']==42)]['value']",
+        "oldValue": 1,
+        "value": 2
+      }
+    ]
+  },
+  "level": 2
+}

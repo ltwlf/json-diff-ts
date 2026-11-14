@@ -1,0 +1,33 @@
+{
+  "name": "nested-replace",
+  "description": "Replace a deeply nested property",
+  "source": {
+    "user": {
+      "address": {
+        "city": "Portland",
+        "zip": "97201"
+      }
+    }
+  },
+  "target": {
+    "user": {
+      "address": {
+        "city": "Seattle",
+        "zip": "97201"
+      }
+    }
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "replace",
+        "path": "$.user.address.city",
+        "value": "Seattle",
+        "oldValue": "Portland"
+      }
+    ]
+  },
+  "level": 2
+}

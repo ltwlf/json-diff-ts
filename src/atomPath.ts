@@ -256,6 +256,20 @@ export function buildAtomPath(segments: AtomPathSegment[]): string {
  * - `@=='val'` → `[?(@=='val')]` (value filter, unchanged)
  */
 function canonicalizeFilterForAtom(inner: string): string {
+  // Older atomic changesets used a single '='. Normalize only the operator,
+  // leaving quoted property names and values untouched.
+  let quoted = false;
+  for (let i = 0; i < inner.length; i++) {
+    if (inner[i] === "'") {
+      if (quoted && inner[i + 1] === "'") { i++; continue; }
+      quoted = !quoted;
+    } else if (inner[i] === '=' && !quoted) {
+      let end = i + 1;
+      while (inner[end] === '=') end++;
+      inner = inner.slice(0, i) + '==' + inner.slice(end);
+      break;
+    }
+  }
   if (inner.startsWith('@.')) {
     const eqIdx = inner.indexOf('==');
     if (eqIdx === -1) return `[?(${inner})]`;
@@ -274,10 +288,10 @@ function canonicalizeFilterForAtom(inner: string): string {
 
 /**
  * Canonicalize a filter expression for the v4 internal atomic path format.
- * Converts bracket-notation filter keys to dot notation (v4 always uses dot).
+ * Preserves literal bracket-notation filter keys and string-quotes values.
  *
  * Examples:
- * - `@['c.d']=='20'` → `[?(@.c.d=='20')]`
+ * - `@['c.d']=='20'` → `[?(@['c.d']=='20')]`
  * - `@.id=='1'` → `[?(@.id=='1')]` (unchanged)
  */
 function canonicalizeFilterForV4(inner: string): string {
@@ -289,7 +303,7 @@ function canonicalizeFilterForV4(inner: string): string {
     if (rest.startsWith('==')) {
       const literal = rest.slice(2);
       const normalizedLiteral = normalizeToStringQuoted(literal);
-      return `[?(@.${key}==${normalizedLiteral})]`;
+      return `[?(@['${key.replace(/'/g, "''")}']==${normalizedLiteral})]`;
     }
     return `[?(${inner})]`;
   }
@@ -323,7 +337,9 @@ function normalizeToStringQuoted(literal: string): string {
 export function atomicPathToAtomPath(atomicPath: string): string {
   // Handle root sentinel
   if (atomicPath === '$.$root') return '$';
-  if (atomicPath.startsWith('$.$root.')) return '$' + atomicPath.slice(7);
+  if (atomicPath.startsWith('$.$root.') || atomicPath.startsWith('$.$root[')) {
+    atomicPath = '$' + atomicPath.slice(7);
+  }
 
   if (!atomicPath.startsWith('$')) {
     throw new Error(`Atomic path must start with '$': ${atomicPath}`);
@@ -350,8 +366,13 @@ export function atomicPathToAtomPath(atomicPath: string): string {
         const inner = atomicPath.slice(i + 3, closingIdx); // content between [?( and )
         result += canonicalizeFilterForAtom(inner);
         i = closingIdx + 2;
-      } else if (atomicPath[i + 1] === "'" || /\d/.test(atomicPath[i + 1])) {
-        // Already bracket-quoted property or array index — pass through
+      } else if (atomicPath[i + 1] === "'") {
+        const [key, endIdx] = extractQuotedString(atomicPath, i + 2);
+        if (atomicPath[endIdx + 1] !== ']') throw new Error(`Expected ']' in: ${atomicPath}`);
+        result += formatMemberAccess(key);
+        i = endIdx + 2;
+      } else if (/\d/.test(atomicPath[i + 1])) {
+        // Array index — pass through
         const end = atomicPath.indexOf(']', i);
         if (end === -1) throw new Error(`Unterminated bracket in: ${atomicPath}`);
         result += atomicPath.slice(i, end + 1);
@@ -414,7 +435,9 @@ export function atomPathToAtomicPath(atomPath: string): string {
         // Bracket-quoted property: ['a.b'] → [a.b]
         const [key, endIdx] = extractQuotedString(atomPath, i + 2);
         if (atomPath[endIdx + 1] !== ']') throw new Error(`Expected ']' in: ${atomPath}`);
-        result += `[${key}]`;
+        // Only legacy dotted names can safely lose their quotes.
+        result += key.includes('.') && !/[[\]'\\]/.test(key) && !/^\d/.test(key)
+          ? `[${key}]` : `['${key.replace(/'/g, "''")}']`;
         i = endIdx + 2;
       } else if (/\d/.test(atomPath[i + 1])) {
         // Array index — pass through
@@ -476,48 +499,13 @@ function normalizeFilterToStringLiterals(filter: string): string {
  * Used by `fromAtom` to populate the `key` field of IAtomicChange.
  */
 export function extractKeyFromAtomicPath(atomicPath: string): string {
-  // Walk backwards to find the last segment
   if (atomicPath === '$.$root') return '$root';
-
-  // Check for filter at the end: ...)]
-  if (atomicPath.endsWith(')]')) {
-    // Find the matching [?( for the last filter
-    const filterStart = atomicPath.lastIndexOf('[?(');
-    if (filterStart !== -1) {
-      // The key is the filter key value (the changeset key used for lookup)
-      const inner = atomicPath.slice(filterStart + 3, atomicPath.length - 2);
-      // Parse filter to get the value
-      if (inner.startsWith('@==')) {
-        // Value filter: the key is the literal value as string
-        const val = parseFilterLiteral(inner.slice(3));
-        return String(val);
-      }
-      // Key filter: @.key==val or @['key']==val
-      const eqIdx = inner.indexOf('==');
-      if (eqIdx !== -1) {
-        const val = parseFilterLiteral(inner.slice(eqIdx + 2));
-        return String(val);
-      }
-    }
+  const last = parseAtomPath(atomicPathToAtomPath(atomicPath)).at(-1);
+  switch (last.type) {
+    case 'property': return last.name;
+    case 'index': return String(last.index);
+    case 'keyFilter':
+    case 'valueFilter': return String(last.value);
+    default: return atomicPath;
   }
-
-  // Check for array index at end: ...[N]
-  if (atomicPath.endsWith(']')) {
-    const bracketStart = atomicPath.lastIndexOf('[');
-    if (bracketStart !== -1) {
-      const inner = atomicPath.slice(bracketStart + 1, atomicPath.length - 1);
-      // Numeric index
-      if (/^\d+$/.test(inner)) return inner;
-      // Bracket property
-      return inner;
-    }
-  }
-
-  // Dot property: last segment after last unbracketed dot
-  const lastDot = atomicPath.lastIndexOf('.');
-  if (lastDot > 0) {
-    return atomicPath.slice(lastDot + 1);
-  }
-
-  return atomicPath;
 }

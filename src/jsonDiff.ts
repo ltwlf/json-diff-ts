@@ -1,4 +1,5 @@
-import { arrayDifference as difference, arrayIntersection as intersection, keyBy, splitJSONPath, FunctionKey } from './helpers.js';
+import { atomicPathToAtomPath, parseAtomPath } from './atomPath.js';
+import { arrayDifference as difference, arrayIntersection as intersection, keyBy, FunctionKey } from './helpers.js';
 
 type EmbeddedObjKeysType = Record<string, string | FunctionKey>;
 type EmbeddedObjKeysMapType = Map<string | RegExp, string | FunctionKey>;
@@ -35,6 +36,8 @@ interface Options {
   /** @deprecated Use `arrayIdentityKeys` instead. */
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
   keysToSkip?: readonly string[];
+  /** Compare only these paths and their descendants. Array element keys are omitted. */
+  keysToInclude?: readonly string[];
   treatTypeChangeAsReplace?: boolean;
 }
 
@@ -48,7 +51,7 @@ interface Options {
  */
 function diff(oldObj: any, newObj: any, options: Options = {}): IChange[] {
   let embeddedObjKeys = options.arrayIdentityKeys ?? options.embeddedObjKeys;
-  const { keysToSkip, treatTypeChangeAsReplace } = options;
+  const { keysToSkip, keysToInclude, treatTypeChangeAsReplace } = options;
 
   // Trim leading '.' from keys in embeddedObjKeys
   if (embeddedObjKeys instanceof Map) {
@@ -68,6 +71,7 @@ function diff(oldObj: any, newObj: any, options: Options = {}): IChange[] {
   return compare(oldObj, newObj, [], [], {
     embeddedObjKeys,
     keysToSkip: keysToSkip ?? [],
+    keysToInclude,
     treatTypeChangeAsReplace: treatTypeChangeAsReplace ?? true
   });
 }
@@ -121,7 +125,7 @@ const applyChangeset = (obj: any, changeset: Changeset) => {
  */
 const revertChangeset = (obj: any, changeset: Changeset) => {
   if (changeset) {
-    changeset
+    [...changeset]
       .reverse()
       .forEach((change: IChange): any => {
         const { value, type } = change;
@@ -166,32 +170,17 @@ const atomizeChangeset = (
       if (atomicChange) {
         return atomicChange;
       }
+      if (!obj.changes) {
+        return [{ ...obj, path, valueType: getTypeOfObj(obj.value) }];
+      }
     } else {
       path = append(path, obj.key);
     }
     return atomizeChangeset(obj.changes || obj, path, obj.embeddedKey, obj.embeddedKeyIsPath);
   } else {
     const valueType = getTypeOfObj(obj.value);
-    let finalPath = path;
-    if (!finalPath.endsWith(`[${obj.key}]`)) {
-      // Avoid duplicate filter values at the end of the JSONPath
-      let endsWithFilterValue = false;
-      const filterEndIdx = path.lastIndexOf(')]');
-      if (filterEndIdx !== -1) {
-        const filterStartIdx = path.lastIndexOf('==', filterEndIdx);
-        if (filterStartIdx !== -1) {
-          const filterValue = path
-            .slice(filterStartIdx + 2, filterEndIdx)
-            // Remove single quotes at the start or end of the filter value
-            .replaceAll(/(^'|'$)/g, '');
-          endsWithFilterValue = filterValue === String(obj.key);
-        }
-      }
-      if (!endsWithFilterValue) {
-        finalPath = append(path, obj.key);
-      }
-    }
-    
+    const finalPath = append(path, obj.key);
+
     return [
       {
         ...obj,
@@ -243,101 +232,39 @@ const handleArray = (obj: Changeset | IChange[], path: string, embeddedKey?: str
  * If it represents a leaf node, it sets the key, type, value, and oldValue of the current change object.
  * Finally, it pushes the unflattened change object into the changes array.
  */
-const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]) => {
-  if (!Array.isArray(changes)) {
-    changes = [changes];
-  }
+const unatomizeChangeset = (changes: IAtomicChange | IAtomicChange[]): Changeset => {
+  return (Array.isArray(changes) ? changes : [changes]).map((change) => {
+    const segments = parseAtomPath(atomicPathToAtomPath(change.path)).slice(1);
 
-  const changesArr: IChange[] = [];
-
-  changes.forEach((change) => {
-    const obj = {} as IChange;
-    let ptr = obj;
-
-    const segments = splitJSONPath(change.path);
-
-    if (segments.length === 1) {
-      ptr.key = change.key;
-      ptr.type = change.type;
-      ptr.value = change.value;
-      ptr.oldValue = change.oldValue;
-      changesArr.push(ptr);
-    } else {
-      for (let i = 1; i < segments.length; i++) {
-        const segment = segments[i];
-        // Matches JSONPath filter segments and array index segments.
-        // Supports doubled-quote escaping in bracket keys and filter values (e.g. O''Brien).
-        const result = /^([^[\]]+)\[\?\(@(?:\.?([^=[]*)|(?:\['([^']*(?:''[^']*)*)'\]))=+'([^']*(?:''[^']*)*)'\)\]$|^(.+)\[(\d+)\]$/.exec(segment);
-        // array
-        if (result) {
-          let key: string;
-          let embeddedKey: string;
-          let arrKey: string | number;
-          let isPath: boolean | undefined;
-          if (result[1]) {
-            key = result[1];
-            // Unescape doubled quotes in bracket keys and filter values
-            embeddedKey = (result[3]?.replace(/''/g, "'") || result[2] || '$value');
-            // Dot-notation key (result[2]) with dots = nested path
-            isPath = (!result[3] && !!result[2] && result[2].includes('.') && NESTED_PATH_RE.test(result[2])) ? true : undefined;
-            arrKey = result[4]?.replace(/''/g, "'");
-          } else {
-            key = result[5];
-            embeddedKey = '$index';
-            arrKey = Number(result[6]);
-          }
-          // leaf
-          if (i === segments.length - 1) {
-            ptr.key = key!;
-            ptr.embeddedKey = embeddedKey!;
-            if (isPath) ptr.embeddedKeyIsPath = true;
-            ptr.type = Operation.UPDATE;
-            ptr.changes = [
-              {
-                type: change.type,
-                key: arrKey!,
-                value: change.value,
-                oldValue: change.oldValue
-              } as IChange
-            ];
-          } else {
-            // object
-            ptr.key = key;
-            ptr.embeddedKey = embeddedKey;
-            if (isPath) ptr.embeddedKeyIsPath = true;
-            ptr.type = Operation.UPDATE;
-            const newPtr = {} as IChange;
-            ptr.changes = [
-              {
-                type: Operation.UPDATE,
-                key: arrKey,
-                changes: [newPtr]
-              } as IChange
-            ];
-            ptr = newPtr;
-          }
-        } else {
-          // leaf
-          if (i === segments.length - 1) {
-            // Handle all leaf values the same way, regardless of type
-            ptr.key = segment;
-            ptr.type = change.type;
-            ptr.value = change.value;
-            ptr.oldValue = change.oldValue;
-          } else {
-            // branch
-            ptr.key = segment;
-            ptr.type = Operation.UPDATE;
-            const newPtr = {} as IChange;
-            ptr.changes = [newPtr];
-            ptr = newPtr;
-          }
-        }
+    const buildChange = (key: string, offset: number): IChange => {
+      const segment = segments[offset];
+      if (!segment) {
+        return { key, type: change.type, value: change.value, oldValue: change.oldValue };
       }
-      changesArr.push(obj);
-    }
+      if (segment.type === 'property') {
+        return { key, type: Operation.UPDATE, changes: [buildChange(segment.name, offset + 1)] };
+      }
+      if (segment.type === 'index' || segment.type === 'keyFilter' || segment.type === 'valueFilter') {
+        const embeddedKey = segment.type === 'index' ? '$index'
+          : segment.type === 'valueFilter' ? '$value' : segment.property;
+        const childKey = segment.type === 'index' ? String(segment.index) : String(segment.value);
+        const isPath = segment.type === 'keyFilter' && !segment.literalKey && segment.property.includes('.');
+        return {
+          key,
+          type: Operation.UPDATE,
+          embeddedKey,
+          ...(isPath ? { embeddedKeyIsPath: true } : {}),
+          changes: [buildChange(childKey, offset + 1)]
+        };
+      }
+      throw new Error(`Unexpected root segment in: ${change.path}`);
+    };
+
+    const first = segments[0];
+    return first?.type === 'property'
+      ? buildChange(first.name, 1)
+      : buildChange(first ? '$root' : change.key, 0);
   });
-  return changesArr;
 };
 
 /**
@@ -368,43 +295,18 @@ const getKey = (path: string) => {
   return left ?? '$root';
 };
 
+/** Keep ancestors of included paths so traversal can reach the selected fields. */
+const shouldComparePath = (path: string, options: Options): boolean => {
+  if (options.keysToSkip?.some(skip => path === skip || path.startsWith(skip + '.'))) return false;
+  return options.keysToInclude === undefined || options.keysToInclude.some(include =>
+    path === '' || path === include || path.startsWith(include + '.') || include.startsWith(path + '.')
+  );
+};
+
 const compare = (oldObj: any, newObj: any, path: any, keyPath: any, options: Options) => {
   let changes: any[] = [];
 
-  // Check if the current path should be skipped 
-  const currentPath = keyPath.join('.');
-  if (options.keysToSkip?.some(skipPath => {
-    // Exact match
-    if (currentPath === skipPath) {
-      return true;
-    }
-    
-    // The current path is a parent of the skip path
-    if (skipPath.includes('.') && skipPath.startsWith(currentPath + '.')) {
-      return false; // Don't skip, we need to process the parent
-    }
-    
-    // The current path is a child or deeper descendant of the skip path
-    if (skipPath.includes('.')) {
-      // Check if skipPath is a parent of currentPath
-      const skipParts = skipPath.split('.');
-      const currentParts = currentPath.split('.');
-      
-      if (currentParts.length >= skipParts.length) {
-        // Check if all parts of skipPath match the corresponding parts in currentPath
-        for (let i = 0; i < skipParts.length; i++) {
-          if (skipParts[i] !== currentParts[i]) {
-            return false;
-          }
-        }
-        return true; // All parts match, so this is a child or equal path
-      }
-    }
-    
-    return false;
-  })) {
-    return changes; // Skip comparison for this path and its children
-  }
+  if (!shouldComparePath(keyPath.join('.'), options)) return changes;
 
   const typeOfOldObj = getTypeOfObj(oldObj);
   const typeOfNewObj = getTypeOfObj(newObj);
@@ -523,6 +425,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
   for (k of intersectionKeys) {
     newPath = path.concat([k]);
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
+    if (!shouldComparePath(newKeyPath.join('.'), options)) continue;
     const diffs = compare(oldObj[k], newObj[k], newPath, newKeyPath, options);
     if (diffs.length) {
       changes = changes.concat(diffs);
@@ -535,7 +438,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
     // Check if the path should be skipped
     const currentPath = newKeyPath.join('.');
-    if (options.keysToSkip?.some(skipPath => currentPath === skipPath || currentPath.startsWith(skipPath + '.'))) {
+    if (!shouldComparePath(currentPath, options)) {
       continue; // Skip adding this key
     }
     changes.push({
@@ -551,7 +454,7 @@ const compareObject = (oldObj: any, newObj: any, path: any, keyPath: any, skipPa
     newKeyPath = skipPath ? keyPath : keyPath.concat([k]);
     // Check if the path should be skipped
     const currentPath = newKeyPath.join('.');
-    if (options.keysToSkip?.some(skipPath => currentPath === skipPath || currentPath.startsWith(skipPath + '.'))) {
+    if (!shouldComparePath(currentPath, options)) {
       continue; // Skip removing this key
     }
     changes.push({
@@ -825,7 +728,7 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index', isPath?
     case Operation.UPDATE:
       return modifyKeyValue(obj, key, oldValue);
     case Operation.REMOVE:
-      return addKeyValue(obj, key, value);
+      return addKeyValue(obj, key, value, embeddedKey);
   }
 };
 
@@ -840,8 +743,20 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index', isPath?
  * consistency with other functions.
  */
 const revertArrayChange = (arr: any[], change: any) => {
-  for (const subchange of change.changes) {
-    if (subchange.value != null || subchange.type === Operation.REMOVE) {
+  let changes = change.changes;
+  if (change.embeddedKey === '$index') {
+    changes = [...changes].sort((a, b) => {
+      if (a.type === Operation.ADD && b.type === Operation.ADD) {
+        return Number(b.key) - Number(a.key);
+      }
+      if (a.type === Operation.ADD) return -1;
+      if (b.type === Operation.ADD) return 1;
+      return Number(a.key) - Number(b.key);
+    });
+  }
+
+  for (const subchange of changes) {
+    if (!subchange.changes) {
       revertLeafChange(arr, subchange, change.embeddedKey, change.embeddedKeyIsPath);
     } else {
       let element;
@@ -876,6 +791,11 @@ const revertBranchChange = (obj: any, change: any) => {
 
 /** combine a base JSON Path with a subsequent segment */
 function append(basePath: string, nextSegment: string): string {
+  // Preserve legacy dotted-key paths, but quote keys that would be ambiguous
+  // with array selectors or the bracket delimiter.
+  if (!nextSegment || /[[\]'\\]/.test(nextSegment) || /^\d/.test(nextSegment)) {
+    return `${basePath}['${nextSegment.replace(/'/g, "''")}']`;
+  }
   return nextSegment.includes('.') ? `${basePath}[${nextSegment}]` : `${basePath}.${nextSegment}`;
 }
 

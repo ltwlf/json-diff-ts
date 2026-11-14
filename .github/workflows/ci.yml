@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        node-version: [18, 20, 22]
+        node-version: [20, 22, 24]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       
@@ -33,6 +33,7 @@ jobs:
       - run: npm run build
       - run: npm test -- --coverage
       - run: npm run lint
+      - run: npx tsc --noEmit
       
       - name: Upload coverage reports
         if: matrix.node-version == 20

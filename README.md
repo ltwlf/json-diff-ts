@@ -74,6 +74,18 @@ const updated  = applyAtom(structuredClone(before), atom);  // updated === after
 const restored = revertAtom(structuredClone(updated), atom); // restored === before
 ```
 
+## Preview release
+
+The JSON Atom API is available in the v5 preview:
+
+```sh
+npm install json-diff-ts@preview
+# Pin this preview explicitly:
+npm install json-diff-ts@5.0.0-alpha.10
+```
+
+`5.0.0-alpha.10` adds `keysToInclude`, fixes atomic path round-trips for dotted and bracketed property names, and fixes reverting index-based array additions. It also includes the descending array-removal ordering from `alpha.9`. The stable v4 package remains on the `latest` tag.
+
 ## Quick Start
 
 ```typescript
@@ -116,7 +128,7 @@ That's it. `atom` is a plain JSON object you can store in a database, send over 
 ## Installation
 
 ```sh
-npm install json-diff-ts
+npm install json-diff-ts@preview
 ```
 
 ```typescript
@@ -257,8 +269,25 @@ interface AtomOptions extends Options {
   reversible?: boolean;       // Include oldValue for undo. Default: true
   arrayIdentityKeys?: Record<string, string | FunctionKey>;
   keysToSkip?: readonly string[];
+  keysToInclude?: readonly string[];
 }
 ```
+
+### Include only selected paths
+
+`diff` and `diffAtom` accept `keysToInclude` to compare selected fields or entire subtrees. Paths use dot notation and omit array indices and identity values, so one entry selects the field in every array element.
+
+```typescript
+const atom = diffAtom(oldOrder, newOrder, {
+  arrayIdentityKeys: { positions: 'id', 'positions.deliveries': 'id' },
+  keysToInclude: ['positions.quantity', 'positions.deliveries'],
+  keysToSkip: ['positions.deliveries.internalNotes'],
+});
+```
+
+Each included path selects itself and its descendants. Unrelated branches are skipped before their values are read. `keysToSkip` takes precedence. Omit `keysToInclude` to compare everything; pass `[]` to produce no changes.
+
+Structural changes (adding, removing, or replacing an entire ancestor object or array element) retain the complete value, as with `keysToSkip`. This keeps operations applicable and reversible, including the identity fields needed to locate new array elements. Selection controls traversal of existing branches; it does not redact operation payloads.
 
 ### Atom Workflow Helpers
 
@@ -650,6 +679,7 @@ interface Options {
   /** @deprecated Use arrayIdentityKeys instead */
   embeddedObjKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
   keysToSkip?: readonly string[];
+  keysToInclude?: readonly string[];
   treatTypeChangeAsReplace?: boolean; // default: true
 }
 ```

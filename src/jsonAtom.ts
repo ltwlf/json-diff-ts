@@ -227,8 +227,8 @@ function walkChanges(
 
           if (childChange.changes) {
             // Deep path after filter — recurse into matched element
-            const oldEl = findElement(childOld, change.embeddedKey, childChange.key);
-            const newEl = findElement(childNew, change.embeddedKey, childChange.key);
+            const oldEl = findElement(childOld, change.embeddedKey, childChange.key, change.embeddedKeyIsPath);
+            const newEl = findElement(childNew, change.embeddedKey, childChange.key, change.embeddedKeyIsPath);
             walkChanges(childChange.changes, filterPath, oldEl, newEl, ops, options);
           } else {
             emitLeafOp(childChange, filterPath, ops, options);
@@ -408,7 +408,7 @@ function findActualValue(oldArr: any[], newArr: any[], stringKey: string, opType
   return stringKey; // fallback to string
 }
 
-function findElement(arr: any[], embeddedKey: string | FunctionKey, changeKey: string): any {
+function findElement(arr: any[], embeddedKey: string | FunctionKey, changeKey: string, isPath = false): any {
   if (!arr || !Array.isArray(arr)) return undefined;
 
   if (embeddedKey === '$index') {
@@ -422,7 +422,7 @@ function findElement(arr: any[], embeddedKey: string | FunctionKey, changeKey: s
   if (typeof embeddedKey === 'function') {
     return arr.find((item) => String(embeddedKey(item)) === changeKey);
   }
-  return arr.find((item) => item && String(item[embeddedKey]) === changeKey);
+  return arr.find((item) => item && String(resolveNestedKey(item, embeddedKey, isPath)) === changeKey);
 }
 
 function resolveNestedKey(item: any, key: string, isPath: boolean): any {

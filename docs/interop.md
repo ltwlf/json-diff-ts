@@ -35,7 +35,7 @@ The CI job pins the Python source revision in `.github/workflows/ci.yml`. Update
 
 The check compares resulting documents, not operation ordering: a diff algorithm is not part of the wire specification, and different valid atoms can describe the same transition.
 
-Fixtures are mirrored from [json-atom-format at c5d1f49](https://github.com/ltwlf/json-atom-format/commit/c5d1f49) into `tests/__fixtures__/json-atom/`; their JSON contents are identical in all three repositories. The extended checks use [Python source 40ccd55](https://github.com/ltwlf/json-atom-py/commit/40ccd5520b08757c5a16453889a1e4dea263c0b0). Those Python corrections are **not part of the previously published PyPI 0.4.1 artifact**.
+Fixtures are mirrored from [json-atom-format at c5d1f49](https://github.com/ltwlf/json-atom-format/commit/c5d1f49) into `tests/__fixtures__/json-atom/`; their JSON contents are identical in all three repositories. The extended checks use [Python source 40ccd55](https://github.com/ltwlf/json-atom-py/commit/40ccd5520b08757c5a16453889a1e4dea263c0b0). Those Python corrections are included in **PyPI `json-atom` 0.4.2**; they are not part of the older 0.4.1 artifact.
 
 ## Boundaries to preserve
 

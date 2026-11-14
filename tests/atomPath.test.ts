@@ -482,12 +482,12 @@ describe('atomPathToAtomicPath', () => {
     expect(atomPathToAtomicPath("$.items[?(@.name=='val)]ue')]")).toBe("$.items[?(@.name=='val)]ue')]");
   });
 
-  it('converts bracket-notation filter keys to dot notation for v4', () => {
-    expect(atomPathToAtomicPath("$.a[?(@['c.d']=='20')]")).toBe("$.a[?(@.c.d=='20')]");
+  it('preserves literal bracket-notation filter keys for v4', () => {
+    expect(atomPathToAtomicPath("$.a[?(@['c.d']=='20')]")).toBe("$.a[?(@['c.d']=='20')]");
   });
 
   it('converts bracket filter keys with typed literals to string-quoted', () => {
-    expect(atomPathToAtomicPath("$.items[?(@['pos.num']==42)]")).toBe("$.items[?(@.pos.num=='42')]");
+    expect(atomPathToAtomicPath("$.items[?(@['pos.num']==42)]")).toBe("$.items[?(@['pos.num']=='42')]");
   });
 });
 
@@ -545,10 +545,10 @@ describe('v4 ↔ atom path round-trips', () => {
   it('round-trips bracket filter keys with typed literals', () => {
     const atomPath = "$.items[?(@['pos.num']==42)]";
     const v4Path = atomPathToAtomicPath(atomPath);
-    expect(v4Path).toBe("$.items[?(@.pos.num=='42')]");
+    expect(v4Path).toBe("$.items[?(@['pos.num']=='42')]");
     const backToAtom = atomicPathToAtomPath(v4Path);
-    // Nested path (each segment is valid identifier) → dot notation
-    expect(backToAtom).toBe("$.items[?(@.pos.num=='42')]");
+    // Literal dotted keys must remain distinct from nested member access
+    expect(backToAtom).toBe("$.items[?(@['pos.num']=='42')]");
   });
 
   it('atom canonical paths round-trip through parse + build', () => {

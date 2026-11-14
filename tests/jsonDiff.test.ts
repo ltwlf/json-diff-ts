@@ -332,10 +332,82 @@ describe('jsonDiff#revertChangeset', () => {
     // Reverting a REMOVE operation should restore the object
     const obj = {};
     const changeset = [{ key: '$root', type: Operation.REMOVE, value: { x: 'y', z: 123 } }];
-    
+
     // Expected result is the original object that was removed
     const result = revertChangeset(obj, changeset);
     expect(result).toEqual({ x: 'y', z: 123 });
+  });
+
+  describe('index-based arrays', () => {
+    it('should revert multiple ADDs without leaving later elements behind', () => {
+      // Reverting an ADD splices the element out, so the ADDs have to be undone
+      // from the highest index down. Undoing index 1 first shifts 'c' down into
+      // that slot, which used to leave the array as ['a', 'c'].
+      const oldArr = ['a'];
+      const newArr = ['a', 'b', 'c'];
+
+      const changes = diff(oldArr, newArr);
+      const result = revertChangeset(structuredClone(newArr), changes);
+      expect(result).toEqual(oldArr);
+    });
+
+    it('should revert multiple ADDs on an array nested in a property', () => {
+      const oldObj = { list: ['a'] };
+      const newObj = { list: ['a', 'b', 'c', 'd'] };
+
+      const changes = diff(oldObj, newObj);
+      const result = revertChangeset(structuredClone(newObj), changes);
+      expect(result).toEqual(oldObj);
+    });
+
+    it('should restore the original position when reverting a REMOVE/ADD replace pair', () => {
+      // A type change is encoded as REMOVE + ADD at the same index. Reverting
+      // the REMOVE has to splice the value back in at that index rather than
+      // append it, otherwise the element ends up at the end of the array.
+      const oldArr = ['a', 2];
+      const newArr = [false, 2];
+
+      const changes = diff(oldArr, newArr);
+      const result = revertChangeset(structuredClone(newArr), changes);
+      expect(result).toEqual(oldArr);
+    });
+
+    it('should revert ADDs carrying null values', () => {
+      // Null-valued subchanges must still be treated as leaf changes; routing
+      // them down the branch path silently dropped them.
+      const oldArr: unknown[] = [];
+      const newArr = [null, 'a', null];
+
+      const changes = diff(oldArr, newArr);
+      const result = revertChangeset(structuredClone(newArr), changes);
+      expect(result).toEqual(oldArr);
+    });
+
+    it('should revert mixed ADD and REMOVE operations in a single changeset', () => {
+      // Produces REMOVE@0, ADD@0 (the type change) plus ADD@2 and ADD@3.
+      const oldArr = ['a', 'b'];
+      const newArr = [1, 'b', 2, 'c'];
+
+      const changes = diff(oldArr, newArr);
+      const result = revertChangeset(structuredClone(newArr), changes);
+      expect(result).toEqual(oldArr);
+    });
+
+    it('should revert a nested branch change alongside a replace pair', () => {
+      // Branch subchange at index 0, replace pair at index 1, then trailing ADDs.
+      const oldObj = { list: [{ a: 1 }, { b: 2 }] };
+      const newObj = { list: [{ a: 9 }, 'prim', { e: 5 }, 'tail'] };
+
+      const changes = diff(oldObj, newObj);
+      const result = revertChangeset(structuredClone(newObj), changes);
+      expect(result).toEqual(oldObj);
+    });
+
+    it.each(fixtures.indexArrayRevertCases)('should round-trip a revert for $name', ({ oldVal, newVal }) => {
+      const changes = diff(oldVal, newVal);
+      const result = revertChangeset(structuredClone(newVal), changes);
+      expect(result).toEqual(oldVal);
+    });
   });
 });
 

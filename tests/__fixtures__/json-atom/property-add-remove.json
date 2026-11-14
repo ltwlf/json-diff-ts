@@ -1,0 +1,29 @@
+{
+  "name": "property-add-remove",
+  "description": "Add and remove object properties",
+  "source": {
+    "name": "Alice",
+    "role": "user"
+  },
+  "target": {
+    "name": "Alice",
+    "email": "alice@example.com"
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "remove",
+        "path": "$.role",
+        "oldValue": "user"
+      },
+      {
+        "op": "add",
+        "path": "$.email",
+        "value": "alice@example.com"
+      }
+    ]
+  },
+  "level": 2
+}

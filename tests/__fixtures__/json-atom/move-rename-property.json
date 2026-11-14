@@ -1,0 +1,28 @@
+{
+  "name": "move-rename-property",
+  "description": "Move (rename) an object property",
+  "source": {
+    "user": {
+      "name": "Alice",
+      "role": "admin"
+    }
+  },
+  "target": {
+    "user": {
+      "displayName": "Alice",
+      "role": "admin"
+    }
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "move",
+        "from": "$.user.name",
+        "path": "$.user.displayName"
+      }
+    ]
+  },
+  "level": 2
+}

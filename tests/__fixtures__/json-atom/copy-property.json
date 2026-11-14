@@ -1,0 +1,31 @@
+{
+  "name": "copy-property",
+  "description": "Copy a property value to another location (reversible with value field)",
+  "source": {
+    "user": {
+      "email": "alice@example.com"
+    },
+    "billing": {}
+  },
+  "target": {
+    "user": {
+      "email": "alice@example.com"
+    },
+    "billing": {
+      "email": "alice@example.com"
+    }
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "copy",
+        "from": "$.user.email",
+        "path": "$.billing.email",
+        "value": "alice@example.com"
+      }
+    ]
+  },
+  "level": 2
+}

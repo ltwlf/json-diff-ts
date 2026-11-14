@@ -1,0 +1,20 @@
+{
+  "name": "root-operations",
+  "description": "Create and replace root document value",
+  "source": null,
+  "target": {
+    "initialized": true
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "add",
+        "path": "$",
+        "value": { "initialized": true }
+      }
+    ]
+  },
+  "level": 1
+}

@@ -1,0 +1,23 @@
+{
+  "name": "type-change-replace",
+  "description": "Replace a value with a different type (string to object)",
+  "source": {
+    "metadata": "simple"
+  },
+  "target": {
+    "metadata": { "format": "extended", "version": 2 }
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "replace",
+        "path": "$.metadata",
+        "value": { "format": "extended", "version": 2 },
+        "oldValue": "simple"
+      }
+    ]
+  },
+  "level": 2
+}

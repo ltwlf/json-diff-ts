@@ -1,0 +1,39 @@
+{
+  "name": "nested-boolean-number",
+  "description": "JSON booleans and numbers remain distinct inside containers.",
+  "source": {
+    "config": {
+      "flags": [
+        true,
+        false
+      ]
+    }
+  },
+  "target": {
+    "config": {
+      "flags": [
+        1,
+        0
+      ]
+    }
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "replace",
+        "path": "$.config.flags[0]",
+        "oldValue": true,
+        "value": 1
+      },
+      {
+        "op": "replace",
+        "path": "$.config.flags[1]",
+        "oldValue": false,
+        "value": 0
+      }
+    ]
+  },
+  "level": 2
+}

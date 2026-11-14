@@ -1,0 +1,27 @@
+{
+  "name": "value-filter-array",
+  "description": "Add and remove elements in a primitive array using value filters",
+  "source": {
+    "tags": ["urgent", "review", "draft"]
+  },
+  "target": {
+    "tags": ["urgent", "review", "approved"]
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "remove",
+        "path": "$.tags[?(@=='draft')]",
+        "oldValue": "draft"
+      },
+      {
+        "op": "add",
+        "path": "$.tags[?(@=='approved')]",
+        "value": "approved"
+      }
+    ]
+  },
+  "level": 2
+}

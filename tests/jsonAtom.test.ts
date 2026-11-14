@@ -1233,12 +1233,12 @@ describe('conformance fixtures', () => {
     const fixture = loadFixture('basic-replace');
 
     it('Level 1: applyAtom(source, atom) == target', () => {
-      const result = applyAtom(deepClone(fixture.source), fixture.atom);
+      const result = applyAtom(deepClone(fixture.source), fixture.delta);
       expect(result).toEqual(fixture.target);
     });
 
     it('Level 2: applyAtom(target, inverse(atom)) == source', () => {
-      const inverse = invertAtom(fixture.atom);
+      const inverse = invertAtom(fixture.delta);
       const result = applyAtom(deepClone(fixture.target), inverse);
       expect(result).toEqual(fixture.source);
     });
@@ -1254,12 +1254,12 @@ describe('conformance fixtures', () => {
     const fixture = loadFixture('keyed-array-update');
 
     it('Level 1: applyAtom(source, atom) == target', () => {
-      const result = applyAtom(deepClone(fixture.source), fixture.atom);
+      const result = applyAtom(deepClone(fixture.source), fixture.delta);
       expect(result).toEqual(fixture.target);
     });
 
     it('Level 2: applyAtom(target, inverse(atom)) == source', () => {
-      const inverse = invertAtom(fixture.atom);
+      const inverse = invertAtom(fixture.delta);
       const result = applyAtom(deepClone(fixture.target), inverse);
       expect(result).toEqual(fixture.source);
     });

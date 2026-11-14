@@ -1,0 +1,37 @@
+{
+  "name": "move-keyed-array-element",
+  "description": "Move an element between two keyed arrays (archive pattern)",
+  "source": {
+    "active": [
+      { "id": 1, "name": "Widget" },
+      { "id": 2, "name": "Gadget" }
+    ],
+    "archive": []
+  },
+  "target": {
+    "active": [
+      { "id": 1, "name": "Widget" }
+    ],
+    "archive": [
+      { "id": 2, "name": "Gadget" }
+    ]
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "move",
+        "from": "$.active[?(@.id==2)]",
+        "path": "$.archive[?(@.id==2)]"
+      }
+    ]
+  },
+  "computeHints": {
+    "arrayKeys": {
+      "active": "id",
+      "archive": "id"
+    }
+  },
+  "level": 2
+}

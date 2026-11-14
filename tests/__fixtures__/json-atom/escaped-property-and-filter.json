@@ -1,0 +1,33 @@
+{
+  "name": "escaped-property-and-filter",
+  "description": "Doubled quotes escape literal quotes in properties and filter strings.",
+  "source": {
+    "items": [
+      {
+        "id": "O'Brien",
+        "display'name": "old"
+      }
+    ]
+  },
+  "target": {
+    "items": [
+      {
+        "id": "O'Brien",
+        "display'name": "new"
+      }
+    ]
+  },
+  "delta": {
+    "format": "json-atom",
+    "version": 1,
+    "operations": [
+      {
+        "op": "replace",
+        "path": "$.items[?(@.id=='O''Brien')]['display''name']",
+        "oldValue": "old",
+        "value": "new"
+      }
+    ]
+  },
+  "level": 2
+}

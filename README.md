@@ -81,7 +81,7 @@ JSON Atom is available in the stable v5 release:
 ```sh
 npm install json-diff-ts@5
 # Pin the release explicitly:
-npm install json-diff-ts@5.0.0
+npm install json-diff-ts@5.1.0
 ```
 
 Version 5 adds JSON Atom diff/apply/undo, move/copy operations, workflow helpers, and `keysToInclude`. It fixes atomic path round-trips for special property names and array apply/revert ordering. JSON Atom consumers use typed filters and reject malformed paths, missing or ambiguous targets, and invalid JSON payloads.
@@ -734,6 +734,8 @@ Use `$value` as the identity key: `{ arrayIdentityKeys: { tags: '$value' } }`. E
 ---
 
 ## Release Notes
+
+- **v5.1.0:** `keysToSkip` accepts regular expressions in `diff` and `diffAtom`, including deterministic global/sticky matching without changing caller state. Regex skips take precedence over `keysToInclude`.
 
 - **v5.0.0-alpha.2:**
   - Atom workflow helpers: `squashAtoms`, `atomMap`, `atomStamp`, `atomGroupBy`

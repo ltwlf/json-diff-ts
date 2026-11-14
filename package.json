@@ -69,6 +69,6 @@
     "typescript-eslint": "^8.34.0"
   },
   "publishConfig": {
-    "tag": "v4"
+    "tag": "legacy-v4"
   }
 }

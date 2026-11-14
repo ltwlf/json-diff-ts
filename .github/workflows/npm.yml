@@ -17,23 +17,25 @@ jobs:
       contents: read
     strategy:
       matrix:
-        node-version: [18, 20, 22]
+        node-version: [20, 22, 24]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
           
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm test -- --coverage
+      - run: npm run lint
+      - run: npx tsc --noEmit
       
       - name: Upload build artifacts
         if: matrix.node-version == 20
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: build-artifacts
           path: dist/
@@ -45,47 +47,57 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write   # For creating tags
-      id-token: write   # For npm provenance
+      id-token: write   # For npm trusted publishing and provenance
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 20
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 24
           cache: 'npm'
           
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run build
       
       - name: Download build artifacts
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: build-artifacts
           path: dist/
       
-      - name: Create tag and determine release type
+      - name: Determine release type
         id: prep
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "Version: $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          if [[ "$VERSION" == *-* ]]; then
-            echo "RELEASE_TYPE=preview" >> $GITHUB_OUTPUT
-            echo "Release type: preview (pre-release)"
-          else
-            echo "RELEASE_TYPE=latest" >> $GITHUB_OUTPUT
-            echo "Release type: latest (stable)"
+          if [[ "$GITHUB_REF_NAME" != "v4" || ! "$VERSION" =~ ^4\.[0-9]+\.[0-9]+$ ]]; then
+            echo "The maintenance workflow only publishes stable 4.x versions from v4."
+            exit 1
           fi
+          echo "RELEASE_TYPE=v4" >> $GITHUB_OUTPUT
+          echo "Release type: v4 (maintenance; latest remains on v5)"
           
+      - name: Publish package with trusted publishing
+        id: publish
+        env:
+          RELEASE_TYPE: ${{ steps.prep.outputs.RELEASE_TYPE }}
+        run: |
+          npm --version
+          npm publish --provenance --access public --ignore-scripts --tag "$RELEASE_TYPE"
+
+      - name: Create release tag
+        env:
+          VERSION: ${{ steps.prep.outputs.VERSION }}
+        run: |
           # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Check if tag already exists
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+          # Check if tag already exists on remote
+          if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q .; then
             echo "Tag v$VERSION already exists, skipping tag creation"
           else
             # Create and push tag
@@ -93,19 +105,13 @@ jobs:
             git push origin "v$VERSION"
             echo "Created and pushed tag v$VERSION"
           fi
-          
-      - name: Publish package
-        uses: JS-DevTools/npm-publish@19c28f1ef146469e409470805ea4279d47c3d35c # v3
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
-          tag: ${{ steps.prep.outputs.RELEASE_TYPE }}
-          provenance: true
-          
+
       - name: Create release summary
         if: always()
         run: |
           echo "## 📦 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Version:** ${{ steps.prep.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Release type:** ${{ steps.prep.outputs.RELEASE_TYPE }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Published to:** npm registry" >> $GITHUB_STEP_SUMMARY
-          echo "- **Provenance:** ✅ Enabled" >> $GITHUB_STEP_SUMMARY
+          echo "- **Publish result:** ${{ steps.publish.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry:** https://registry.npmjs.org" >> $GITHUB_STEP_SUMMARY
+          echo "- **Authentication:** npm trusted publishing (OIDC)" >> $GITHUB_STEP_SUMMARY

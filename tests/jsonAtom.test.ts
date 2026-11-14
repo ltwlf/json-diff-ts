@@ -293,7 +293,7 @@ describe('diffAtom', () => {
     expect(pureRemoveIndices).toEqual([...pureRemoveIndices].sort((a, b) => b - a));
   });
 
-  it('preserves same-index REMOVE+ADD pairs for pure index type changes (P1 badge case)', () => {
+  it('emits a single replace for each array element type change', () => {
     const oldObj = { a: [1, 2] };
     const newObj = { a: [[1], [2]] };
 
@@ -302,10 +302,8 @@ describe('diffAtom', () => {
 
     expect(applied).toEqual(newObj);
     expect(atom.operations).toEqual([
-      { op: 'remove', path: '$.a[0]', oldValue: 1 },
-      { op: 'add', path: '$.a[0]', value: [1] },
-      { op: 'remove', path: '$.a[1]', oldValue: 2 },
-      { op: 'add', path: '$.a[1]', value: [2] },
+      { op: 'replace', path: '$.a[0]', oldValue: 1, value: [1] },
+      { op: 'replace', path: '$.a[1]', oldValue: 2, value: [2] },
     ]);
   });
 
@@ -1548,29 +1546,26 @@ describe('move/copy operations', () => {
       expect(result.target.data).toEqual({ deep: [1, 2, 3] });
     });
 
-    it('move to root replaces entire document', () => {
+    it('rejects move to an occupied root', () => {
       const obj = { a: 1, b: { x: 10 } };
       const atom: IJsonAtom = {
         format: 'json-atom',
         version: 1,
         operations: [{ op: 'move', path: '$', from: '$.b' }],
       };
-      const result = applyAtom(obj, atom);
-      expect(result).toEqual({ x: 10 });
+      expect(() => applyAtom(obj, atom)).toThrow(/Root add requires a null source/);
     });
 
-    it('move from root to descendant results in null (root removed)', () => {
+    it('rejects moving root into its descendant', () => {
       const obj = { a: 1 };
       const atom: IJsonAtom = {
         format: 'json-atom',
         version: 1,
         operations: [{ op: 'move', path: '$.backup', from: '$' }],
       };
-      // Validation passes. After removing root it becomes null — adding $.backup
-      // on null has no effect, so result is null.
-      expect(validateAtom(atom).valid).toBe(true);
-      const result = applyAtom(obj, atom);
-      expect(result).toBeNull();
+      expect(validateAtom(atom).valid).toBe(false);
+      expect(() => applyAtom(obj, atom)).toThrow(/subtree/);
+      expect(obj).toEqual({ a: 1 });
     });
 
     it('keyed array consistency after move', () => {
@@ -1669,15 +1664,14 @@ describe('move/copy operations', () => {
       expect(result.copies[0]).toEqual({ id: '1', name: 'Widget' });
     });
 
-    it('copy to root replaces entire document', () => {
+    it('rejects copy to an occupied root', () => {
       const obj = { a: 1, b: { x: 10 } };
       const atom: IJsonAtom = {
         format: 'json-atom',
         version: 1,
         operations: [{ op: 'copy', path: '$', from: '$.b' }],
       };
-      const result = applyAtom(obj, atom);
-      expect(result).toEqual({ x: 10 });
+      expect(() => applyAtom(obj, atom)).toThrow(/Root add requires a null source/);
     });
   });
 

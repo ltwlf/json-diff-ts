@@ -821,7 +821,7 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index', isPath?
     case Operation.UPDATE:
       return modifyKeyValue(obj, key, oldValue);
     case Operation.REMOVE:
-      return addKeyValue(obj, key, value);
+      return addKeyValue(obj, key, value, embeddedKey);
   }
 };
 
@@ -836,8 +836,20 @@ const revertLeafChange = (obj: any, change: any, embeddedKey = '$index', isPath?
  * consistency with other functions.
  */
 const revertArrayChange = (arr: any[], change: any) => {
-  for (const subchange of change.changes) {
-    if (subchange.value != null || subchange.type === Operation.REMOVE) {
+  let changes = change.changes;
+  if (change.embeddedKey === '$index') {
+    changes = [...changes].sort((a, b) => {
+      if (a.type === Operation.ADD && b.type === Operation.ADD) {
+        return Number(b.key) - Number(a.key);
+      }
+      if (a.type === Operation.ADD) return -1;
+      if (b.type === Operation.ADD) return 1;
+      return Number(a.key) - Number(b.key);
+    });
+  }
+
+  for (const subchange of changes) {
+    if (!subchange.changes) {
       revertLeafChange(arr, subchange, change.embeddedKey, change.embeddedKeyIsPath);
     } else {
       let element;

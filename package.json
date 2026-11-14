@@ -1,6 +1,6 @@
 {
   "name": "json-diff-ts",
-  "version": "5.0.0-alpha.9",
+  "version": "5.0.0",
   "description": "Modern TypeScript JSON diff library - Zero dependencies, high performance, ESM + CommonJS support. Calculate and apply differences between JSON objects with advanced features like key-based array diffing, JSONPath support, and atomic changesets.",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -16,7 +16,8 @@
     "prepublishOnly": "npm test && npm run lint",
     "preversion": "npm run lint",
     "version": "npm run format && git add -A src",
-    "postversion": "git push && git push --tags"
+    "postversion": "git push && git push --tags",
+    "typecheck": "tsc --noEmit"
   },
   "files": [
     "dist"
@@ -68,5 +69,18 @@
     "tsup": "^8.5.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.34.0"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
   }
 }

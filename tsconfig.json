@@ -13,7 +13,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "esModuleInterop": true,
-    "moduleResolution": "Node"
+    "moduleResolution": "Bundler",
+    "types": []
   },
   "include": ["src", "jest.config.mjs"],
   "exclude": ["node_modules"]

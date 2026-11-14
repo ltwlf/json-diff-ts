@@ -399,3 +399,26 @@ export const assortedDiffs: {
     expectedUpdate: []
   },
 ];
+
+export const indexArrayRevertCases: {
+  name: string;
+  oldVal: unknown[];
+  newVal: unknown[];
+}[] = [
+  { name: 'array grown at the end', oldVal: ['a'], newVal: ['a', 'b', 'c'] },
+  { name: 'array shrunk at the end', oldVal: ['a', 'b', 'c'], newVal: ['a'] },
+  { name: 'array filled from empty', oldVal: [], newVal: ['a', 'b', 'c'] },
+  { name: 'array emptied', oldVal: ['a', 'b', 'c'], newVal: [] },
+  { name: 'replace pair at a single index', oldVal: ['a', 2], newVal: [false, 2] },
+  { name: 'every element replaced by another type', oldVal: ['a', 1, 'b', 2], newVal: [1, 'a', 2, 'b'] },
+  { name: 'replace pair with trailing removes', oldVal: ['a', 'b', 'c'], newVal: [true] },
+  { name: 'replace pair with trailing adds', oldVal: [true], newVal: ['a', 'b', 'c'] },
+  { name: 'null values added', oldVal: [], newVal: [null, 'a', null] },
+  { name: 'null values removed', oldVal: [null, 'a', null], newVal: ['a'] },
+  { name: 'nested arrays changed on both sides', oldVal: [['a', 'b'], ['c']], newVal: [['a'], ['c', 'd']] },
+  {
+    name: 'objects replaced by primitives',
+    oldVal: [{ a: 1 }, { b: 2 }],
+    newVal: [{ a: 9 }, 'prim']
+  }
+];

@@ -10,6 +10,7 @@ export default {
     '^.+\\.tsx?$': [
       'ts-jest',
       {
+        tsconfig: 'tsconfig.test.json',
         useESM: false // true if lodash-es is used
       }
     ]

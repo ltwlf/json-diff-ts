@@ -709,6 +709,8 @@ Use `$value` as the identity key: `{ arrayIdentityKeys: { tags: '$value' } }`. E
 
 ## Release Notes
 
+- **v5.1.1:** Refreshed project homepage and ecosystem guide, all 16 shared specification fixtures, and continuous TypeScript/Python interoperability checks. No JavaScript runtime API changes.
+
 - **v5.1.0:** `keysToSkip` accepts regular expressions in `diff` and `diffAtom`, including deterministic global/sticky matching without changing caller state. Regex skips take precedence over `keysToInclude`.
 
 - **v5.0.0:** Stable JSON Atom diff/apply/undo, move/copy execution, typed paths, strict validation, path selection, and ESM/CommonJS exports. [Release notes](https://github.com/ltwlf/json-diff-ts/releases/tag/v5.0.0).

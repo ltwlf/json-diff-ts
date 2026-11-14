@@ -268,7 +268,7 @@ Extends the base `Options` interface:
 interface AtomOptions extends Options {
   reversible?: boolean;       // Include oldValue for undo. Default: true
   arrayIdentityKeys?: Record<string, string | FunctionKey>;
-  keysToSkip?: readonly string[];
+  keysToSkip?: readonly (string | RegExp)[];
   keysToInclude?: readonly string[];
 }
 ```
@@ -643,8 +643,10 @@ diff(old, new, { arrayIdentityKeys: { tags: '$value' } });
 #### Path Skipping
 
 ```typescript
-diff(old, new, { keysToSkip: ['characters.metadata'] });
+diff(old, new, { keysToSkip: ['characters.metadata', /(^|\.)secret$/] });
 ```
+
+Strings skip the named path and its descendants. Regular expressions match dot-separated property paths, without array indices or identity values; matching a parent skips its entire subtree. Every regex match starts at index zero, including expressions with `g` or `y`, and the supplied regex is not modified. The document root is not tested against regexes. These rules also apply to `diffAtom`, and skipped paths take precedence over `keysToInclude`.
 
 #### Type Change Handling
 
@@ -678,7 +680,7 @@ interface Options {
   arrayIdentityKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
   /** @deprecated Use arrayIdentityKeys instead */
   embeddedObjKeys?: Record<string, string | FunctionKey> | Map<string | RegExp, string | FunctionKey>;
-  keysToSkip?: readonly string[];
+  keysToSkip?: readonly (string | RegExp)[];
   keysToInclude?: readonly string[];
   treatTypeChangeAsReplace?: boolean; // default: true
 }

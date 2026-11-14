@@ -77,8 +77,8 @@ jobs:
             echo "The maintenance workflow only publishes stable 4.x versions from v4."
             exit 1
           fi
-          echo "RELEASE_TYPE=v4" >> $GITHUB_OUTPUT
-          echo "Release type: v4 (maintenance; latest remains on v5)"
+          echo "RELEASE_TYPE=legacy-v4" >> $GITHUB_OUTPUT
+          echo "Release type: legacy-v4 (maintenance; latest remains on v5)"
           
       - name: Publish package with trusted publishing
         id: publish

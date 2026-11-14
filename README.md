@@ -329,7 +329,7 @@ enum Operation {
 
 ## Release Notes
 
-- **v4.10.5:** Fix `revertChangeset` ordering for index-based arrays and reverting null-valued additions. Install with `npm install json-diff-ts@4.10.5` or `npm install json-diff-ts@v4`; npm `latest` remains on v5.
+- **v4.10.5:** Fix `revertChangeset` ordering for index-based arrays and reverting null-valued additions. Install with `npm install json-diff-ts@4.10.5` or `npm install json-diff-ts@legacy-v4`; npm `latest` remains on v5.
 
 - **v4.9.0:**
   - Fixed `applyChangeset` and `revertChangeset` for root-level arrays containing objects (fixes #362)

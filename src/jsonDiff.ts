@@ -35,7 +35,8 @@ interface Options {
   arrayIdentityKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
   /** @deprecated Use `arrayIdentityKeys` instead. */
   embeddedObjKeys?: EmbeddedObjKeysType | EmbeddedObjKeysMapType;
-  keysToSkip?: readonly string[];
+  /** Skip dot-separated paths or paths matched by a regular expression. */
+  keysToSkip?: readonly (string | RegExp)[];
   /** Compare only these paths and their descendants. Array element keys are omitted. */
   keysToInclude?: readonly string[];
   treatTypeChangeAsReplace?: boolean;
@@ -70,7 +71,8 @@ function diff(oldObj: any, newObj: any, options: Options = {}): IChange[] {
   // Compare old and new objects to generate a list of changes
   return compare(oldObj, newObj, [], [], {
     embeddedObjKeys,
-    keysToSkip: keysToSkip ?? [],
+    // Own regex instances so global/sticky matches never change caller state.
+    keysToSkip: keysToSkip?.map(skip => skip instanceof RegExp ? new RegExp(skip.source, skip.flags) : skip) ?? [],
     keysToInclude,
     treatTypeChangeAsReplace: treatTypeChangeAsReplace ?? true
   });
@@ -297,7 +299,12 @@ const getKey = (path: string) => {
 
 /** Keep ancestors of included paths so traversal can reach the selected fields. */
 const shouldComparePath = (path: string, options: Options): boolean => {
-  if (options.keysToSkip?.some(skip => path === skip || path.startsWith(skip + '.'))) return false;
+  if (options.keysToSkip?.some(skip => {
+    if (typeof skip === 'string') return path === skip || path.startsWith(skip + '.');
+    // Test every property path independently, including repeated array-element paths.
+    skip.lastIndex = 0;
+    return path !== '' && skip.test(path);
+  })) return false;
   return options.keysToInclude === undefined || options.keysToInclude.some(include =>
     path === '' || path === include || path.startsWith(include + '.') || include.startsWith(path + '.')
   );

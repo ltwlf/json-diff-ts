@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write   # For creating tags
-      id-token: write   # For npm provenance
+      id-token: write   # For npm trusted publishing and provenance
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -55,8 +55,7 @@ jobs:
 
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
-          node-version: 20
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 24
           cache: 'npm'
           
       - run: npm ci --ignore-scripts
@@ -68,7 +67,7 @@ jobs:
           name: build-artifacts
           path: dist/
       
-      - name: Create tag and determine release type
+      - name: Determine release type
         id: prep
         run: |
           VERSION=$(node -p "require('./package.json').version")
@@ -82,6 +81,18 @@ jobs:
             echo "Release type: latest (stable)"
           fi
           
+      - name: Publish package with trusted publishing
+        id: publish
+        env:
+          RELEASE_TYPE: ${{ steps.prep.outputs.RELEASE_TYPE }}
+        run: |
+          npm --version
+          npm publish --provenance --access public --ignore-scripts --tag "$RELEASE_TYPE"
+
+      - name: Create release tag
+        env:
+          VERSION: ${{ steps.prep.outputs.VERSION }}
+        run: |
           # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -95,19 +106,13 @@ jobs:
             git push origin "v$VERSION"
             echo "Created and pushed tag v$VERSION"
           fi
-          
-      - name: Publish package
-        uses: JS-DevTools/npm-publish@19c28f1ef146469e409470805ea4279d47c3d35c # v3
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
-          tag: ${{ steps.prep.outputs.RELEASE_TYPE }}
-          provenance: true
-          
+
       - name: Create release summary
         if: always()
         run: |
           echo "## 📦 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Version:** ${{ steps.prep.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Release type:** ${{ steps.prep.outputs.RELEASE_TYPE }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Published to:** npm registry" >> $GITHUB_STEP_SUMMARY
-          echo "- **Provenance:** ✅ Enabled" >> $GITHUB_STEP_SUMMARY
+          echo "- **Publish result:** ${{ steps.publish.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry:** https://registry.npmjs.org" >> $GITHUB_STEP_SUMMARY
+          echo "- **Authentication:** npm trusted publishing (OIDC)" >> $GITHUB_STEP_SUMMARY

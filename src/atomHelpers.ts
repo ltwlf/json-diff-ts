@@ -4,17 +4,18 @@ import type { IAtomOperation, IJsonAtom, AtomOptions } from './jsonAtom.js';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-const OP_SPEC_KEYS = new Set(['op', 'path', 'value', 'oldValue']);
+const OP_SPEC_KEYS = new Set(['op', 'path', 'from', 'value', 'oldValue']);
 const ATOM_SPEC_KEYS = new Set(['format', 'version', 'operations']);
 
 // ─── Operation Helpers ─────────────────────────────────────────────────────
 
 /**
  * Returns a copy of the operation containing only spec-defined keys
- * (`op`, `path`, `value`, `oldValue`). Complement of `operationExtensions`.
+ * (`op`, `path`, `from`, `value`, `oldValue`). Complement of `operationExtensions`.
  */
 export function operationSpecDict(op: IAtomOperation): IAtomOperation {
   const result: IAtomOperation = { op: op.op, path: op.path };
+  if ('from' in op) result.from = op.from;
   if ('value' in op) result.value = op.value;
   if ('oldValue' in op) result.oldValue = op.oldValue;
   return result;

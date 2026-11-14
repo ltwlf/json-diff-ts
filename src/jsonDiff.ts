@@ -524,9 +524,10 @@ const getObjectKey = (embeddedObjKeys: any, keyPath: any) => {
 };
 
 const convertArrayToObj = (arr: any[], uniqKey: any) => {
-  let obj: any = {};
+  let obj: any = Object.create(null);
   if (uniqKey === '$value') {
     arr.forEach((value) => {
+      if (Object.prototype.hasOwnProperty.call(obj, String(value))) throw new Error(`Duplicate array value identity: ${value}`);
       obj[value] = value;
     });
   } else if (uniqKey === '$index') {

@@ -29,11 +29,11 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
           
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm test -- --coverage
       - run: npm run lint
-      - run: npx tsc --noEmit
+      - run: npm run typecheck
       
       - name: Upload coverage reports
         if: matrix.node-version == 20

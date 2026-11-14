@@ -27,11 +27,11 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
           
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm test -- --coverage
       - run: npm run lint
-      - run: npx tsc --noEmit
+      - run: npm run typecheck
       
       - name: Upload build artifacts
         if: matrix.node-version == 20
@@ -59,7 +59,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
           
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run build
       
       - name: Download build artifacts

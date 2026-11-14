@@ -4,7 +4,7 @@ export type AtomPathSegment =
   | { type: 'root' }
   | { type: 'property'; name: string }
   | { type: 'index'; index: number }
-  | { type: 'keyFilter'; property: string; value: unknown; literalKey?: boolean }
+  | { type: 'keyFilter'; property: string; value: unknown; literalKey?: boolean; memberPath?: string[] }
   | { type: 'valueFilter'; value: unknown };
 
 // ─── Filter Literal Formatting ──────────────────────────────────────────────
@@ -34,11 +34,15 @@ export function parseFilterLiteral(s: string): unknown {
   if (s === 'false') return false;
   if (s === 'null') return null;
   if (s.startsWith("'") && s.endsWith("'")) {
-    return s.slice(1, -1).replace(/''/g, "'");
+    const [value, end] = extractQuotedString(s, 1);
+    if (end !== s.length - 1) throw new Error(`Invalid filter literal: ${s}`);
+    return value;
   }
   // Number — only accept JSON-compatible numeric literals (decimal, optional sign, optional exponent)
   if (/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(s)) {
-    return Number(s);
+    const value = Number(s);
+    if (!Number.isFinite(value)) throw new Error(`Invalid non-finite filter literal: ${s}`);
+    return value;
   }
   throw new Error(`Invalid filter literal: ${s}`);
 }
@@ -108,28 +112,28 @@ function findFilterClose(s: string, from: number): number {
 const NESTED_PATH_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
 
 function parseFilter(inner: string): AtomPathSegment {
-  if (inner.startsWith("@.")) {
-    // Key filter with dot property: @.key==val or @.a.b==val (nested)
-    const eq = inner.indexOf('==');
-    if (eq === -1) throw new Error(`Invalid filter: missing '==' in ${inner}`);
-    const key = inner.slice(2, eq);
-    if (!key || !NESTED_PATH_RE.test(key)) {
-      throw new Error(`Invalid property name in filter: '${key}'. Use bracket notation for non-identifier keys: @['${key}']`);
-    }
-    return { type: 'keyFilter', property: key, value: parseFilterLiteral(inner.slice(eq + 2)) };
+  if (inner.startsWith('@==')) return { type: 'valueFilter', value: parseFilterLiteral(inner.slice(3)) };
+  if (!inner.startsWith('@.') && !inner.startsWith("@['")) throw new Error(`Invalid filter expression: ${inner}`);
+  let quoted = false;
+  let eq = -1;
+  for (let i = 1; i < inner.length; i++) {
+    if (inner[i] === "'") {
+      if (quoted && inner[i + 1] === "'") { i++; continue; }
+      quoted = !quoted;
+    } else if (!quoted && inner.slice(i, i + 2) === '==') { eq = i; break; }
   }
-  if (inner.startsWith("@['")) {
-    // Key filter with bracket property: @['dotted.key']==val
-    const [key, endIdx] = extractQuotedString(inner, 3);
-    // endIdx is at closing quote; then ']', '=', '=' follow
-    const valStart = endIdx + 4; // skip past ']==
-    return { type: 'keyFilter', property: key, value: parseFilterLiteral(inner.slice(valStart)), literalKey: true };
-  }
-  if (inner.startsWith('@==')) {
-    // Value filter: @==val
-    return { type: 'valueFilter', value: parseFilterLiteral(inner.slice(3)) };
-  }
-  throw new Error(`Invalid filter expression: ${inner}`);
+  if (eq === -1) throw new Error(`Invalid filter: missing '==' in ${inner}`);
+  const access = inner.slice(1, eq);
+  let members: AtomPathSegment[];
+  try { members = parseAtomPath('$' + access).slice(1); }
+  catch { throw new Error(`Invalid property name in filter: ${inner}`); }
+  if (!members.length || members.some(member => member.type !== 'property')) throw new Error(`Invalid property name in filter: ${inner}`);
+  const names = members.map(member => (member as Extract<AtomPathSegment, { type: 'property' }>).name);
+  const property = names.join('.');
+  const value = parseFilterLiteral(inner.slice(eq + 2));
+  if (names.length === 1 && access.startsWith('[')) return { type: 'keyFilter', property, value, literalKey: true };
+  if (names.some(name => !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name))) return { type: 'keyFilter', property, value, memberPath: names };
+  return { type: 'keyFilter', property, value };
 }
 
 // ─── Path Parsing ───────────────────────────────────────────────────────────
@@ -155,6 +159,7 @@ export function parseAtomPath(path: string): AtomPathSegment[] {
         i += 1;
       }
       if (i === start) throw new Error(`Empty property name at position ${i} in: ${path}`);
+      if (!/^[a-zA-Z_]/.test(path.slice(start, i))) throw new Error(`Invalid dot property in: ${path}`);
       segments.push({ type: 'property', name: path.slice(start, i) });
     } else if (path[i] === '[') {
       if (i + 1 >= path.length) throw new Error(`Unexpected end of path after '[': ${path}`);
@@ -181,6 +186,9 @@ export function parseAtomPath(path: string): AtomPathSegment[] {
         // Validate: no leading zeros except for "0" itself
         if (indexStr.length > 1 && indexStr[0] === '0') {
           throw new Error(`Leading zeros not allowed in array index: [${indexStr}]`);
+        }
+        if (!/^(0|[1-9]\d*)$/.test(indexStr) || !Number.isSafeInteger(Number(indexStr))) {
+          throw new Error(`Invalid array index: [${indexStr}]`);
         }
         segments.push({ type: 'index', index: Number(indexStr) });
         i = end + 1;
@@ -224,7 +232,9 @@ export function buildAtomPath(segments: AtomPathSegment[]): string {
         break;
       case 'keyFilter': {
         let memberAccess: string;
-        if (seg.literalKey) {
+        if (seg.memberPath) {
+          memberAccess = seg.memberPath.map(formatMemberAccess).join('');
+        } else if (seg.literalKey) {
           // Literal property name (from bracket notation) — always bracket
           memberAccess = `['${seg.property.replace(/'/g, "''")}']`;
         } else if (NESTED_PATH_RE.test(seg.property)) {
@@ -255,7 +265,7 @@ export function buildAtomPath(segments: AtomPathSegment[]): string {
  * - `@['c.d']=='20'` → `[?(@['c.d']=='20')]` (literal dot-key, bracket preserved)
  * - `@=='val'` → `[?(@=='val')]` (value filter, unchanged)
  */
-function canonicalizeFilterForAtom(inner: string): string {
+function normalizeLegacyFilterOperator(inner: string): string {
   // Older atomic changesets used a single '='. Normalize only the operator,
   // leaving quoted property names and values untouched.
   let quoted = false;
@@ -270,6 +280,11 @@ function canonicalizeFilterForAtom(inner: string): string {
       break;
     }
   }
+  return inner;
+}
+
+function canonicalizeFilterForAtom(inner: string): string {
+  inner = normalizeLegacyFilterOperator(inner);
   if (inner.startsWith('@.')) {
     const eqIdx = inner.indexOf('==');
     if (eqIdx === -1) return `[?(${inner})]`;

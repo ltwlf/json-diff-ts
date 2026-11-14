@@ -49,9 +49,11 @@ export function arrayIntersection<T>(first: T[], second: T[]): T[] {
 }
 
 export function keyBy<T>(arr: T[], getKey: FunctionKey<T>): Record<string, T> {
-    const result: Record<string, T> = {};
+    const result: Record<string, T> = Object.create(null);
     for (const [index, item] of Object.entries(arr)) {
-        result[String(getKey(item, false, Number(index)))] = item;
+        const key = String(getKey(item, false, Number(index)));
+        if (Object.prototype.hasOwnProperty.call(result, key)) throw new Error(`Duplicate array identity: ${key}`);
+        result[key] = item;
     }
     return result;
 }

@@ -70,21 +70,21 @@ Apply forward to get the new state, or revert to restore the original:
 
 ```typescript
 // Clone before applying — applyAtom mutates the input object
-const updated  = applyAtom(structuredClone(before), atom);  // updated === after
+const updated  = applyAtom(structuredClone(before), atom);  // updated values; existing array order retained
 const restored = revertAtom(structuredClone(updated), atom); // restored === before
 ```
 
-## Preview release
+## Version 5
 
-The JSON Atom API is available in the v5 preview:
+JSON Atom is available in the stable v5 release:
 
 ```sh
-npm install json-diff-ts@preview
-# Pin this preview explicitly:
-npm install json-diff-ts@5.0.0-alpha.10
+npm install json-diff-ts@5
+# Pin the release explicitly:
+npm install json-diff-ts@5.0.0
 ```
 
-`5.0.0-alpha.10` adds `keysToInclude`, fixes atomic path round-trips for dotted and bracketed property names, and fixes reverting index-based array additions. It also includes the descending array-removal ordering from `alpha.9`. The stable v4 package remains on the `latest` tag.
+Version 5 adds JSON Atom diff/apply/undo, move/copy operations, workflow helpers, and `keysToInclude`. It fixes atomic path round-trips for special property names and array apply/revert ordering. JSON Atom consumers use typed filters and reject malformed paths, missing or ambiguous targets, and invalid JSON payloads.
 
 ## Quick Start
 
@@ -128,7 +128,7 @@ That's it. `atom` is a plain JSON object you can store in a database, send over 
 ## Installation
 
 ```sh
-npm install json-diff-ts@preview
+npm install json-diff-ts
 ```
 
 ```typescript
@@ -688,11 +688,15 @@ interface Options {
 
 ## Migration from v4
 
-1. **No action required** -- all v4 APIs work identically in v5.
-2. **Adopt JSON Atom** -- use `diffAtom()` / `applyAtom()` for new code.
-3. **Bridge existing data** -- `toAtom()` / `fromAtom()` for interop with stored v4 changesets.
-4. **Rename `embeddedObjKeys` to `arrayIdentityKeys`** -- the old name still works, but `arrayIdentityKeys` is the preferred name going forward.
-5. Both formats coexist. No forced migration.
+1. **Existing APIs remain available.** `diff`, `applyChangeset`, `revertChangeset`, and the atomic conversion helpers are still exported. Fixes include array revert ordering and preserving the input changeset during revert.
+2. **Adopt JSON Atom** with `diffAtom()` / `applyAtom()` for new code. Atom values must be JSON-safe. Serialize Date and other JavaScript-only values before diffing. Root creation/removal uses `null` as the empty-document value.
+3. **Use typed identity values.** `1` and `'1'` are different filter values. `toAtom()` is a best-effort bridge: legacy paths contain string literals and cannot recover numeric or boolean identity types. Recompute with `diffAtom()` when typed identity is needed. `fromAtom()` does not support move/copy.
+4. **Identity keys must be unique.** Duplicate identities now throw instead of silently dropping elements. The diff producer also rejects identities that collide after string conversion (for example `1` and `'1'` in one array). Applying externally produced atoms supports strict typed identities.
+5. **Invalid operations throw.** Add cannot overwrite an existing object property; remove/replace require an existing target; filters must identify exactly one element. Move/copy follow add rules, including the root-null precondition. Failed moves preserve the source. Earlier successful operations in a failed multi-operation atom may already have been applied.
+6. **Array identity is order-independent.** Key/value identity does not reproduce arbitrary reorderings or original insertion positions on undo. Use index-based diffing when exact array order matters.
+7. **Rename `embeddedObjKeys` to `arrayIdentityKeys`.** The alias remains supported. `keysToInclude` and `keysToSkip` select traversal, not payload redaction; structural changes preserve complete values.
+8. **Package entry points are explicit.** ESM, CommonJS, and their TypeScript declarations resolve through conditional exports. Import from `json-diff-ts`; deep imports into `dist/` are not public entry points.
+
 
 ---
 
@@ -705,7 +709,7 @@ interface Options {
 | Dependencies | Zero | Few | Many | Varies |
 | ESM Support | Native | CJS only | CJS only | Varies |
 | Array Identity | Key-based | Index only | Configurable | Index only |
-| Wire Format | JSON Atom (standardized) | Proprietary | Proprietary | JSON Pointer |
+| Wire Format | JSON Atom (draft specification) | Proprietary | Proprietary | JSON Pointer |
 | Reversibility | Built-in (`oldValue`) | Manual | Plugin | Not built-in |
 
 ## FAQ

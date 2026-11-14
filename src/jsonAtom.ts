@@ -1,8 +1,8 @@
+import { isJsonValue } from './atomValidation.js';
+import { applyAtomOperations } from './atomApply.js';
 import {
   diff,
   atomizeChangeset,
-  unatomizeChangeset,
-  applyChangeset,
   IChange,
   IAtomicChange,
   Changeset,
@@ -13,6 +13,7 @@ import type { FunctionKey } from './helpers.js';
 import {
   formatFilterLiteral,
   parseAtomPath,
+  buildAtomPath,
   atomicPathToAtomPath,
   atomPathToAtomicPath,
   extractKeyFromAtomicPath,
@@ -56,8 +57,8 @@ export function validateAtom(atom: unknown): { valid: boolean; errors: string[] 
   if (d.format !== 'json-atom') {
     errors.push(`Invalid or missing format: expected 'json-atom', got '${d.format}'`);
   }
-  if (typeof d.version !== 'number') {
-    errors.push(`Missing or invalid version: expected number, got '${typeof d.version}'`);
+  if (d.version !== 1) {
+    errors.push(`Missing or invalid version: expected 1, got '${d.version}'`);
   }
   if (!Array.isArray(d.operations)) {
     errors.push('Missing or invalid operations: expected array');
@@ -73,6 +74,15 @@ export function validateAtom(atom: unknown): { valid: boolean; errors: string[] 
       }
       if (typeof op.path !== 'string') {
         errors.push(`operations[${i}]: path must be a string`);
+      }
+      for (const field of ['value', 'oldValue']) {
+        if (field in op && !isJsonValue(op[field])) errors.push(`operations[${i}]: ${field} must be a JSON value`);
+      }
+      for (const field of ['path', ...(['move', 'copy'].includes(op.op) ? ['from'] : [])]) {
+        if (typeof op[field] === 'string') {
+          try { parseAtomPath(op[field]); }
+          catch (error) { errors.push(`operations[${i}]: invalid ${field}: ${(error as Error).message}`); }
+        }
       }
       if (op.op === 'add') {
         if (!('value' in op)) {
@@ -98,11 +108,13 @@ export function validateAtom(atom: unknown): { valid: boolean; errors: string[] 
         if ('oldValue' in op) {
           errors.push(`operations[${i}]: move operation must not have oldValue`);
         }
-        if (typeof op.from === 'string' && typeof op.path === 'string') {
-          if (op.from === op.path) {
+        if (typeof op.from === 'string' && typeof op.path === 'string' && !errors.length) {
+          const from = buildAtomPath(parseAtomPath(op.from));
+          const path = buildAtomPath(parseAtomPath(op.path));
+          if (from === path) {
             errors.push(`operations[${i}]: move operation from must not equal path (self-move)`);
           }
-          if (op.from !== '$' && (op.path.startsWith(op.from + '.') || op.path.startsWith(op.from + '['))) {
+          if (path.startsWith(from + '.') || path.startsWith(from + '[')) {
             errors.push(`operations[${i}]: move operation path must not be a subtree of from`);
           }
         }
@@ -135,12 +147,17 @@ export function diffAtom(oldObj: any, newObj: any, options: AtomOptions = {}): I
 
   const operations: IAtomOperation[] = [];
   walkChanges(changeset, '$', oldObj, newObj, operations, options);
+  if (operations.length === 1 && operations[0].path === '$') {
+    if (oldObj === null && newObj !== null) operations[0] = { op: 'add', path: '$', value: newObj };
+    if (newObj === null && oldObj !== null) {
+      operations[0] = { op: 'remove', path: '$', ...(options.reversible === false ? {} : { oldValue: oldObj }) };
+    }
+  }
 
-  return {
-    format: 'json-atom',
-    version: 1,
-    operations,
-  };
+  const atom: IJsonAtom = { format: 'json-atom', version: 1, operations };
+  const validation = validateAtom(atom);
+  if (!validation.valid) throw new Error(`Cannot produce JSON Atom: ${validation.errors.join(', ')}`);
+  return atom;
 }
 
 /**
@@ -177,6 +194,7 @@ function mergeTypeChangePairs(changes: IChange[]): MergedChange[] {
   return result;
 }
 
+const NESTED_PATH_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
 const SIMPLE_PROPERTY_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 function appendCanonicalProperty(basePath: string, name: string): string {
@@ -197,9 +215,13 @@ function walkChanges(
   const merged = mergeTypeChangePairs(changes);
 
   for (const change of merged) {
+    const isRoot = change.key === '$root' && basePath === '$' && (
+      oldCtx === null || newCtx === null || typeof oldCtx !== 'object' || typeof newCtx !== 'object'
+      || Array.isArray(oldCtx) || Array.isArray(newCtx)
+    );
     if ((change as MergedChange).isMergedReplace) {
       const mc = change as MergedChange;
-      const path = mc.key === '$root' ? '$' : appendCanonicalProperty(basePath, mc.key);
+      const path = isRoot ? '$' : appendCanonicalProperty(basePath, mc.key);
       const op: IAtomOperation = { op: 'replace', path, value: mc.addValue };
       if (options.reversible !== false) {
         op.oldValue = mc.removeValue;
@@ -207,41 +229,41 @@ function walkChanges(
       ops.push(op);
     } else if (change.changes) {
       // Branch change
-      const childPath = change.key === '$root' ? '$' : appendCanonicalProperty(basePath, change.key);
-      const childOld = change.key === '$root' ? oldCtx : oldCtx?.[change.key];
-      const childNew = change.key === '$root' ? newCtx : newCtx?.[change.key];
+      const childPath = isRoot ? '$' : appendCanonicalProperty(basePath, change.key);
+      const childOld = isRoot ? oldCtx : oldCtx?.[change.key];
+      const childNew = isRoot ? newCtx : newCtx?.[change.key];
 
       if (change.embeddedKey) {
         // Array level — process each child with filter expression
-        const orderedChildChanges = orderArrayChildChanges(change.changes, change.embeddedKey);
-        for (const childChange of orderedChildChanges) {
-          const filterPath = buildCanonicalFilterPath(
-            childPath,
-            change.embeddedKey,
-            childChange.key,
-            childOld,
-            childNew,
-            childChange,
-            change.embeddedKeyIsPath
-          );
-
-          if (childChange.changes) {
-            // Deep path after filter — recurse into matched element
-            const oldEl = findElement(childOld, change.embeddedKey, childChange.key, change.embeddedKeyIsPath);
-            const newEl = findElement(childNew, change.embeddedKey, childChange.key, change.embeddedKeyIsPath);
-            walkChanges(childChange.changes, filterPath, oldEl, newEl, ops, options);
-          } else {
-            emitLeafOp(childChange, filterPath, ops, options);
-          }
-        }
+        walkArrayChanges(change, childPath, childOld, childNew, ops, options);
       } else {
         // Object branch — recurse
         walkChanges(change.changes, childPath, childOld, childNew, ops, options);
       }
     } else {
       // Leaf change
-      const path = change.key === '$root' ? '$' : appendCanonicalProperty(basePath, change.key);
+      const path = isRoot ? '$' : appendCanonicalProperty(basePath, change.key);
       emitLeafOp(change, path, ops, options);
+    }
+  }
+}
+
+function walkArrayChanges(
+  change: IChange, path: string, oldArr: any[], newArr: any[], ops: IAtomOperation[], options: AtomOptions
+): void {
+  const ordered = orderArrayChildChanges(change.changes!, change.embeddedKey!);
+  for (const child of mergeTypeChangePairs(ordered)) {
+    const childPath = buildCanonicalFilterPath(path, change.embeddedKey!, child.key, oldArr, newArr, child, change.embeddedKeyIsPath);
+    if (child.isMergedReplace) {
+      ops.push({ op: 'replace', path: childPath, value: child.addValue,
+        ...(options.reversible === false ? {} : { oldValue: child.removeValue }) });
+    } else if (child.changes) {
+      const oldEl = findElement(oldArr, change.embeddedKey!, child.key, change.embeddedKeyIsPath);
+      const newEl = findElement(newArr, change.embeddedKey!, child.key, change.embeddedKeyIsPath);
+      if (child.embeddedKey) walkArrayChanges(child, childPath, oldEl, newEl, ops, options);
+      else walkChanges(child.changes, childPath, oldEl, newEl, ops, options);
+    } else {
+      emitLeafOp(child, childPath, ops, options);
     }
   }
 }
@@ -519,9 +541,30 @@ export function toAtom(changeset: Changeset | IAtomicChange[], options: { revers
   });
 
   // Merge consecutive REMOVE+ADD at same path → single replace
-  const operations = mergeConsecutiveOps(rawOps);
+  const operations = orderLegacyIndexRemoves(mergeConsecutiveOps(rawOps));
 
   return { format: 'json-atom', version: 1, operations };
+}
+
+/** Legacy diffs address original array indices; remove siblings from the end. */
+function orderLegacyIndexRemoves(operations: IAtomOperation[]): IAtomOperation[] {
+  const groups = new Map<string, { slot: number; index: number; operation: IAtomOperation }[]>();
+  operations.forEach((operation, slot) => {
+    if (operation.op !== 'remove') return;
+    const segments = parseAtomPath(operation.path);
+    const last = segments.at(-1)!;
+    if (last.type !== 'index') return;
+    const parent = buildAtomPath(segments.slice(0, -1));
+    const group = groups.get(parent) ?? [];
+    group.push({ slot, index: last.index, operation });
+    groups.set(parent, group);
+  });
+  const result = [...operations];
+  for (const group of groups.values()) {
+    const ordered = [...group].sort((a, b) => b.index - a.index);
+    group.forEach((entry, index) => { result[entry.slot] = ordered[index].operation; });
+  }
+  return result;
 }
 
 function mergeConsecutiveOps(ops: IAtomOperation[]): IAtomOperation[] {
@@ -646,8 +689,13 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
         return { op: 'remove' as AtomOp, path: op.path, oldValue: op.value, ...extensions };
       case 'remove':
         return { op: 'add' as AtomOp, path: op.path, value: op.oldValue, ...extensions };
-      case 'replace':
-        return { op: 'replace' as AtomOp, path: op.path, value: op.oldValue, oldValue: op.value, ...extensions };
+      case 'replace': {
+        if (op.path === '$' && op.value === null) return { op: 'add' as AtomOp, path: '$', value: op.oldValue, ...extensions };
+        const segments = parseAtomPath(op.path);
+        const last = segments.at(-1)!;
+        if (last.type === 'valueFilter') last.value = op.value;
+        return { op: 'replace' as AtomOp, path: buildAtomPath(segments), value: op.oldValue, oldValue: op.value, ...extensions };
+      }
       case 'move':
         return { op: 'move' as AtomOp, from: op.path, path: op.from!, ...extensions };
       case 'copy':
@@ -671,159 +719,11 @@ export function invertAtom(atom: IJsonAtom): IJsonAtom {
 
 // ─── applyAtom ─────────────────────────────────────────────────────────────
 
-const NESTED_PATH_RE = /^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$/;
-
-/**
- * Resolve a value at a JSON Atom path within an object.
- * Uses parseAtomPath for correct handling of all path forms.
- */
-function resolveValueAtPath(obj: any, atomPath: string): any {
-  const segments = parseAtomPath(atomPath);
-  let current = obj;
-  for (const seg of segments) {
-    switch (seg.type) {
-      case 'root':
-        break;
-      case 'property':
-        if (current == null || typeof current !== 'object') {
-          throw new Error(`Cannot access property '${seg.name}' on ${current === null ? 'null' : typeof current} at path: ${atomPath}`);
-        }
-        current = current[seg.name];
-        break;
-      case 'index':
-        if (!Array.isArray(current)) {
-          throw new Error(`Cannot access index ${seg.index} on non-array at path: ${atomPath}`);
-        }
-        current = current[seg.index];
-        break;
-      case 'keyFilter': {
-        if (!Array.isArray(current)) {
-          throw new Error(`Cannot apply key filter on non-array at path: ${atomPath}`);
-        }
-        const prop = seg.property;
-        const isPath = !seg.literalKey && prop.includes('.') && NESTED_PATH_RE.test(prop);
-        current = current.find((el: any) => {
-          const resolved = isPath ? prop.split('.').reduce((c: any, s: string) => c?.[s], el) : el[prop];
-          return JSON.stringify(resolved) === JSON.stringify(seg.value);
-        });
-        break;
-      }
-      case 'valueFilter': {
-        if (!Array.isArray(current)) {
-          throw new Error(`Cannot apply value filter on non-array at path: ${atomPath}`);
-        }
-        current = current.find((el: any) => JSON.stringify(el) === JSON.stringify(seg.value));
-        break;
-      }
-    }
-  }
-  return current;
-}
-
-/**
- * Apply a JSON Atom document to an object.
- * Processes operations sequentially. Handles root operations directly.
- * Returns the result (MUST use return value for root primitive replacements).
- */
+/** Apply operations sequentially in place; use the return value for root changes. */
 export function applyAtom(obj: any, atom: IJsonAtom): any {
   const validation = validateAtom(atom);
-  if (!validation.valid) {
-    throw new Error(`Invalid atom: ${validation.errors.join(', ')}`);
-  }
-
-  let result: any = obj;
-
-  for (const op of atom.operations) {
-    if (op.op === 'move') {
-      // Read value at from
-      const value = resolveValueAtPath(result, op.from!);
-      // Remove from source
-      const removeOp: IAtomOperation = { op: 'remove', path: op.from!, oldValue: value };
-      if (removeOp.path === '$') {
-        result = applyRootOp(result, removeOp);
-      } else {
-        const removeChange = atomOpToAtomicChange(removeOp);
-        applyChangeset(result, unatomizeChangeset([removeChange]));
-      }
-      // Add to target
-      const addOp: IAtomOperation = { op: 'add', path: op.path, value };
-      if (addOp.path === '$') {
-        result = applyRootOp(result, addOp);
-      } else {
-        const addChange = atomOpToAtomicChange(addOp);
-        applyChangeset(result, unatomizeChangeset([addChange]));
-      }
-    } else if (op.op === 'copy') {
-      const source = resolveValueAtPath(result, op.from!);
-      const value = source === undefined ? undefined : JSON.parse(JSON.stringify(source));
-      const addOp: IAtomOperation = { op: 'add', path: op.path, value };
-      if (addOp.path === '$') {
-        result = applyRootOp(result, addOp);
-      } else {
-        const addChange = atomOpToAtomicChange(addOp);
-        applyChangeset(result, unatomizeChangeset([addChange]));
-      }
-    } else if (op.path === '$') {
-      result = applyRootOp(result, op);
-    } else {
-      const atomicChange = atomOpToAtomicChange(op);
-      const miniChangeset = unatomizeChangeset([atomicChange]);
-      applyChangeset(result, miniChangeset);
-    }
-  }
-
-  return result;
-}
-
-function applyRootOp(obj: any, op: IAtomOperation): any {
-  switch (op.op) {
-    case 'add':
-      return op.value;
-    case 'remove':
-      return null;
-    case 'replace': {
-      // Only attempt in-place mutation when both old and new are plain objects (not arrays)
-      if (
-        typeof obj === 'object' && obj !== null && !Array.isArray(obj) &&
-        typeof op.value === 'object' && op.value !== null && !Array.isArray(op.value)
-      ) {
-        for (const key of Object.keys(obj)) {
-          delete obj[key];
-        }
-        Object.assign(obj, op.value);
-        return obj;
-      }
-      // All other cases: return new value directly (primitives, arrays, type changes)
-      return op.value;
-    }
-    /* istanbul ignore next -- exhaustive switch */
-    default:
-      throw new Error(`Unknown operation: ${op.op}`);
-  }
-}
-
-function atomOpToAtomicChange(op: IAtomOperation): IAtomicChange {
-  const atomicPath = atomPathToAtomicPath(op.path);
-  const key = extractKeyFromAtomicPath(atomicPath);
-
-  switch (op.op) {
-    case 'add':
-      return { type: Operation.ADD, key, path: atomicPath, valueType: getValueType(op.value), value: op.value };
-    case 'remove':
-      return { type: Operation.REMOVE, key, path: atomicPath, valueType: getValueType(op.oldValue), value: op.oldValue };
-    case 'replace':
-      return {
-        type: Operation.UPDATE,
-        key,
-        path: atomicPath,
-        valueType: getValueType(op.value),
-        value: op.value,
-        oldValue: op.oldValue,
-      };
-    /* istanbul ignore next -- exhaustive switch */
-    default:
-      throw new Error(`Unknown operation: ${op.op}`);
-  }
+  if (!validation.valid) throw new Error(`Invalid atom: ${validation.errors.join(', ')}`);
+  return applyAtomOperations(obj, atom);
 }
 
 // ─── revertAtom ────────────────────────────────────────────────────────────

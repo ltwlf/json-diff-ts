@@ -16,6 +16,9 @@ updates:
           - "minor"
       dev-dependencies:
         dependency-type: "development"
+        update-types:
+          - "patch"
+          - "major"
     open-pull-requests-limit: 5
 
   - package-ecosystem: "github-actions"
@@ -31,4 +34,7 @@ updates:
       actions:
         patterns:
           - "*"
+        update-types:
+          - "patch"
+          - "major"
     open-pull-requests-limit: 3

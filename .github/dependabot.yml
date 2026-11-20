@@ -10,6 +10,10 @@ updates:
     schedule:
       interval: "weekly"
     groups:
+      dev-dependencies-minor:
+        dependency-type: "development"
+        update-types:
+          - "minor"
       dev-dependencies:
         dependency-type: "development"
     open-pull-requests-limit: 5
@@ -19,6 +23,11 @@ updates:
     schedule:
       interval: "weekly"
     groups:
+      actions-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
       actions:
         patterns:
           - "*"

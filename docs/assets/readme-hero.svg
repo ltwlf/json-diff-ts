@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="420" viewBox="0 0 1120 420" role="img" aria-labelledby="title desc">
   <title id="title">json-diff-ts — Diff. Apply. Undo.</title>
-  <desc id="desc">A TypeScript toolkit for reversible JSON changes. Key-based array identity, JSON Atom and zero runtime dependencies. Around 1.2 million npm downloads per week as of November 14, 2026.</desc>
+  <desc id="desc">Reversible JSON diffs in TypeScript, with keyed array matching and zero runtime dependencies. 1M+ weekly npm downloads.</desc>
   <defs>
     <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0c1725"/><stop offset="1" stop-color="#102e39"/></linearGradient>
     <linearGradient id="accent"><stop stop-color="#9cf8b9"/><stop offset="1" stop-color="#58d8ed"/></linearGradient>
@@ -13,12 +13,8 @@
     <rect x="44" y="35" width="36" height="36" rx="10" fill="#a4f6ba"/>
     <text x="62" y="60" text-anchor="middle" font-size="23" font-weight="700" fill="#102429">{ }</text>
     <text x="94" y="61" font-size="23" font-weight="700" fill="#f1f8fb">json-diff-ts</text>
-    <rect x="936" y="35" width="140" height="32" rx="16" fill="#193e42" stroke="#80d7bc" stroke-opacity=".4"/>
-    <circle cx="955" cy="51" r="4" fill="#a4f6ba"/>
-    <text x="1013" y="56" text-anchor="middle" font-size="13" font-weight="600" letter-spacing="1" fill="#bbf7d1">OPEN SOURCE</text>
     <text x="44" y="156" font-size="57" font-weight="750" letter-spacing="-2" fill="#f1f8fb">Diff. Apply. <tspan fill="#a4f6ba">Undo.</tspan></text>
-    <text x="47" y="203" font-size="23" fill="#b9cdd8">Give every JSON change a clear identity.</text>
-    <text x="47" y="238" font-size="16" fill="#87a6b9">Typed paths. Reversible operations. Your data, in control.</text>
+    <text x="47" y="203" font-size="23" fill="#b9cdd8">Reversible JSON diffs in TypeScript.</text>
     <g transform="translate(648 102)">
       <rect width="428" height="172" rx="14" fill="#0a1824" stroke="#3f626e"/>
       <path d="M1 42 H427" stroke="#2a4552"/>
@@ -31,10 +27,10 @@
         <path d="M158 107 H184 M179 102 L184 107 L179 112" fill="none" stroke="#658697" stroke-width="1.5"/>
         <text x="197" y="113" fill="#a4f6ba">24</text>
       </g>
-      <text x="22" y="147" font-size="13" fill="#8daab8">Address the item by its ID. Keep the old value for undo.</text>
+      <text x="22" y="147" font-size="13" fill="#8daab8">Match by ID and keep the old value for undo.</text>
     </g>
     <path d="M44 311 H1076" stroke="#34505e"/>
-    <text x="47" y="356" font-size="30" font-weight="700" fill="#f1f8fb">~1.2M</text>
+    <text x="47" y="356" font-size="30" font-weight="700" fill="#f1f8fb">1M+</text>
     <text x="47" y="383" font-size="14" fill="#91adbc">weekly npm downloads</text>
     <path d="M343 335 V386" stroke="#34505e"/>
     <text x="380" y="356" font-size="30" font-weight="700" fill="#f1f8fb">0</text>

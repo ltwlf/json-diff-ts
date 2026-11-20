@@ -66,8 +66,8 @@
     "jest": "^30.0.0",
     "prettier": "^3.0.3",
     "ts-jest": "^29.4.0",
-    "tsup": "^8.5.0",
-    "typescript": "^6.0.3",
+    "tsup": "^9.0.0",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.34.0"
   },
   "exports": {

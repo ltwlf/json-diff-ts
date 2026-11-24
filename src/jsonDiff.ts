@@ -680,7 +680,7 @@ const applyArrayChange = (arr: any[], change: any) => {
         });
       }
       if (element) {
-        applyChangeset(element, subchange.changes);
+        applyBranchChange(element, subchange);
       }
     }
   }
@@ -782,7 +782,7 @@ const revertArrayChange = (arr: any[], change: any) => {
         });
       }
       if (element) {
-        revertChangeset(element, subchange.changes);
+        revertBranchChange(element, subchange);
       }
     }
   }

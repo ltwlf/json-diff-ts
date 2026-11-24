@@ -268,6 +268,25 @@ describe('jsonDiff#applyChangeset', () => {
     expect(result4).toEqual({});
     expect(result4.hasOwnProperty('test')).toBe(false);
   });
+
+  describe('arrays inside arrays', () => {
+    it('should remove elements of a nested array', () => {
+      const oldObj = { matrix: [[1, 2, 3], [4]] };
+      const newObj = { matrix: [[1], [4]] };
+
+      const result = applyChangeset(structuredClone(oldObj), diff(oldObj, newObj));
+      expect(result).toEqual(newObj);
+    });
+
+    it('should keep the position of a replaced element of a nested array', () => {
+      // A type change is encoded as REMOVE + ADD at the same index.
+      const oldArr = [['a', 2, 3]];
+      const newArr = [[false, 2, 3]];
+
+      const result = applyChangeset(structuredClone(oldArr), diff(oldArr, newArr));
+      expect(result).toEqual(newArr);
+    });
+  });
 });
 
 describe('jsonDiff#revertChangeset', () => {
@@ -401,6 +420,16 @@ describe('jsonDiff#revertChangeset', () => {
       const changes = diff(oldObj, newObj);
       const result = revertChangeset(structuredClone(newObj), changes);
       expect(result).toEqual(oldObj);
+    });
+
+    it('should restore the positions in a nested array', () => {
+      // The changes of an inner array have to be ordered like those of an outer one.
+      const oldArr = [['a', 'b', 'c', 'd']];
+      const newArr = [['a']];
+
+      const changes = diff(oldArr, newArr);
+      const result = revertChangeset(structuredClone(newArr), changes);
+      expect(result).toEqual(oldArr);
     });
 
     it.each(fixtures.indexArrayRevertCases)('should round-trip a revert for $name', ({ oldVal, newVal }) => {
